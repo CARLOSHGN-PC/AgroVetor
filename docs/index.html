@@ -541,18 +541,6 @@
       #userMenuUsername { font-weight: 600; color: var(--color-primary-dark); font-size: 16px; word-break: break-all; }
       .user-menu-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; font-size: 14px; color: var(--color-text-light); cursor: pointer; transition: background-color 0.2s ease; border-radius: var(--border-radius); background-color: transparent; }
       .user-menu-item.is-action:hover { background-color: var(--color-bg); }
-
-      .profile-connectivity {
-          cursor: default;
-          font-weight: 600;
-      }
-      .profile-connectivity i {
-          font-size: 10px;
-      }
-      .profile-connectivity[data-status="online"] i { color: #2ecc71; }
-      .profile-connectivity[data-status="offline"] i { color: #e74c3c; }
-      .profile-connectivity[data-status="syncing"] i { color: #f1c40f; }
-      .profile-connectivity[data-status="reauth"] i { color: #3498db; }
       #logoutBtn { color: var(--color-danger); font-weight: 500; }
       #logoutBtn:hover { background-color: color-mix(in srgb, var(--color-danger) 10%, transparent); }
       #user-menu-dropdown hr { border: none; border-top: 1px solid var(--color-border); margin: 8px -8px; }
@@ -2143,7 +2131,11 @@
             </div>
             
             <div class="header-actions-container">
-                                <div id="notification-bell-container" class="notification-bell" style="display: none;">
+                <div id="connectionStatusBadge" class="connection-status-badge" role="status" aria-live="polite">
+                    <i class="fas fa-circle"></i>
+                    <span id="connectionStatusText">Offline</span>
+                </div>
+                <div id="notification-bell-container" class="notification-bell" style="display: none;">
                     <button id="notification-bell-toggle" aria-label="Notificações">
                         <i class="fas fa-bell"></i>
                         <span id="notification-count">0</span>
@@ -2188,17 +2180,7 @@
                         <button id="manualSyncBtn" role="menuitem" class="user-menu-item is-action">
                             <i class="fas fa-sync"></i> Sincronizar Manualmente
                         </button>
-                        <div id="profileConnectivityStatus" class="user-menu-item profile-connectivity" data-status="offline">
-                            <i class="fas fa-circle"></i>
-                            <span id="profileConnectivityStatusText">Offline</span>
-                        </div>
-                        <button id="profileConnectivityDetailsBtn" role="menuitem" class="user-menu-item is-action">
-                            <i class="fas fa-cloud-download-alt"></i> Detalhes/Sincronização
-                        </button>
-                                                <button id="profileExportMonitoringLogsBtn" role="menuitem" class="user-menu-item is-action">
-                            <i class="fas fa-file-export"></i> Exportar logs Monitoramento
-                        </button>
-<button id="changePasswordBtn" role="menuitem" class="user-menu-item is-action">
+                        <button id="changePasswordBtn" role="menuitem" class="user-menu-item is-action">
                             <i class="fas fa-key"></i> Alterar Senha
                         </button>
                         <button id="logoutBtn" role="menuitem" class="user-menu-item is-action">
@@ -2209,7 +2191,14 @@
             </div>
         </header>
 
-        
+        <div id="reauthBanner" class="reauth-banner" role="status" aria-live="polite">
+            <span>Conectado. Para sincronizar, confirme sua sessão.</span>
+            <div class="reauth-actions">
+                <button id="reauthNowBtn" class="save">Sincronizar agora</button>
+                <button id="reauthLaterBtn" class="btn-secondary">Depois</button>
+            </div>
+        </div>
+
         <nav class="menu" id="menu" aria-label="Menu Principal" tabindex="-1"></nav>
         
         <main class="content" id="content">
