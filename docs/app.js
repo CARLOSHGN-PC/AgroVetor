@@ -2173,7 +2173,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
-                App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
+                if (App.elements.monitoramentoAereo.container?.classList.contains('active')) {
+                    App.mapModule.initMap({ reason: 'screen-enter-map-active' });
+                }
                 App.actions.startGpsTracking(); // O rastreamento agora é manual
                 App.actions.startAutoSync(); // Inicia a sincronização automática
             },
@@ -12515,8 +12517,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         sizeBytes: new Blob([JSON.stringify(payload)]).size,
                         drawingsVersion: checksum
                     };
-                    await OfflineDB.set('offline-map-drawings', { id: packId, payload, updatedAt: now, checksum }, packId);
-                    await OfflineDB.set('offline-map-packs', record, packId);
+                    await OfflineDB.set('offline-map-drawings', { id: packId, payload, updatedAt: now, checksum });
+                    await OfflineDB.set('offline-map-packs', record);
                 }
                 await App.mapDiagnostics.log('drawingsCacheWriteOK', { packs: grouped.size });
                 await App.mapDiagnostics.updateProfileMetrics();
@@ -12584,6 +12586,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const mapContainer = App.elements.monitoramentoAereo.mapContainer;
+                const isMapTabVisible = App.elements.monitoramentoAereo.container?.classList.contains('active');
+                if (!isMapTabVisible) {
+                    await App.mapDiagnostics.log('mapCreate', { status: 'tab-hidden', reason: options.reason || 'screen-enter' });
+                    return;
+                }
                 if (!mapContainer || mapContainer.clientWidth === 0 || mapContainer.clientHeight === 0) {
                     await App.mapDiagnostics.log('mapCreate', { status: 'container-invalid', width: mapContainer?.clientWidth || 0, height: mapContainer?.clientHeight || 0 }, 'warning');
                     App.ui.showAlert('Mapa indisponível no momento. Tentando recuperar...', 'warning');
