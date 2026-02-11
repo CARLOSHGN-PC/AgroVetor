@@ -7,6 +7,8 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
 import CalculationService from './js/lib/CalculationService.js';
+import { offlineManager } from './js/lib/OfflineManager.js';
+import HarvestPlanningMapModule from './js/modules/HarvestPlanningMapModule.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -942,12 +944,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         init() {
             OfflineDB.init();
+            offlineManager.init();
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
             this.auth.onConnectivityChanged(navigator.onLine);
             this.pwa.registerServiceWorker();
+            this.harvestPlanningMap = new HarvestPlanningMapModule({
+                app: {
+                    state: this.state,
+                    ui: this.ui,
+                    db,
+                    firebase: { doc, getDoc, collection, getDocs },
+                    offlineManager,
+                    syncQueue: this.syncQueue
+                }
+            });
+            this.harvestPlanningMap.init();
         },
 
         native: {
@@ -2640,6 +2654,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (id === 'configuracoesEmpresa') {
                     App.actions.setupPlantingGoals();
+                }
+                if (id === 'planejamentoColheita' && App.harvestPlanningMap) {
+                    App.harvestPlanningMap.onTabShown();
                 }
                 if (id === 'syncHistory') this.renderSyncHistory();
                 if (id === 'excluirDados') this.renderExclusao();

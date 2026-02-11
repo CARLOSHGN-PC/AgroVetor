@@ -49,6 +49,7 @@ const { generateRiskViewPdf, getRiskViewData } = require('./reports/riskViewRepo
 const { getClimateStats } = require('./reports/climaDashboard');
 const { generateFleetPdf, getFleetData } = require('./reports/fleetReport');
 const { generateQualidadePlantioPdf, generateQualidadePlantioExcel } = require('./reports/qualidadePlantioReport');
+const { getHarvestSequenceData, generateOperationalPdf: generateHarvestSequenceOperationalPdf, generateOperationalExcel: generateHarvestSequenceOperationalExcel, generateMapPdf: generateHarvestSequenceMapPdf } = require('./reports/harvestSequenceReport');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -1689,6 +1690,77 @@ try {
         } catch (error) {
             console.error("Erro ao buscar dados do dashboard climático:", error);
             res.status(500).json({ message: 'Erro ao processar dados.' });
+        }
+    });
+
+    // --- RELATÓRIOS DE SEQUÊNCIA DE COLHEITA (NOVO MÓDULO) ---
+    app.get('/reports/harvest-sequence/operational/pdf', authMiddleware, async (req, res) => {
+        try {
+            const { companyId, planId, fazendaId, talhaoId, frentes = '', status = '' } = req.query;
+            if (!companyId || !planId) return res.status(400).json({ message: 'companyId e planId são obrigatórios.' });
+
+            const filters = {
+                fazendaId: fazendaId || '',
+                talhaoId: talhaoId || '',
+                frentes: String(frentes).split(',').map(s => s.trim()).filter(Boolean),
+                status: String(status).split(',').map(s => s.trim()).filter(Boolean)
+            };
+
+            const data = await getHarvestSequenceData(db, companyId, planId, filters);
+            const pdfBuffer = generateHarvestSequenceOperationalPdf({ ...data, filters });
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename=sequencia-operacional-${planId}.pdf`);
+            res.send(pdfBuffer);
+        } catch (error) {
+            console.error('Erro no relatório operacional de sequência:', error);
+            res.status(500).json({ message: error.message });
+        }
+    });
+
+    app.get('/reports/harvest-sequence/operational/excel', authMiddleware, async (req, res) => {
+        try {
+            const { companyId, planId, fazendaId, talhaoId, frentes = '', status = '' } = req.query;
+            if (!companyId || !planId) return res.status(400).json({ message: 'companyId e planId são obrigatórios.' });
+
+            const filters = {
+                fazendaId: fazendaId || '',
+                talhaoId: talhaoId || '',
+                frentes: String(frentes).split(',').map(s => s.trim()).filter(Boolean),
+                status: String(status).split(',').map(s => s.trim()).filter(Boolean)
+            };
+
+            const data = await getHarvestSequenceData(db, companyId, planId, filters);
+            const excelBuffer = generateHarvestSequenceOperationalExcel(data);
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=sequencia-operacional-${planId}.xlsx`);
+            res.send(excelBuffer);
+        } catch (error) {
+            console.error('Erro no Excel operacional de sequência:', error);
+            res.status(500).json({ message: error.message });
+        }
+    });
+
+    app.get('/reports/harvest-sequence/map/pdf', authMiddleware, async (req, res) => {
+        try {
+            const { companyId, planId, fazendaId, talhaoId, frentes = '', status = '', pageSize = 'A4' } = req.query;
+            if (!companyId || !planId) return res.status(400).json({ message: 'companyId e planId são obrigatórios.' });
+
+            const filters = {
+                fazendaId: fazendaId || '',
+                talhaoId: talhaoId || '',
+                frentes: String(frentes).split(',').map(s => s.trim()).filter(Boolean),
+                status: String(status).split(',').map(s => s.trim()).filter(Boolean),
+                pageSize
+            };
+
+            const data = await getHarvestSequenceData(db, companyId, planId, filters);
+            const pdfBuffer = generateHarvestSequenceMapPdf({ ...data, filters, pageSize: pageSize === 'A3' ? 'A3' : 'A4' });
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename=sequencia-mapa-${planId}.pdf`);
+            res.send(pdfBuffer);
+        } catch (error) {
+            console.error('Erro no relatório de mapa de sequência:', error);
+            res.status(500).json({ message: error.message });
         }
     });
 

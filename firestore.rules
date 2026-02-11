@@ -178,6 +178,29 @@ service cloud.firestore {
     match /config/{companyId} {
       allow read, write: if canAccessCompanyData(companyId);
     }
+
+    // Novo módulo: Planejamento de Colheita por Frente
+    match /harvest_plans/{planId} {
+      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
+      allow create: if canAccessCompanyData(request.resource.data.companyId);
+
+      match /items/{itemId} {
+        allow read, update: if canAccessCompanyData(get(/databases/$(database)/documents/harvest_plans/$(planId)).data.companyId);
+        allow create: if canAccessCompanyData(get(/databases/$(database)/documents/harvest_plans/$(planId)).data.companyId)
+                      && request.resource.data.companyId == get(/databases/$(database)/documents/harvest_plans/$(planId)).data.companyId;
+        allow delete: if false;
+      }
+
+      match /fronts/{frenteId} {
+        allow read, write: if canAccessCompanyData(get(/databases/$(database)/documents/harvest_plans/$(planId)).data.companyId);
+      }
+
+      match /history/{eventId} {
+        allow read: if canAccessCompanyData(get(/databases/$(database)/documents/harvest_plans/$(planId)).data.companyId);
+        allow create: if canAccessCompanyData(get(/databases/$(database)/documents/harvest_plans/$(planId)).data.companyId);
+        allow update, delete: if false;
+      }
+    }
     match /userDrafts/{userId} {
       allow read, write: if request.auth.uid == userId;
     }
