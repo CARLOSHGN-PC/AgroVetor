@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agrovetor-cache-v14'; // Incremented version for update
+const CACHE_NAME = 'agrovetor-cache-v15'; // Incremented version for update
 const MAX_TILES_IN_CACHE = 2000; // Max number of tiles to cache
 
 // Helper function to limit the size of the IndexedDB tile cache
@@ -200,11 +200,7 @@ async function getTileFromIndexedDB(request) {
         const db = await getDb();
         const tileBlob = await db.get(TILE_STORE_NAME, request.url);
         if (tileBlob) {
-            return new Response(tileBlob, {
-                headers: {
-                    'Content-Type': 'image/png'
-                }
-            });
+            return new Response(tileBlob);
         }
         return null;
     } catch (error) {
@@ -249,7 +245,7 @@ self.addEventListener('fetch', event => {
   }
 
   // Strategy for Mapbox tiles: IndexedDB first, then Network, while saving to IndexedDB in background
-  if (url.hostname.includes('api.mapbox.com') && (url.pathname.includes('mapbox.satellite') || url.pathname.includes('mapbox.mapbox-streets-v8'))) {
+  if (url.hostname.includes('api.mapbox.com') && (url.pathname.includes('mapbox.satellite') || url.pathname.includes('mapbox.mapbox-streets-v8') || url.pathname.includes('/styles/v1/') || url.pathname.includes('/sprite') || url.pathname.includes('/fonts/v1/'))) {
     event.respondWith(
         (async () => {
             const cachedResponse = await getTileFromIndexedDB(event.request);
