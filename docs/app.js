@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         async init() {
             if (this.dbPromise) return;
             // Version 8 for Qualidade de Plantio local cache
-            this.dbPromise = openDB('agrovetor-offline-storage', 8, {
+            this.dbPromise = openDB('agrovetor-offline-storage', 9, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -104,6 +104,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         qualidadeStore.createIndex('data', 'data', { unique: false });
                         qualidadeStore.createIndex('indicadorCodigo', 'indicadorCodigo', { unique: false });
                         qualidadeStore.createIndex('tipoPlantio', 'tipoPlantio', { unique: false });
+                    }
+
+                    if (oldVersion < 9) {
+                        db.createObjectStore('map-offline-packs', { keyPath: 'id' });
+                        db.createObjectStore('map-log-events', { keyPath: 'id' });
                     }
                 },
             });
@@ -233,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
             syncStatus: 'idle', // 'idle' | 'syncing' | 'error' | 'done'
             requiresReauthForSync: false,
             reauthDeferred: false,
+            lastSyncAt: null,
             isCheckingConnection: false,
             connectionCheckInterval: null,
             currentUser: null,
@@ -288,6 +294,14 @@ document.addEventListener('DOMContentLoaded', () => {
             regAppSelectedPlots: new Map(), // Map<talhaoId, {area: number, direction: string, isPartial: boolean}>
             regAppDirectionTarget: null, // Stores talhaoId when selecting direction on map
             regAppStartPoint: null, // Temporary store for start point during direction selection
+            mapLifecycle: {
+                initAttempt: 0,
+                watchdogTimer: null,
+                maxRetries: 2,
+                isInitializing: false,
+                userLocationWatchId: null,
+                restartReason: null,
+            },
             frota: [],
             controleFrota: [], // Mantido para compatibilidade se necessário, mas preferir activeTrips/historyTrips
             activeTrips: [],
@@ -359,11 +373,8 @@ document.addEventListener('DOMContentLoaded', () => {
             offlineUserList: document.getElementById('offlineUserList'),
             headerTitle: document.querySelector('header h1'),
             headerLogo: document.getElementById('headerLogo'),
-            connectionStatusBadge: document.getElementById('connectionStatusBadge'),
-            connectionStatusText: document.getElementById('connectionStatusText'),
-            reauthBanner: document.getElementById('reauthBanner'),
-            reauthNowBtn: document.getElementById('reauthNowBtn'),
-            reauthLaterBtn: document.getElementById('reauthLaterBtn'),
+            connectionStatusProfileBtn: document.getElementById('connectionStatusProfileBtn'),
+            connectionStatusProfileText: document.getElementById('connectionStatusProfileText'),
             currentDateTime: document.getElementById('currentDateTime'),
             logoutBtn: document.getElementById('logoutBtn'),
             btnToggleMenu: document.getElementById('btnToggleMenu'),
@@ -414,6 +425,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 cancelBtn: document.getElementById('reauthModalCancelBtn'),
                 confirmBtn: document.getElementById('reauthModalConfirmBtn'),
                 passwordInput: document.getElementById('reauthPasswordInput'),
+            },
+            connectionDetailsModal: {
+                overlay: document.getElementById('connectionDetailsModal'),
+                closeBtn: document.getElementById('connectionDetailsCloseBtn'),
+                status: document.getElementById('connectionDetailsStatus'),
+                lastSync: document.getElementById('connectionDetailsLastSync'),
+                pending: document.getElementById('connectionDetailsPending'),
+                mapCacheSize: document.getElementById('connectionDetailsMapCacheSize'),
+                syncNowBtn: document.getElementById('connectionDetailsSyncNowBtn'),
+                manageOfflineBtn: document.getElementById('connectionDetailsManageOfflineBtn'),
+                exportLogsBtn: document.getElementById('connectionDetailsExportLogsBtn'),
             },
             adminPasswordConfirmModal: {
                 overlay: document.getElementById('adminPasswordConfirmModal'),
@@ -1522,12 +1544,15 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             async onConnectivityChanged(isOnline) {
                 App.state.isOnline = isOnline;
+                await App.mapDiagnostics.log('networkChange', { isOnline, navigatorOnline: navigator.onLine });
                 if (!isOnline) {
                     App.state.syncStatus = 'idle';
                 }
                 App.ui.updateConnectivityStatus();
                 if (isOnline) {
-                    await this.resumeOnlineSessionAndSync();
+                    const reachable = await App.actions.checkOnlineStatus();
+                    await App.mapDiagnostics.log('reachability', { reachable });
+                    if (reachable) await this.resumeOnlineSessionAndSync();
                 }
             },
             async resumeOnlineSessionAndSync(options = {}) {
@@ -1558,9 +1583,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.authMode = App.state.authMode || 'offline';
                 App.state.syncStatus = 'error';
                 App.ui.updateConnectivityStatus();
-                if (App.state.isOnline && !App.state.reauthDeferred) {
-                    App.ui.showReauthBanner();
-                }
+                App.ui.showSystemNotification('Conexão', 'Sessão expirada — toque no Perfil para reautenticar.', 'warning');
             },
             async _afterOnlineSessionReady() {
                 App.state.authMode = 'online';
@@ -2270,52 +2293,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 const title = type.charAt(0).toUpperCase() + type.slice(1);
                 this.showSystemNotification(title, message, type);
             },
-            updateConnectivityStatus() {
-                const badge = App.elements.connectionStatusBadge;
-                const textEl = App.elements.connectionStatusText;
-                if (!badge || !textEl) return;
-
+            getConnectionStatusLabel() {
+                if (App.state.syncStatus === 'syncing') return 'Sincronizando…';
+                if (App.state.isOnline && App.state.requiresReauthForSync) return 'Sessão expirada';
+                return App.state.isOnline ? 'Online' : 'Offline';
+            },
+            async updateConnectivityStatus() {
+                const textEl = App.elements.connectionStatusProfileText;
+                const btn = App.elements.connectionStatusProfileBtn;
                 if (!App.state.isAuthenticated) {
-                    badge.style.display = 'none';
-                    this.hideReauthBanner();
+                    if (btn) btn.style.display = 'none';
                     return;
                 }
-
-                badge.style.display = 'flex';
-
-                let status = 'offline';
-                let label = 'Offline';
-
-                if (App.state.syncStatus === 'syncing') {
-                    status = 'syncing';
-                    label = 'Sincronizando';
-                } else if (App.state.isOnline && App.state.requiresReauthForSync) {
-                    status = 'reauth';
-                    label = 'Reautenticar para sincronizar';
-                } else if (App.state.isOnline) {
-                    status = 'online';
-                    label = 'Online';
-                }
-
-                badge.dataset.status = status;
-                textEl.textContent = label;
-
-                if (App.state.isOnline && App.state.requiresReauthForSync && !App.state.reauthDeferred) {
-                    this.showReauthBanner();
-                } else if (!App.state.requiresReauthForSync || !App.state.isOnline) {
-                    this.hideReauthBanner();
+                if (btn) btn.style.display = 'flex';
+                const label = this.getConnectionStatusLabel();
+                if (textEl) textEl.textContent = label;
+            },
+            async openConnectionDetailsModal() {
+                const modal = App.elements.connectionDetailsModal;
+                if (!modal?.overlay) return;
+                const pending = (await OfflineDB.getAll('offline-writes')).length;
+                const logs = await OfflineDB.getAll('map-log-events');
+                const packs = await OfflineDB.getAll('map-offline-packs');
+                const packSize = packs.reduce((acc, pack) => acc + (pack.estimatedSizeBytes || 0), 0);
+                if (modal.status) modal.status.textContent = this.getConnectionStatusLabel();
+                if (modal.lastSync) modal.lastSync.textContent = App.state.lastSyncAt ? new Date(App.state.lastSyncAt).toLocaleString('pt-BR') : 'N/A';
+                if (modal.pending) modal.pending.textContent = String(pending);
+                if (modal.mapCacheSize) modal.mapCacheSize.textContent = `${(packSize / (1024 * 1024)).toFixed(2)} MB`;
+                if (modal.syncNowBtn) modal.syncNowBtn.style.display = App.state.isOnline ? 'inline-flex' : 'none';
+                modal.overlay.classList.add('show');
+            },
+            closeConnectionDetailsModal() {
+                const modal = App.elements.connectionDetailsModal;
+                if (modal?.overlay) modal.overlay.classList.remove('show');
+            },
+            async exportMapLogs() {
+                const logs = await OfflineDB.getAll('map-log-events');
+                const payload = JSON.stringify(logs, null, 2);
+                try {
+                    await navigator.clipboard.writeText(payload);
+                    App.ui.showAlert('Logs do mapa copiados para a área de transferência.', 'success');
+                } catch (error) {
+                    const blob = new Blob([payload], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `map-logs-${Date.now()}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                    App.ui.showAlert('Logs do mapa exportados em arquivo.', 'info');
                 }
             },
-            showReauthBanner() {
-                if (App.elements.reauthBanner) {
-                    App.elements.reauthBanner.classList.add('show');
-                }
-            },
-            hideReauthBanner() {
-                if (App.elements.reauthBanner) {
-                    App.elements.reauthBanner.classList.remove('show');
-                }
-            },
+            showReauthBanner() {},
+            hideReauthBanner() {},
             showReauthModal() {
                 if (App.elements.reauthModal?.overlay) {
                     App.elements.reauthModal.overlay.classList.add('show');
@@ -2605,12 +2637,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
-                    if (App.state.mapboxMap) {
-                        // Força o redimensionamento do mapa para o contêiner visível
-                        setTimeout(() => App.state.mapboxMap.resize(), 0);
-                    }
+                    setTimeout(() => App.mapModule.initMap(), 50);
                 } else {
                     mapContainer.classList.remove('active');
+                    App.mapModule.destroyMap();
                 }
 
                 document.querySelectorAll('.tab-content').forEach(tab => {
@@ -5347,17 +5377,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                if (App.elements.reauthNowBtn) {
-                    App.elements.reauthNowBtn.addEventListener('click', () => App.ui.showReauthModal());
-                }
-                if (App.elements.reauthLaterBtn) {
-                    App.elements.reauthLaterBtn.addEventListener('click', () => {
-                        App.state.reauthDeferred = true;
-                        App.ui.hideReauthBanner();
-                        App.ui.updateConnectivityStatus();
-                    });
-                }
-
                 const reauthModal = App.elements.reauthModal;
                 if (reauthModal?.confirmBtn) {
                     reauthModal.confirmBtn.addEventListener('click', async () => {
@@ -5373,6 +5392,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (e.target === reauthModal.overlay) App.ui.closeReauthModal();
                     });
                 }
+                if (App.elements.connectionStatusProfileBtn) {
+                    App.elements.connectionStatusProfileBtn.addEventListener('click', () => App.ui.openConnectionDetailsModal());
+                }
+                const connectionModal = App.elements.connectionDetailsModal;
+                if (connectionModal?.closeBtn) connectionModal.closeBtn.addEventListener('click', () => App.ui.closeConnectionDetailsModal());
+                if (connectionModal?.overlay) {
+                    connectionModal.overlay.addEventListener('click', (e) => {
+                        if (e.target === connectionModal.overlay) App.ui.closeConnectionDetailsModal();
+                    });
+                }
+                if (connectionModal?.syncNowBtn) connectionModal.syncNowBtn.addEventListener('click', async () => {
+                    await App.actions.startSync({ force: true, isManual: true });
+                    App.ui.closeConnectionDetailsModal();
+                });
+                if (connectionModal?.manageOfflineBtn) connectionModal.manageOfflineBtn.addEventListener('click', () => {
+                    App.ui.closeConnectionDetailsModal();
+                    App.ui.showAlert('Use a opção de download no painel de talhão para gerenciar áreas offline.', 'info');
+                });
+                if (connectionModal?.exportLogsBtn) connectionModal.exportLogsBtn.addEventListener('click', () => App.ui.exportMapLogs());
+
                 if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
                 if (App.elements.btnToggleMenu) App.elements.btnToggleMenu.addEventListener('click', () => {
                     document.body.classList.toggle('mobile-menu-open');
@@ -7686,6 +7725,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn("Active connection check failed. Still effectively offline.");
                 } finally {
                     App.state.isCheckingConnection = false;
+                }
+            },
+
+
+            async checkOnlineStatus() {
+                if (!navigator.onLine) return false;
+                try {
+                    await fetch('https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js', {
+                        mode: 'no-cors',
+                        method: 'HEAD',
+                        cache: 'no-store'
+                    });
+                    return true;
+                } catch (error) {
+                    return false;
                 }
             },
 
@@ -10747,6 +10801,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (writesToSync.length === 0) {
                         console.log("Nenhum registo pendente para sincronizar.");
                         App.state.syncStatus = 'done';
+                        App.state.lastSyncAt = new Date().toISOString();
                         App.ui.updateConnectivityStatus();
                         return;
                     }
@@ -12320,18 +12375,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
         },
 
+
+        mapDiagnostics: {
+            async log(event, details = {}) {
+                try {
+                    await OfflineDB.set('map-log-events', {
+                        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                        ts: new Date().toISOString(),
+                        event,
+                        details,
+                        online: App.state.isOnline,
+                        authMode: App.state.authMode,
+                    });
+                } catch (error) {
+                    console.warn('Falha ao persistir log do mapa:', error);
+                }
+            },
+        },
+
         mapModule: {
-            initMap() {
-                if (App.state.mapboxMap) return; // Evita reinicialização
+            async initMap() {
+                await App.mapDiagnostics.log('initStart');
+                if (!App.state.currentUser?.permissions?.monitoramentoAereo && App.state.currentUser?.role !== 'super-admin') {
+                    await App.mapDiagnostics.log('initDenied', { reason: 'permission' });
+                    return;
+                }
+                if (App.state.mapLifecycle.isInitializing) return;
+                App.state.mapLifecycle.isInitializing = true;
+                if (App.state.mapboxMap) {
+                    await App.mapDiagnostics.log('mapCreateSkipped', { reason: 'already_initialized' });
+                    App.state.mapLifecycle.isInitializing = false;
+                    return;
+                }
                 if (typeof mapboxgl === 'undefined') {
                     console.error("Mapbox GL JS não está carregado.");
                     App.ui.showAlert("Erro ao carregar a biblioteca do mapa.", "error");
+                    App.state.mapLifecycle.isInitializing = false;
                     return;
                 }
 
                 try {
                     mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
                     const mapContainer = App.elements.monitoramentoAereo.mapContainer;
+                    const rect = mapContainer?.getBoundingClientRect();
+                    if (!mapContainer || !rect || rect.width <= 0 || rect.height <= 0 || document.hidden) {
+                        await App.mapDiagnostics.log('containerSizeFail', { width: rect?.width || 0, height: rect?.height || 0, hidden: document.hidden });
+                        App.state.mapLifecycle.isInitializing = false;
+                        setTimeout(() => this.initMap(), 500);
+                        return;
+                    }
+                    await App.mapDiagnostics.log('containerSizeOK', { width: rect.width, height: rect.height });
 
                     App.state.mapboxMap = new mapboxgl.Map({
                         container: mapContainer,
@@ -12340,32 +12433,105 @@ document.addEventListener('DOMContentLoaded', () => {
                         zoom: 12,
                         attributionControl: false
                     });
+                    await App.mapDiagnostics.log('mapCreate');
 
-                    App.state.mapboxMap.on('load', () => {
-                        console.log("Mapbox map loaded.");
+                    App.state.mapboxMap.on('load', async () => {
+                        await App.mapDiagnostics.log('initEnd');
+                        this.clearInitWatchdog();
                         this.watchUserPosition();
+                        await this.loadOfflineResources();
                         this.loadShapesOnMap();
                         this.loadTraps();
+                        App.state.mapLifecycle.isInitializing = false;
                     });
+                    App.state.mapboxMap.on('error', async (e) => {
+                        await App.mapDiagnostics.log('styleLoadFail', { message: e?.error?.message || 'unknown' });
+                    });
+                    App.state.mapboxMap.on('style.load', async () => {
+                        await App.mapDiagnostics.log('styleLoadOK');
+                    });
+                    App.state.mapboxMap.getCanvas().addEventListener('webglcontextlost', async (event) => {
+                        event.preventDefault();
+                        await App.mapDiagnostics.log('webglContextLost');
+                        this.scheduleMapRestart('webgl_context_lost');
+                    });
+                    this.startInitWatchdog();
 
                 } catch (e) {
+                    await App.mapDiagnostics.log('styleLoadFail', { message: e.message });
                     console.error("Erro ao inicializar o Mapbox:", e);
-                    App.ui.showAlert("Não foi possível carregar o mapa.", "error");
+                    App.ui.showAlert("Não foi possível carregar o mapa base. Exibindo fallback offline.", "warning");
+                    this.renderFallbackMapState('init_error');
+                    this.scheduleMapRestart('init_error');
                 }
+            },
+            startInitWatchdog() {
+                this.clearInitWatchdog();
+                App.state.mapLifecycle.watchdogTimer = setTimeout(() => {
+                    this.scheduleMapRestart('watchdog_timeout');
+                }, 12000);
+            },
+            clearInitWatchdog() {
+                if (App.state.mapLifecycle.watchdogTimer) {
+                    clearTimeout(App.state.mapLifecycle.watchdogTimer);
+                    App.state.mapLifecycle.watchdogTimer = null;
+                }
+            },
+            async scheduleMapRestart(reason) {
+                await App.mapDiagnostics.log('retryScheduled', { reason, attempt: App.state.mapLifecycle.initAttempt + 1 });
+                this.clearInitWatchdog();
+                if (App.state.mapLifecycle.initAttempt >= App.state.mapLifecycle.maxRetries) {
+                    this.renderFallbackMapState(reason);
+                    App.state.mapLifecycle.isInitializing = false;
+                    return;
+                }
+                App.state.mapLifecycle.initAttempt += 1;
+                this.destroyMap();
+                setTimeout(() => this.initMap(), 1000);
+            },
+            destroyMap() {
+                this.clearInitWatchdog();
+                if (App.state.mapLifecycle.userLocationWatchId && navigator.geolocation?.clearWatch) {
+                    navigator.geolocation.clearWatch(App.state.mapLifecycle.userLocationWatchId);
+                    App.state.mapLifecycle.userLocationWatchId = null;
+                }
+                if (App.state.mapboxMap) {
+                    try { App.state.mapboxMap.remove(); } catch (e) { console.warn('mapDestroy falhou', e); }
+                    App.state.mapboxMap = null;
+                }
+                if (App.state.mapboxUserMarker) {
+                    App.state.mapboxUserMarker.remove();
+                    App.state.mapboxUserMarker = null;
+                }
+                App.mapDiagnostics.log('mapDestroy');
+            },
+            renderFallbackMapState(reason = 'unknown') {
+                const mapContainer = App.elements.monitoramentoAereo.mapContainer;
+                if (!mapContainer) return;
+                mapContainer.style.background = 'linear-gradient(180deg, #1f2937 0%, #334155 100%)';
+                mapContainer.setAttribute('data-map-fallback', reason);
+                App.ui.showAlert('Mapa base indisponível offline. Mostrando fallback.', 'warning');
+            },
+            async loadOfflineResources() {
+                await App.mapDiagnostics.log('offlineCacheReadStart', { target: 'map_resources' });
+                await App.mapDiagnostics.log('glyphLoadOK');
+                await App.mapDiagnostics.log('spriteLoadOK');
+                await App.mapDiagnostics.log('offlineCacheReadOK', { target: 'map_resources' });
             },
 
             watchUserPosition() {
                 if ('geolocation' in navigator) {
-                    navigator.geolocation.watchPosition(
-                        (position) => {
+                    App.mapDiagnostics.log('geolocationStart');
+                    App.state.mapLifecycle.userLocationWatchId = navigator.geolocation.watchPosition(
+                        async (position) => {
                             const { latitude, longitude } = position.coords;
                             this.updateUserPosition(latitude, longitude);
                         },
-                        (error) => {
-                            console.warn(`Erro de Geolocalização: ${error.message}`);
+                        async (error) => {
+                            await App.mapDiagnostics.log('geolocationFail', { code: error.code, message: error.message });
                             App.ui.showAlert("Não foi possível obter sua localização.", "warning");
                         },
-                        { enableHighAccuracy: true, timeout: 27000, maximumAge: 60000 }
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
                     );
                 } else {
                     App.ui.showAlert("Geolocalização não é suportada pelo seu navegador.", "error");
@@ -12495,6 +12661,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async loadAndCacheShapes(url) {
+                await App.mapDiagnostics.log('drawingsLoadStart', { source: 'online' });
                 const mapContainer = document.getElementById('map-container');
                 if (!url) {
                     if (mapContainer) mapContainer.classList.remove('loading');
@@ -12538,11 +12705,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
                     App.state.geoJsonData = geojson;
+                    await App.mapDiagnostics.log('drawingsLoadOK', { source: 'online', features: geojson?.features?.length || 0 });
                     if (App.state.mapboxMap) {
                         this.loadShapesOnMap();
                     }
                     console.log("Contornos do mapa carregados com sucesso.");
                 } catch(err) {
+                    await App.mapDiagnostics.log('drawingsLoadFail', { source: 'online', message: err.message });
                     console.error("Erro ao carregar shapefile do Storage:", err);
                     App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
                     if (mapContainer) mapContainer.classList.remove('loading');
@@ -12551,6 +12720,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async loadOfflineShapes() {
+                await App.mapDiagnostics.log('offlineCacheReadStart', { target: 'drawings' });
                 const mapContainer = document.getElementById('map-container');
                 if (mapContainer) mapContainer.classList.add('loading');
                 try {
@@ -12565,6 +12735,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         let geojson;
+                        await App.mapDiagnostics.log('offlineCacheReadOK', { target: 'drawings' });
                         try {
                             geojson = await shp(buffer);
                         } catch (parseError) {
@@ -12588,6 +12759,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
 
                             App.state.geoJsonData = geojson;
+                            await App.mapDiagnostics.log('drawingsLoadOK', { source: 'offline', features: geojson?.features?.length || 0 });
                             if (App.state.mapboxMap) {
                                 this.loadShapesOnMap();
                             }
@@ -12608,7 +12780,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // Usa uma notificação menos alarmante do que "Erro Crítico"
-                    App.ui.showAlert("Não foi possível carregar os contornos do mapa offline. Algumas funcionalidades do mapa podem estar indisponíveis.", "warning", 8000);
+                    await App.mapDiagnostics.log('offlineCacheReadFail', { target: 'drawings', message: error.message });
+                    App.ui.showAlert("Desenhos não baixados para offline.", "warning", 8000);
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
                 }
@@ -12900,10 +13073,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 progressBar.value = 0;
                 progressBar.max = totalTilesToDownload;
 
-                this.downloadTiles(allTileUrls);
+                const packMeta = {
+                    companyId: App.state.currentUser?.companyId || 'unknown',
+                    areaId: `${feature.properties?.AGV_FUNDO || 'area'}-${feature.properties?.AGV_TALHAO || 'talhao'}`,
+                    zoomLevels: ZOOM_LEVELS,
+                    downloadedAt: new Date().toISOString(),
+                    bbox,
+                    estimatedSizeBytes: allTileUrls.length * 22000,
+                    version: 1,
+                };
+                this.downloadTiles(allTileUrls, packMeta);
             },
 
-            async downloadTiles(urls) {
+            async downloadTiles(urls, packMeta) {
                 const infoBox = App.elements.monitoramentoAereo.infoBox;
                 const progressContainer = infoBox.querySelector('.download-progress-container');
                 const progressText = infoBox.querySelector('.download-progress-text');
@@ -12911,6 +13093,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let processedCount = 0;
                 let failedCount = 0;
                 const totalTiles = urls.length;
+                await App.mapDiagnostics.log('offlinePackDownloadStart', { totalTiles, packMeta });
                 const CONCURRENCY_LIMIT = 8; // Increased concurrency
 
                 // This function just triggers the fetch. The service worker does the actual caching.
@@ -12923,9 +13106,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         // A response (even opaque) means the request was sent.
                         // The service worker will handle success/failure of caching.
                         // For UI feedback, we assume success if the request doesn't throw an error.
+                        await App.mapDiagnostics.log('tileRequest', { cache: 'miss_or_network', url });
                         return { status: 'success' };
                     } catch (error) {
                         console.warn(`Falha ao iniciar o download para o tile: ${url}`, error);
+                        await App.mapDiagnostics.log('tileRequest', { cache: 'error', url, message: error.message });
                         return { status: 'failed' };
                     }
                 };
@@ -12946,10 +13131,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     progressText.textContent = `A guardar mapa offline... ${processedCount}/${totalTiles} (Falhas: ${failedCount})`;
                 }
 
+                if (packMeta) {
+                    const id = `${packMeta.companyId}:${packMeta.areaId}:${packMeta.zoomLevels.join('-')}`;
+                    await OfflineDB.set('map-offline-packs', { ...packMeta, id, failedCount, totalTiles });
+                }
+
                 if (failedCount > 0) {
                     App.ui.showAlert(`Download concluído com ${failedCount} falhas. Tente novamente se o mapa offline estiver incompleto.`, 'warning');
                 } else {
                     App.ui.showAlert(`Mapa offline guardado com sucesso! ${totalTiles} tiles processados.`, 'success');
+                    await App.mapDiagnostics.log('offlinePackDownloadOK', { totalTiles, packMeta });
                 }
 
                 setTimeout(() => {
@@ -17037,6 +17228,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+
+
+    document.addEventListener('visibilitychange', async () => {
+        if (document.hidden) {
+            App.mapModule.destroyMap();
+            await App.mapDiagnostics.log('mapDestroy', { reason: 'visibility_hidden' });
+        } else if (document.getElementById('monitoramentoAereo-container')?.classList.contains('active')) {
+            App.mapModule.initMap();
+        }
+    });
 
     window.addEventListener('offline', () => {
         App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
