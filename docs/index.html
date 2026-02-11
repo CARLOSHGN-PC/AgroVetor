@@ -2131,6 +2131,10 @@
             </div>
             
             <div class="header-actions-container">
+                <div id="connectionStatusBadge" class="connection-status-badge" role="status" aria-live="polite">
+                    <i class="fas fa-circle"></i>
+                    <span id="connectionStatusText">Offline</span>
+                </div>
                 <div id="notification-bell-container" class="notification-bell" style="display: none;">
                     <button id="notification-bell-toggle" aria-label="Notificações">
                         <i class="fas fa-bell"></i>
@@ -2176,13 +2180,6 @@
                         <button id="manualSyncBtn" role="menuitem" class="user-menu-item is-action">
                             <i class="fas fa-sync"></i> Sincronizar Manualmente
                         </button>
-                        <button id="connectionStatusProfileBtn" role="menuitem" class="user-menu-item is-action">
-                            <i class="fas fa-wifi"></i>
-                            <span>
-                                <strong style="display:block;">Status de Conexão</strong>
-                                <small id="connectionStatusProfileText">Offline</small>
-                            </span>
-                        </button>
                         <button id="changePasswordBtn" role="menuitem" class="user-menu-item is-action">
                             <i class="fas fa-key"></i> Alterar Senha
                         </button>
@@ -2193,6 +2190,14 @@
                 </div>
             </div>
         </header>
+
+        <div id="reauthBanner" class="reauth-banner" role="status" aria-live="polite">
+            <span>Conectado. Para sincronizar, confirme sua sessão.</span>
+            <div class="reauth-actions">
+                <button id="reauthNowBtn" class="save">Sincronizar agora</button>
+                <button id="reauthLaterBtn" class="btn-secondary">Depois</button>
+            </div>
+        </div>
 
         <nav class="menu" id="menu" aria-label="Menu Principal" tabindex="-1"></nav>
         
@@ -4592,7 +4597,7 @@
         </div>
 
         <!-- NOVO: Modal para Detalhes do Histórico de Sincronização -->
-    <div id="syncHistoryDetailModal" class="modal-overlay">
+        <div id="syncHistoryDetailModal" class="modal-overlay">
             <div class="modal-content" style="max-width: 800px;">
                 <div class="modal-header">
                     <h2 id="syncHistoryDetailModalTitle">Detalhes da Sincronização</h2>
@@ -4677,26 +4682,6 @@
             </div>
         </div>
 
-    </div>
-
-    <div id="connectionDetailsModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 520px; width: 95%;">
-            <div class="modal-header">
-                <h2>Detalhes de Conexão</h2>
-                <button id="connectionDetailsCloseBtn" class="modal-close-btn">&times;</button>
-            </div>
-            <div class="modal-body" style="display:grid; gap: 10px;">
-                <p><strong>Status:</strong> <span id="connectionDetailsStatus">Offline</span></p>
-                <p><strong>Última sincronização:</strong> <span id="connectionDetailsLastSync">N/A</span></p>
-                <p><strong>Pendências na fila:</strong> <span id="connectionDetailsPending">0</span></p>
-                <p><strong>Tamanho do cache do mapa:</strong> <span id="connectionDetailsMapCacheSize">0 MB</span></p>
-            </div>
-            <div class="modal-footer" style="display:flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-                <button id="connectionDetailsSyncNowBtn" class="save">Sincronizar agora</button>
-                <button id="connectionDetailsManageOfflineBtn" class="btn-secondary">Gerenciar áreas offline</button>
-                <button id="connectionDetailsExportLogsBtn" class="btn-secondary">Exportar logs do mapa</button>
-            </div>
-        </div>
     </div>
 
     <!-- Bibliotecas Externas -->
