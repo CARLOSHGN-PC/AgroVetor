@@ -2174,22 +2174,6 @@
                             </div>
                         </div>
                         <hr>
-                        <div id="profileConnectivityCard" class="user-menu-item" style="display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:default;">
-                            <strong>Estado da sessão</strong>
-                            <span id="profileConnectivityStatus">Offline</span>
-                            <small id="profileSyncMeta">Última sync: --</small>
-                            <small id="profileMapCacheMeta">Cache do mapa: --</small>
-                        </div>
-                        <button id="profileSyncNowBtn" role="menuitem" class="user-menu-item is-action">
-                            <i class="fas fa-sync"></i> Sincronizar agora
-                        </button>
-                        <button id="profileManageOfflineAreasBtn" role="menuitem" class="user-menu-item is-action">
-                            <i class="fas fa-map-marked-alt"></i> Gerenciar áreas offline
-                        </button>
-                        <button id="exportMapLogsBtn" role="menuitem" class="user-menu-item is-action">
-                            <i class="fas fa-file-export"></i> Exportar logs do mapa
-                        </button>
-                        <hr>
                         <button id="installAppBtn" role="menuitem" class="user-menu-item is-action" style="display: none;">
                             <i class="fas fa-download"></i> Instalar App
                         </button>
@@ -2207,7 +2191,7 @@
             </div>
         </header>
 
-        <div id="reauthBanner" class="reauth-banner" role="status" aria-live="polite" style="display:none;">
+        <div id="reauthBanner" class="reauth-banner" role="status" aria-live="polite">
             <span>Conectado. Para sincronizar, confirme sua sessão.</span>
             <div class="reauth-actions">
                 <button id="reauthNowBtn" class="save">Sincronizar agora</button>
