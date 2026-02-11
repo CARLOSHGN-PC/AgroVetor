@@ -12487,7 +12487,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 App.state.mapLifecycle.initAttempt += 1;
                 this.destroyMap();
-                App.state.mapLifecycle.isInitializing = false;
                 setTimeout(() => this.initMap(), 1000);
             },
             destroyMap() {
