@@ -64,6 +64,22 @@ service cloud.firestore {
       return getUserRole() == 'super-admin' || getUserCompanyId() == companyId;
     }
 
+    function isAuthorizedHarvestRole() {
+      return getUserRole() in ['super-admin', 'admin', 'supervisor', 'tecnico', 'Lider', 'Supervisor'];
+    }
+
+    function hasRequiredHarvestPlanFields(data) {
+      return data.companyId != null;
+    }
+
+    function hasRequiredHarvestItemFields(data) {
+      return data.companyId != null
+        && data.talhaoId != null
+        && data.frenteId != null
+        && data.sequencia != null
+        && data.status != null;
+    }
+
     match /fazendas/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
@@ -128,6 +144,30 @@ service cloud.firestore {
     match /harvestPlans/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
+    }
+
+    match /harvest_plans/{planId} {
+      allow read: if canAccessCompanyData(resource.data.companyId) && isAuthorizedHarvestRole();
+      allow create: if canAccessCompanyData(request.resource.data.companyId) && isAuthorizedHarvestRole() && hasRequiredHarvestPlanFields(request.resource.data);
+      allow update: if canAccessCompanyData(resource.data.companyId) && isAuthorizedHarvestRole() && hasRequiredHarvestPlanFields(request.resource.data);
+      allow delete: if getUserRole() == 'super-admin' || (getUserRole() == 'admin' && canAccessCompanyData(resource.data.companyId));
+
+      match /items/{itemId} {
+        allow read: if canAccessCompanyData(get(/databases/$(database)/documents/harvest_plans/$(planId)).data.companyId) && isAuthorizedHarvestRole();
+        allow create, update: if canAccessCompanyData(request.resource.data.companyId) && isAuthorizedHarvestRole() && hasRequiredHarvestItemFields(request.resource.data);
+        allow delete: if getUserRole() == 'super-admin' || (getUserRole() == 'admin' && canAccessCompanyData(resource.data.companyId));
+      }
+
+      match /fronts/{frenteId} {
+        allow read: if canAccessCompanyData(get(/databases/$(database)/documents/harvest_plans/$(planId)).data.companyId) && isAuthorizedHarvestRole();
+        allow create, update, delete: if canAccessCompanyData(get(/databases/$(database)/documents/harvest_plans/$(planId)).data.companyId) && isAuthorizedHarvestRole();
+      }
+
+      match /history/{eventId} {
+        allow read: if canAccessCompanyData(get(/databases/$(database)/documents/harvest_plans/$(planId)).data.companyId) && isAuthorizedHarvestRole();
+        allow create: if canAccessCompanyData(get(/databases/$(database)/documents/harvest_plans/$(planId)).data.companyId) && isAuthorizedHarvestRole();
+        allow update, delete: if getUserRole() == 'super-admin';
+      }
     }
     match /frota/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);

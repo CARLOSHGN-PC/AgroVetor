@@ -49,6 +49,7 @@ const { generateRiskViewPdf, getRiskViewData } = require('./reports/riskViewRepo
 const { getClimateStats } = require('./reports/climaDashboard');
 const { generateFleetPdf, getFleetData } = require('./reports/fleetReport');
 const { generateQualidadePlantioPdf, generateQualidadePlantioExcel } = require('./reports/qualidadePlantioReport');
+const { fetchHarvestSequenceData, generateHarvestSequenceTablePdf, generateHarvestSequenceTableExcel, generateHarvestSequenceMapPdf } = require('./reports/harvestSequenceReport');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -1311,6 +1312,34 @@ try {
     });
 
     app.get('/reports/monitoramento/pdf', authMiddleware, (req, res) => generateMonitoramentoPdf(req, res, db));
+
+
+    app.post('/reports/harvest-sequence/table', authMiddleware, async (req, res) => {
+        try {
+            const { companyId, filters = {}, format = 'pdf' } = req.body || {};
+            if (!companyId) return res.status(400).json({ message: 'companyId é obrigatório.' });
+            const rows = await fetchHarvestSequenceData(db, companyId, filters);
+            if (String(format).toLowerCase() === 'excel' || String(format).toLowerCase() === 'xlsx') {
+                return generateHarvestSequenceTableExcel(res, rows);
+            }
+            return generateHarvestSequenceTablePdf(res, rows, filters);
+        } catch (error) {
+            console.error('Erro ao gerar relatório de sequência de colheita (tabela):', error);
+            return res.status(500).json({ message: 'Erro ao gerar relatório de sequência de colheita (tabela).' });
+        }
+    });
+
+    app.post('/reports/harvest-sequence/map', authMiddleware, async (req, res) => {
+        try {
+            const { companyId, filters = {} } = req.body || {};
+            if (!companyId) return res.status(400).json({ message: 'companyId é obrigatório.' });
+            const rows = await fetchHarvestSequenceData(db, companyId, filters);
+            return generateHarvestSequenceMapPdf(res, rows, filters);
+        } catch (error) {
+            console.error('Erro ao gerar relatório de sequência de colheita (mapa):', error);
+            return res.status(500).json({ message: 'Erro ao gerar relatório de sequência de colheita (mapa).' });
+        }
+    });
 
     app.get('/reports/armadilhas/pdf', authMiddleware, (req, res) => generateArmadilhasPdf(req, res, db));
 
