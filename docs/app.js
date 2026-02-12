@@ -254,6 +254,11 @@ document.addEventListener('DOMContentLoaded', () => {
             charts: {},
             harvestPlans: [],
             activeHarvestPlan: null,
+            harvestSequencePlan: null,
+            harvestSequenceItems: [],
+            harvestSequenceFronts: [],
+            harvestSequenceMap: null,
+            harvestSequenceSelectedFeatureId: null,
             inactivityTimer: null,
             inactivityWarningTimer: null,
             unsubscribeListeners: [],
@@ -738,6 +743,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 summary: document.getElementById('harvestSummary'),
                 superAdminHarvestCreation: document.getElementById('superAdminHarvestCreation'),
                 adminTargetCompanyHarvest: document.getElementById('adminTargetCompanyHarvest'),
+                seqPeriodStart: document.getElementById('harvestSeqPeriodStart'),
+                seqPeriodEnd: document.getElementById('harvestSeqPeriodEnd'),
+                seqSafra: document.getElementById('harvestSeqSafra'),
+                seqFront: document.getElementById('harvestSeqFront'),
+                seqFarmFilter: document.getElementById('harvestSeqFarmFilter'),
+                seqStatusFilter: document.getElementById('harvestSeqStatusFilter'),
+                seqVariedadeFilter: document.getElementById('harvestSeqVariedadeFilter'),
+                seqOnlyUnplanned: document.getElementById('harvestSeqOnlyUnplanned'),
+                seqFilterChips: document.getElementById('harvestSeqFilterChips'),
+                seqMap: document.getElementById('harvestSeqMap'),
+                seqKpis: document.getElementById('harvestSeqKpis'),
+                seqList: document.getElementById('harvestSeqList'),
+                seqDetails: document.getElementById('harvestSeqDetails'),
+                seqLegend: document.getElementById('harvestSeqLegend'),
+                btnSeqSave: document.getElementById('btnHarvestSeqSave'),
+                btnSeqPdf: document.getElementById('btnHarvestSeqPdf'),
+                btnSeqTable: document.getElementById('btnHarvestSeqTable'),
             },
             broca: {
                 form: document.getElementById('lancamentoBroca'),
@@ -1847,7 +1869,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // OTIMIZAÇÃO: Remove 'clima' da lista padrão para evitar carregamento massivo (20k+ registros)
                 // 'controleFrota' e 'abastecimentos' também são removidos para carregamento otimizado
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'qualidadePlantio', 'frota'];
+                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'harvest_plans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'qualidadePlantio', 'frota'];
 
                 if (isSuperAdmin) {
                     // Super Admin ouve TODOS os dados de todas as coleções relevantes
@@ -2707,6 +2729,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
+                    App.harvestSequence.init();
                     if (App.state.currentUser.role === 'super-admin') {
                         const { superAdminHarvestCreation, adminTargetCompanyHarvest } = App.elements.harvest;
                         superAdminHarvestCreation.style.display = 'block';
@@ -5710,6 +5733,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     harvestEls.btnOptimize.innerHTML = `<i class="fas fa-brain"></i> Otimizar Colheita`;
                     harvestEls.btnOptimize.addEventListener('click', () => App.gemini.getOptimizedHarvestSequence());
                 }
+
+                if (harvestEls.btnSeqSave) harvestEls.btnSeqSave.addEventListener('click', () => App.harvestSequence.savePlan());
+                if (harvestEls.btnSeqPdf) harvestEls.btnSeqPdf.addEventListener('click', () => App.harvestSequence.generateMapReport());
+                if (harvestEls.btnSeqTable) harvestEls.btnSeqTable.addEventListener('click', () => App.harvestSequence.generateTableReport());
+                [harvestEls.seqPeriodStart, harvestEls.seqPeriodEnd, harvestEls.seqSafra, harvestEls.seqFront, harvestEls.seqFarmFilter, harvestEls.seqStatusFilter, harvestEls.seqVariedadeFilter].forEach(el => {
+                    if (el) el.addEventListener('change', () => App.harvestSequence.render());
+                });
+                if (harvestEls.seqOnlyUnplanned) harvestEls.seqOnlyUnplanned.addEventListener('change', () => App.harvestSequence.render());
 
                 const debouncedAtrPrediction = App.debounce(() => App.actions.getAtrPrediction());
                 if (harvestEls.fazenda) harvestEls.fazenda.addEventListener('change', debouncedAtrPrediction);
@@ -13818,6 +13849,206 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 8000);
             },
 
+        },
+
+
+        harvestSequence: {
+            frontColors: ['#ef5350','#42a5f5','#66bb6a','#ffa726','#ab47bc','#26c6da','#8d6e63'],
+            init() {
+                this.syncFromState();
+                this.initMap();
+                this.render();
+            },
+            syncFromState() {
+                const plans = App.state.harvest_plans || [];
+                const companyId = App.state.currentUser?.companyId;
+                const selected = plans.find(p => p.companyId === companyId) || null;
+                App.state.harvestSequencePlan = selected;
+                App.state.harvestSequenceItems = selected?.items || [];
+                App.state.harvestSequenceFronts = selected?.fronts || [];
+            },
+            getFilters() {
+                const h = App.elements.harvest;
+                return {
+                    periodStart: h.seqPeriodStart?.value || '',
+                    periodEnd: h.seqPeriodEnd?.value || '',
+                    front: h.seqFront?.value || '',
+                    farm: h.seqFarmFilter?.value || '',
+                    status: h.seqStatusFilter?.value || '',
+                    variedade: (h.seqVariedadeFilter?.value || '').trim().toLowerCase(),
+                    onlyUnplanned: !!h.seqOnlyUnplanned?.checked,
+                };
+            },
+            getFrontColor(frontId) {
+                const idx = Math.abs((frontId || '').split('').reduce((a,c)=>a+c.charCodeAt(0),0)) % this.frontColors.length;
+                return this.frontColors[idx];
+            },
+            initMap() {
+                if (App.state.harvestSequenceMap || !App.elements.harvest.seqMap || typeof mapboxgl === 'undefined') return;
+                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+                const map = new mapboxgl.Map({
+                    container: App.elements.harvest.seqMap,
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [-48.45, -21.17],
+                    zoom: 10,
+                    attributionControl: false
+                });
+                App.state.harvestSequenceMap = map;
+                map.on('load', () => this.renderMapLayers());
+                map.on('click', 'harvest-seq-layer', (e) => {
+                    if (!e.features?.length) return;
+                    this.toggleFeaturePlanning(e.features[0]);
+                });
+            },
+            renderMapLayers() {
+                const map = App.state.harvestSequenceMap;
+                if (!map || !App.state.geoJsonData) return;
+                const sourceId='harvest-seq-source', layerId='harvest-seq-layer', borderId='harvest-seq-border', labelId='harvest-seq-label';
+                if (map.getSource(sourceId)) map.getSource(sourceId).setData(App.state.geoJsonData);
+                else map.addSource(sourceId,{type:'geojson',data:App.state.geoJsonData,generateId:true});
+                if (!map.getLayer(layerId)) map.addLayer({id:layerId,type:'fill',source:sourceId,paint:{'fill-color':['coalesce',['feature-state','frontColor'],'#263238'],'fill-opacity':['case',['boolean',['feature-state','filteredOut'],false],0.05,0.75]}});
+                if (!map.getLayer(borderId)) map.addLayer({id:borderId,type:'line',source:sourceId,paint:{'line-color':['case',['==',['feature-state','status'],'Em execução'],'#ffeb3b',['==',['feature-state','status'],'Colhido'],'#00e676','#fff'],'line-width':['case',['==',['feature-state','selected'],true],3,1.5]}});
+                if (!map.getLayer(labelId)) map.addLayer({id:labelId,type:'symbol',source:sourceId,layout:{'symbol-placement':'point','text-field':['coalesce',['feature-state','sequenceLabel'],['get','AGV_TALHAO']],'text-size':12,'text-allow-overlap':true},paint:{'text-color':'#fff','text-halo-color':'#000','text-halo-width':1.5}});
+                this.applyFeatureState();
+            },
+            applyFeatureState() {
+                const map = App.state.harvestSequenceMap;
+                if (!map?.getSource('harvest-seq-source')) return;
+                const filters=this.getFilters();
+                const items = App.state.harvestSequenceItems || [];
+                (map.querySourceFeatures('harvest-seq-source') || []).forEach((f) => {
+                    const talhaoName = String(f.properties?.AGV_TALHAO || '').trim().toLowerCase();
+                    const farmCode = String(f.properties?.AGV_FUNDO || '').trim();
+                    const item = items.find(i => String(i.talhaoName||'').trim().toLowerCase()===talhaoName && String(i.fazendaCode||'').trim()===farmCode && i.status !== 'Cancelado');
+                    const frontColor = item ? this.getFrontColor(item.frenteId) : '#263238';
+                    const filteredOut = (filters.front && item?.frenteId !== filters.front) || (filters.farm && String(item?.fazendaId||'') !== filters.farm) || (filters.status && item?.status !== filters.status) || (filters.variedade && !String(item?.variedadeSnapshot||'').toLowerCase().includes(filters.variedade)) || (filters.onlyUnplanned && !!item);
+                    map.setFeatureState({source:'harvest-seq-source',id:f.id}, {frontColor, sequenceLabel: item ? String(item.sequencia) : String(f.properties?.AGV_TALHAO || ''), status: item?.status || 'Planejado', selected: App.state.harvestSequenceSelectedFeatureId===f.id, filteredOut});
+                });
+            },
+            toggleFeaturePlanning(feature) {
+                App.state.harvestSequenceSelectedFeatureId = feature.id;
+                const filters=this.getFilters();
+                const frontId = filters.front || App.elements.harvest.seqFront?.value;
+                if (!frontId) return App.ui.showAlert('Selecione uma Frente antes de planejar no mapa.', 'warning');
+                const talhaoName = String(feature.properties?.AGV_TALHAO || '').trim();
+                const fazendaCode = String(feature.properties?.AGV_FUNDO || '').trim();
+                const fazenda = App.state.fazendas.find(f => String(f.code).trim() === fazendaCode);
+                const talhao = (fazenda?.talhoes || []).find(t => String(t.name).trim().toLowerCase() === talhaoName.toLowerCase());
+                const existingIndex = App.state.harvestSequenceItems.findIndex(i => i.talhaoId === talhao?.id && i.frenteId === frontId && i.status !== 'Cancelado');
+                if (existingIndex >= 0) {
+                    App.state.harvestSequenceItems[existingIndex].status = 'Cancelado';
+                } else {
+                    const maxSeq = Math.max(0, ...App.state.harvestSequenceItems.filter(i => i.frenteId===frontId && i.status !== 'Cancelado').map(i => Number(i.sequencia)||0));
+                    App.state.harvestSequenceItems.push({
+                        id: `local_${Date.now()}`,
+                        companyId: App.state.currentUser.companyId,
+                        planId: App.state.harvestSequencePlan?.id || 'active',
+                        fazendaId: fazenda?.id || null,
+                        fazendaCode,
+                        talhaoId: talhao?.id || `${fazendaCode}:${talhaoName}`,
+                        talhaoName,
+                        geomRef: `${fazendaCode}:${talhaoName}`,
+                        frenteId: frontId,
+                        sequencia: maxSeq + 1,
+                        status: 'Planejado',
+                        variedadeSnapshot: talhao?.variety || talhao?.variedade || '',
+                        areaSnapshot: Number(talhao?.area || 0),
+                        dtPrevistaInicio: filters.periodStart || '',
+                        dtPrevistaFim: filters.periodEnd || '',
+                        observacao: '',
+                        responsavelId: '',
+                        updatedAt: new Date().toISOString(),
+                        updatedBy: App.state.currentUser.uid,
+                    });
+                }
+                this.render();
+            },
+            ensureFilterOptions() {
+                const h = App.elements.harvest;
+                if (h.seqFront && !h.seqFront.dataset.ready) {
+                    h.seqFront.innerHTML = '<option value="">Selecione...</option>';
+                    App.state.frentesDePlantio.forEach((f) => { h.seqFront.innerHTML += `<option value="${f.id}">${f.name}</option>`; });
+                    h.seqFront.dataset.ready = '1';
+                }
+                if (h.seqFarmFilter && !h.seqFarmFilter.dataset.ready) {
+                    h.seqFarmFilter.innerHTML = '<option value="">Todas</option>';
+                    App.state.fazendas.forEach((f) => { h.seqFarmFilter.innerHTML += `<option value="${f.id}">${f.code} - ${f.name}</option>`; });
+                    h.seqFarmFilter.dataset.ready = '1';
+                }
+            },
+            render() {
+                this.ensureFilterOptions();
+                this.renderMapLayers();
+                this.applyFeatureState();
+                const h = App.elements.harvest;
+                const items=(App.state.harvestSequenceItems||[]).filter(i => i.status !== 'Cancelado').sort((a,b)=>String(a.frenteId).localeCompare(String(b.frenteId)) || Number(a.sequencia)-Number(b.sequencia));
+                h.seqList.innerHTML = items.map(i => `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px;border-bottom:1px solid var(--color-border);"><span><strong>${i.sequencia}</strong> · ${i.talhaoName}</span><span style="background:${this.getFrontColor(i.frenteId)};width:12px;height:12px;border-radius:50%;display:inline-block"></span></div>`).join('') || '<p>Nenhum talhão planejado.</p>';
+                const totalArea = items.reduce((acc,i)=>acc + Number(i.areaSnapshot||0),0);
+                const pendentes = (App.state.geoJsonData?.features?.length || 0) - items.length;
+                h.seqKpis.innerHTML = `<p><strong>Total planejados:</strong> ${items.length}</p><p><strong>Área planejada:</strong> ${totalArea.toFixed(2)} ha</p><p><strong>Pendentes:</strong> ${Math.max(0,pendentes)}</p>`;
+                const byFront = new Map();
+                items.forEach(i => byFront.set(i.frenteId, (byFront.get(i.frenteId)||0) + Number(i.areaSnapshot||0)));
+                h.seqLegend.innerHTML = Array.from(byFront.entries()).map(([f,a]) => `<div><span style="display:inline-block;width:12px;height:12px;background:${this.getFrontColor(f)};border-radius:50%;margin-right:6px;"></span>${f} — ${a.toFixed(2)} ha</div>`).join('') || '<p>Sem dados</p>';
+                const chips=[]; const f=this.getFilters();
+                if (f.periodStart || f.periodEnd) chips.push(`Período: ${f.periodStart || '...'} → ${f.periodEnd || '...'}`);
+                if (f.front) chips.push(`Frente: ${f.front}`);
+                if (f.farm) chips.push(`Fazenda: ${f.farm}`);
+                if (f.status) chips.push(`Status: ${f.status}`);
+                if (f.variedade) chips.push(`Variedade: ${f.variedade}`);
+                if (f.onlyUnplanned) chips.push('Somente sem planejamento');
+                h.seqFilterChips.innerHTML = chips.map(c=>`<span class="chip" style="background:var(--color-bg);padding:4px 10px;border-radius:20px;border:1px solid var(--color-border);">${c}</span>`).join('');
+                if (App.state.harvestSequenceSelectedFeatureId != null) {
+                    const selected = items[0] || null;
+                    h.seqDetails.innerHTML = selected ? `<p><strong>Fazenda:</strong> ${selected.fazendaCode || '-'}</p><p><strong>Talhão:</strong> ${selected.talhaoName || '-'}</p><p><strong>Área:</strong> ${(Number(selected.areaSnapshot)||0).toFixed(2)} ha</p><p><strong>Variedade:</strong> ${selected.variedadeSnapshot || '-'}</p><p><strong>Frente:</strong> ${selected.frenteId}</p><p><strong>Sequência:</strong> ${selected.sequencia}</p><p><strong>Status:</strong> ${selected.status}</p>` : '<p>Selecione um talhão no mapa.</p>';
+                } else {
+                    h.seqDetails.innerHTML = '<p>Selecione um talhão no mapa.</p>';
+                }
+            },
+            async savePlan() {
+                const h = App.elements.harvest;
+                const companyId = App.state.currentUser.companyId;
+                const planId = App.state.harvestSequencePlan?.id || `plan_${Date.now()}`;
+                const payload = {
+                    companyId,
+                    periodStart: h.seqPeriodStart?.value || null,
+                    periodEnd: h.seqPeriodEnd?.value || null,
+                    safra: h.seqSafra?.value || null,
+                    createdBy: App.state.currentUser.uid,
+                    updatedAt: new Date().toISOString(),
+                    fronts: App.state.frentesDePlantio.map((f, i) => ({ frenteId: f.id, nome: f.name, cor: this.getFrontColor(f.id), ordemInicial: i + 1, ativo: true })),
+                    items: App.state.harvestSequenceItems,
+                    history: [{ eventId: `evt_${Date.now()}`, actionType: 'save', who: App.state.currentUser.uid, at: new Date().toISOString(), diff: { totalItems: App.state.harvestSequenceItems.length } }]
+                };
+                if (App.state.isOnline && App.state.authMode === 'online') {
+                    await App.data.setDocument('harvest_plans', planId, payload);
+                    App.ui.showAlert('Planejamento de colheita no mapa guardado com sucesso.', 'success');
+                } else {
+                    await OfflineDB.add('offline-writes', { id: `offline_harvest_plan_${Date.now()}`, collection: 'harvest_plans', docId: planId, type: 'set', data: payload });
+                    App.ui.showAlert('Planejamento guardado offline. Será sincronizado automaticamente.', 'info');
+                }
+            },
+            async generateTableReport() {
+                const body = {
+                    companyId: App.state.currentUser.companyId,
+                    format: 'pdf',
+                    filters: this.getFilters(),
+                };
+                const token = await auth.currentUser.getIdToken();
+                const response = await fetch(`${App.config.backendUrl}/reports/harvest-sequence/table`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
+                if (!response.ok) return App.ui.showAlert('Falha ao gerar relatório de tabela.', 'error');
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+            },
+            async generateMapReport() {
+                const body = { companyId: App.state.currentUser.companyId, filters: this.getFilters() };
+                const token = await auth.currentUser.getIdToken();
+                const response = await fetch(`${App.config.backendUrl}/reports/harvest-sequence/map`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
+                if (!response.ok) return App.ui.showAlert('Falha ao gerar relatório de mapa.', 'error');
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+            }
         },
 
         osManual: {

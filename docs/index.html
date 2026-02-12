@@ -2791,6 +2791,40 @@
                         <button id="btnCancelHarvestPlan" class="btn-secondary"><i class="fas fa-times"></i> Voltar para a Lista</button>
                     </div>
                 </div>
+
+                <div class="card" style="margin-top:20px; border-left-color: var(--color-info);">
+                    <h3><i class="fas fa-map"></i> Planejamento de Colheita (Mapa)</h3>
+                    <div class="form-row">
+                        <div class="form-col"><label for="harvestSeqPeriodStart">Período Inicial</label><input type="date" id="harvestSeqPeriodStart"></div>
+                        <div class="form-col"><label for="harvestSeqPeriodEnd">Período Final</label><input type="date" id="harvestSeqPeriodEnd"></div>
+                        <div class="form-col"><label for="harvestSeqSafra">Safra</label><input type="text" id="harvestSeqSafra" placeholder="Ex: 2026/2027"></div>
+                        <div class="form-col"><label for="harvestSeqFront">Frente</label><select id="harvestSeqFront"></select></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="harvestSeqFarmFilter">Fazenda</label><select id="harvestSeqFarmFilter"></select></div>
+                        <div class="form-col"><label for="harvestSeqStatusFilter">Status</label><select id="harvestSeqStatusFilter"><option value="">Todos</option><option value="Planejado">Planejado</option><option value="Em execução">Em execução</option><option value="Colhido">Colhido</option><option value="Cancelado">Cancelado</option></select></div>
+                        <div class="form-col"><label for="harvestSeqVariedadeFilter">Variedade</label><input type="text" id="harvestSeqVariedadeFilter" placeholder="Filtrar variedade"></div>
+                        <div class="form-col" style="align-self:flex-end;"><label><input type="checkbox" id="harvestSeqOnlyUnplanned"> Somente sem planejamento</label></div>
+                    </div>
+                    <div id="harvestSeqFilterChips" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px;"></div>
+                    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;min-height:420px;">
+                        <div id="harvestSeqMap" style="width:100%;height:420px;border-radius:10px;"></div>
+                        <div>
+                            <div id="harvestSeqKpis" class="harvest-summary" style="margin-top:0;"></div>
+                            <h4 style="margin-top:10px;">Sequência da Frente</h4>
+                            <div id="harvestSeqList" class="talhao-selection-list" style="max-height:190px;"></div>
+                            <h4 style="margin-top:10px;">Detalhes do Talhão</h4>
+                            <div id="harvestSeqDetails" class="harvest-summary" style="margin-top:0;"></div>
+                            <h4 style="margin-top:10px;">Legenda (Frente → Cor)</h4>
+                            <div id="harvestSeqLegend"></div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+                        <button id="btnHarvestSeqSave" class="save"><i class="fas fa-save"></i> Guardar Planejamento do Mapa</button>
+                        <button id="btnHarvestSeqPdf" class="btn-secondary"><i class="fas fa-file-pdf"></i> Relatório Mapa PDF</button>
+                        <button id="btnHarvestSeqTable" class="btn-secondary"><i class="fas fa-table"></i> Relatório Tabela (PDF/Excel)</button>
+                    </div>
+                </div>
             </section>
 
             <section id="planejamento" class="tab-content card" aria-label="Planejamento de Inspeções" tabindex="0" hidden>
