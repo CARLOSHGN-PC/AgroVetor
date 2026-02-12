@@ -49,6 +49,7 @@ const { generateRiskViewPdf, getRiskViewData } = require('./reports/riskViewRepo
 const { getClimateStats } = require('./reports/climaDashboard');
 const { generateFleetPdf, getFleetData } = require('./reports/fleetReport');
 const { generateQualidadePlantioPdf, generateQualidadePlantioExcel } = require('./reports/qualidadePlantioReport');
+const { generateHarvestSequenceTablePdf, generateHarvestSequenceMapPdf, generateHarvestSequenceTableXlsx } = require('./reports/harvestSequenceReport');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -1566,6 +1567,33 @@ try {
         }
     });
 
+
+
+    app.get('/reports/harvest-sequence/table', authMiddleware, async (req, res) => {
+        const merged = { ...req.query, ...req.body };
+        if (String(merged.format || '').toLowerCase() === 'xlsx') {
+            return generateHarvestSequenceTableXlsx({ ...req, query: merged, body: merged }, res, db);
+        }
+        return generateHarvestSequenceTablePdf({ ...req, query: merged, body: merged }, res, db);
+    });
+
+    app.post('/reports/harvest-sequence/table', authMiddleware, async (req, res) => {
+        const merged = { ...req.query, ...req.body };
+        if (String(merged.format || '').toLowerCase() === 'xlsx') {
+            return generateHarvestSequenceTableXlsx({ ...req, query: merged, body: merged }, res, db);
+        }
+        return generateHarvestSequenceTablePdf({ ...req, query: merged, body: merged }, res, db);
+    });
+
+    app.get('/reports/harvest-sequence/map', authMiddleware, (req, res) => {
+        const merged = { ...req.query, ...req.body };
+        return generateHarvestSequenceMapPdf({ ...req, query: merged, body: merged }, res, db);
+    });
+
+    app.post('/reports/harvest-sequence/map', authMiddleware, (req, res) => {
+        const merged = { ...req.query, ...req.body };
+        return generateHarvestSequenceMapPdf({ ...req, query: merged, body: merged }, res, db);
+    });
     app.get('/reports/frota/pdf', authMiddleware, (req, res) => generateFleetPdf(req, res, db));
 
     app.get('/reports/frota/csv', authMiddleware, async (req, res) => {
