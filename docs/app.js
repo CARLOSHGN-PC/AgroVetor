@@ -158,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Colheita', icon: 'fas fa-tractor',
                     submenu: [
                         { label: 'Planejamento de Colheita', icon: 'fas fa-stream', target: 'planejamentoColheita', permission: 'planejamentoColheita' },
+                        { label: 'Mapa da Sequência de Colheita', icon: 'fas fa-map-marked-alt', target: 'mapaSequenciaColheita', permission: 'mapaSequenciaColheita' },
                     ]
                 },
                 {
@@ -181,6 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Rel. Cigarrinha (Amostragem)', icon: 'fas fa-file-invoice', target: 'relatorioCigarrinhaAmostragem', permission: 'relatorioCigarrinhaAmostragem' },
                         { label: 'Relatórios de Qualidade', icon: 'fas fa-clipboard-check', target: 'relatorioQualidadePlantio', permission: 'relatorioQualidadePlantio' },
                         { label: 'Rel. Colheita Custom', icon: 'fas fa-file-invoice', target: 'relatorioColheitaCustom', permission: 'planejamentoColheita' },
+                        { label: 'Relatório Seq. Colheita', icon: 'fas fa-project-diagram', target: 'relatorioSequenciaColheita', permission: 'relatorioSequenciaColheita' },
                         { label: 'Rel. Monitoramento', icon: 'fas fa-map-marked-alt', target: 'relatorioMonitoramento', permission: 'relatorioMonitoramento' },
                         { label: 'Relatório de Risco', icon: 'fas fa-shield-alt', target: 'relatorioRisco', permission: 'relatorioRisco' },
                         { label: 'Relatórios de Plantio', icon: 'fas fa-chart-bar', target: 'relatorioPlantio', permission: 'relatorioPlantio' },
@@ -216,10 +218,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true },
-                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, controleKM: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true, mapaSequenciaColheita: true, relatorioSequenciaColheita: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true, mapaSequenciaColheita: true, relatorioSequenciaColheita: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, mapaSequenciaColheita: true, relatorioSequenciaColheita: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, controleKM: true, mapaSequenciaColheita: true, relatorioSequenciaColheita: true },
                 user: { dashboard: true }
             }
         },
@@ -265,6 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mapboxTrapMarkers: {},
             armadilhas: [],
             geoJsonData: null,
+            harvestSequenceMap: null,
             selectedMapFeature: null, // NOVO: Armazena a feature do talhão selecionado no mapa
             trapNotifications: [],
             unreadNotificationCount: 0,
@@ -834,6 +837,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 endDate: document.getElementById('manageEndDate'),
                 applyBtn: document.getElementById('btnApplyManageFilters')
             },
+
+            mapaSequenciaColheita: {
+                mapContainer: document.getElementById('harvest-sequence-map'),
+                fazenda: document.getElementById('harvestSequenceFarmFilter'),
+                sequencia: document.getElementById('harvestSequenceFilter'),
+                status: document.getElementById('harvestSequenceStatusFilter'),
+                talhaoBusca: document.getElementById('harvestSequenceTalhaoSearch'),
+                mostrarPlanejados: document.getElementById('harvestSequenceOnlyPlanned'),
+                btnAplicar: document.getElementById('btnApplyHarvestSequenceFilters'),
+                info: document.getElementById('harvestSequenceMapInfo'),
+            },
             relatorioColheita: {
                 select: document.getElementById('planoRelatorioSelect'),
                 optionsContainer: document.getElementById('reportOptionsContainer'),
@@ -841,6 +855,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 tipoRelatorioSelect: document.getElementById('tipoRelatorioColheita'),
                 btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
                 btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
+            },
+
+            relatorioSequenciaColheita: {
+                fazenda: document.getElementById('relatorioSeqColheitaFazenda'),
+                sequencia: document.getElementById('relatorioSeqColheitaSequencia'),
+                status: document.getElementById('relatorioSeqColheitaStatus'),
+                btnPDFTabela: document.getElementById('btnPDFSequenciaColheitaTabela'),
+                btnExcelTabela: document.getElementById('btnExcelSequenciaColheitaTabela'),
+                btnPDFMapa: document.getElementById('btnPDFSequenciaColheitaMapa'),
             },
             monitoramentoAereo: {
                 container: document.getElementById('monitoramentoAereo-container'),
@@ -2705,6 +2728,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.fleet.init();
                     App.fleet.populateReportVehicleSelect();
                 }
+                if (id === 'mapaSequenciaColheita') {
+                    this.populateFazendaSelects();
+                    this.initializeHarvestSequenceMap();
+                }
                 if (id === 'planejamentoColheita') {
                     this.showHarvestPlanList();
                     if (App.state.currentUser.role === 'super-admin') {
@@ -2723,6 +2750,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha', 'relatorioQualidadePlantio'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
+                if (id === 'relatorioSequenciaColheita') {
+                    this.populateFazendaSelects();
+                    this.populateHarvestSequenceFilters();
+                    this.populateRelatorioSequenciaFilters();
+                }
                 if (['lancamentoBroca', 'lancamentoPerda', 'lancamentoCigarrinha', 'apontamentoPlantio', 'qualidadePlantio'].includes(id)) this.setDefaultDatesForEntryForms();
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
@@ -3420,6 +3452,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.qualidadeConsumo.fazendaOrigem,
                     App.elements.relatorioQualidade.fazenda,
                     App.elements.relatorioQualidade.fazendaOrigem,
+                    App.elements.mapaSequenciaColheita.fazenda,
+                    App.elements.relatorioSequenciaColheita.fazenda,
                     document.getElementById('climaDashboardFazenda')
                 ];
 
@@ -3429,7 +3463,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!select) return;
                     const currentValue = select.value;
                     let firstOption = '<option value="">Selecione...</option>';
-                    if (select.id.includes('Filtro') || ['qualidadeReportFazenda', 'qualidadeReportFazendaOrigem'].includes(select.id)) {
+                    if (select.id.includes('Filtro') || ['qualidadeReportFazenda', 'qualidadeReportFazendaOrigem', 'harvestSequenceFarmFilter', 'relatorioSeqColheitaFazenda'].includes(select.id)) {
                         firstOption = '<option value="">Todas</option>';
                     }
                     select.innerHTML = firstOption;
@@ -4471,6 +4505,168 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     `;
                     plansList.appendChild(card);
+                });
+            },
+            getSequenceColor(sequenceNumber) {
+                const palette = ['#ef5350', '#42a5f5', '#66bb6a', '#ffa726', '#ab47bc', '#26c6da', '#8d6e63', '#d4e157'];
+                const idx = (Math.max(Number(sequenceNumber) || 1, 1) - 1) % palette.length;
+                return palette[idx];
+            },
+            getSequenceStyleByPolygonKey() {
+                const map = new Map();
+                App.actions.getHarvestSequenceDataset().forEach(item => {
+                    if (!item.polygonKey) return;
+                    map.set(item.polygonKey, {
+                        color: item.sequenciaCor || this.getSequenceColor(item.sequenciaNumero),
+                        label: `S${item.sequenciaNumero} • ${item.talhaoCodigoOuNumero}`,
+                        shortLabel: `S${item.sequenciaNumero}`,
+                        ...item,
+                    });
+                });
+                return map;
+            },
+            populateHarvestSequenceFilters() {
+                const els = App.elements.mapaSequenciaColheita;
+                if (!els?.sequencia) return;
+                const dataset = App.actions.getHarvestSequenceDataset();
+                const current = els.sequencia.value;
+                const unique = [...new Set(dataset.map(d => Number(d.sequenciaNumero)).filter(Boolean))].sort((a,b)=>a-b);
+                els.sequencia.innerHTML = '<option value="">Todas</option>';
+                unique.forEach(num => {
+                    const opt = document.createElement('option');
+                    opt.value = String(num);
+                    opt.textContent = `Sequência ${num}`;
+                    els.sequencia.appendChild(opt);
+                });
+                els.sequencia.value = unique.includes(Number(current)) ? current : '';
+            },
+            populateRelatorioSequenciaFilters() {
+                const els = App.elements.relatorioSequenciaColheita;
+                if (!els?.sequencia) return;
+                const farm = App.state.fazendas.find(f => f.id === els.fazenda?.value);
+                const farmCode = farm?.code || '';
+                const seqNums = [...new Set(App.actions.getHarvestSequenceDataset().filter(i => !farmCode || i.fazendaCodigo === farmCode).map(i => Number(i.sequenciaNumero)).filter(Boolean))].sort((a,b)=>a-b);
+                const current = els.sequencia.value;
+                els.sequencia.innerHTML = '<option value="">Todas</option>';
+                seqNums.forEach(num => { els.sequencia.innerHTML += `<option value="${num}">Sequência ${num}</option>`; });
+                els.sequencia.value = seqNums.includes(Number(current)) ? current : '';
+            },
+            renderHarvestSequenceMapInfo(filteredData) {
+                const infoEl = App.elements.mapaSequenciaColheita?.info;
+                if (!infoEl) return;
+                const total = filteredData.length;
+                const uniqueSeq = new Set(filteredData.map(i => i.sequenciaNumero)).size;
+                infoEl.innerHTML = `<strong>${total}</strong> talhão(ões) planejados em <strong>${uniqueSeq}</strong> sequência(s).`;
+            },
+            renderHarvestSequenceMap() {
+                const map = App.state.harvestSequenceMap;
+                const els = App.elements.mapaSequenciaColheita;
+                if (!map || !App.state.geoJsonData || !els) return;
+
+                const dataset = App.actions.getHarvestSequenceDataset();
+                const styleByKey = this.getSequenceStyleByPolygonKey();
+                const farmCode = els.fazenda?.selectedOptions?.[0]?.dataset?.code || '';
+                const sequenceFilter = Number(els.sequencia?.value || 0);
+                const statusFilter = (els.status?.value || '').toLowerCase();
+                const talhaoBusca = App.actions.normalizePolygonKey(els.talhaoBusca?.value || '');
+                const onlyPlanned = Boolean(els.mostrarPlanejados?.checked);
+
+                const filteredData = dataset.filter(item => {
+                    if (farmCode && String(item.fazendaCodigo) !== String(farmCode)) return false;
+                    if (sequenceFilter && Number(item.sequenciaNumero) !== sequenceFilter) return false;
+                    if (statusFilter && String(item.status || '').toLowerCase() !== statusFilter) return false;
+                    if (talhaoBusca && !String(item.polygonKey).includes(talhaoBusca)) return false;
+                    if (onlyPlanned && String(item.status || '').toLowerCase() !== 'planejado') return false;
+                    return true;
+                });
+
+                const allowedKeys = new Set(filteredData.map(i => i.polygonKey));
+
+                const source = map.getSource('harvest-seq-source');
+                if (source) {
+                    source.setData(App.state.geoJsonData);
+                }
+
+                (App.state.geoJsonData.features || []).forEach((feature, idx) => {
+                    const rawKey = feature.properties?.AGV_TALHAO || feature.properties?.TALHAO || feature.properties?.COD_TALHAO || feature.properties?.ID || idx;
+                    const key = App.actions.normalizePolygonKey(rawKey);
+                    const style = styleByKey.get(key);
+                    const visible = allowedKeys.size === 0 ? true : allowedKeys.has(key);
+                    if (feature.id === undefined) feature.id = idx;
+                    map.setFeatureState({ source: 'harvest-seq-source', id: feature.id }, {
+                        seqVisible: visible,
+                        seqColor: style?.color || '#37474f',
+                        seqLabel: style?.label || '',
+                    });
+                });
+
+                this.renderHarvestSequenceMapInfo(filteredData);
+            },
+            initializeHarvestSequenceMap() {
+                const container = App.elements.mapaSequenciaColheita?.mapContainer;
+                if (!container) return;
+                if (App.state.harvestSequenceMap) {
+                    setTimeout(() => App.state.harvestSequenceMap.resize(), 50);
+                    this.populateHarvestSequenceFilters();
+                    this.renderHarvestSequenceMap();
+                    return;
+                }
+
+                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+                const map = new mapboxgl.Map({
+                    container,
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [-48.45, -21.17],
+                    zoom: 11,
+                    attributionControl: false,
+                });
+                App.state.harvestSequenceMap = map;
+
+                map.on('load', () => {
+                    map.addSource('harvest-seq-source', {
+                        type: 'geojson',
+                        data: App.state.geoJsonData || { type: 'FeatureCollection', features: [] },
+                        generateId: true,
+                    });
+                    map.addLayer({
+                        id: 'harvest-seq-fill',
+                        type: 'fill',
+                        source: 'harvest-seq-source',
+                        paint: {
+                            'fill-color': ['coalesce', ['feature-state', 'seqColor'], '#37474f'],
+                            'fill-opacity': ['case', ['boolean', ['feature-state', 'seqVisible'], true], 0.7, 0.12],
+                        }
+                    });
+                    map.addLayer({
+                        id: 'harvest-seq-border',
+                        type: 'line',
+                        source: 'harvest-seq-source',
+                        paint: { 'line-color': '#ffffff', 'line-width': 1.2 }
+                    });
+                    map.addLayer({
+                        id: 'harvest-seq-label',
+                        type: 'symbol',
+                        source: 'harvest-seq-source',
+                        layout: {
+                            'text-field': ['coalesce', ['feature-state', 'seqLabel'], ['get', 'AGV_TALHAO']],
+                            'text-size': 12,
+                            'text-ignore-placement': true,
+                            'text-allow-overlap': true,
+                        },
+                        paint: { 'text-color': '#fff', 'text-halo-color': '#000', 'text-halo-width': 1.5 }
+                    });
+
+                    map.on('click', 'harvest-seq-fill', (e) => {
+                        const feature = e.features?.[0];
+                        if (!feature) return;
+                        const key = App.actions.normalizePolygonKey(feature.properties?.AGV_TALHAO || feature.properties?.TALHAO || feature.properties?.COD_TALHAO || feature.properties?.ID);
+                        const item = App.actions.getHarvestSequenceDataset().find(d => d.polygonKey === key);
+                        if (!item) return;
+                        App.ui.showAlert(`Sequência ${item.sequenciaNumero} • Talhão ${item.talhaoCodigoOuNumero} • Status: ${item.status}`, 'info');
+                    });
+
+                    this.populateHarvestSequenceFilters();
+                    this.renderHarvestSequenceMap();
                 });
             },
             renderHarvestSequence() {
@@ -6444,6 +6640,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (reportType === 'fazenda') App.reports.generatePlantioFazendaExcel();
                     if (reportType === 'talhao_legacy') App.reports.generatePlantioTalhaoLegacyExcel();
                 });
+
+                const mapaSeqEls = App.elements.mapaSequenciaColheita;
+                if (mapaSeqEls?.btnAplicar) mapaSeqEls.btnAplicar.addEventListener('click', () => App.ui.renderHarvestSequenceMap());
+                if (mapaSeqEls?.fazenda) mapaSeqEls.fazenda.addEventListener('change', () => {
+                    App.ui.populateHarvestSequenceFilters();
+                    App.ui.renderHarvestSequenceMap();
+                });
+                if (mapaSeqEls?.sequencia) mapaSeqEls.sequencia.addEventListener('change', () => App.ui.renderHarvestSequenceMap());
+                if (mapaSeqEls?.status) mapaSeqEls.status.addEventListener('change', () => App.ui.renderHarvestSequenceMap());
+                if (mapaSeqEls?.talhaoBusca) mapaSeqEls.talhaoBusca.addEventListener('input', App.debounce(() => App.ui.renderHarvestSequenceMap(), 250));
+                if (mapaSeqEls?.mostrarPlanejados) mapaSeqEls.mostrarPlanejados.addEventListener('change', () => App.ui.renderHarvestSequenceMap());
+
+                const relSeqEls = App.elements.relatorioSequenciaColheita;
+                if (relSeqEls?.btnPDFTabela) relSeqEls.btnPDFTabela.addEventListener('click', () => App.reports.generateHarvestSequenceTablePDF());
+                if (relSeqEls?.btnExcelTabela) relSeqEls.btnExcelTabela.addEventListener('click', () => App.reports.generateHarvestSequenceTableExcel());
+                if (relSeqEls?.btnPDFMapa) relSeqEls.btnPDFMapa.addEventListener('click', () => App.reports.generateHarvestSequenceMapPDF());
+                if (relSeqEls?.fazenda) relSeqEls.fazenda.addEventListener('change', () => App.ui.populateRelatorioSequenciaFilters());
 
                 const relatorioClimaEls = App.elements.relatorioClima;
                 if (relatorioClimaEls && relatorioClimaEls.btnPDF) {
@@ -9583,6 +9796,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     
                     try {
+                        planToSave.sequence = (planToSave.sequence || []).map((group, index) => {
+                            const seqNum = Number(group.sequenciaNumero) || index + 1;
+                            const seqColor = group.corDaSequencia || App.ui.getSequenceColor(seqNum);
+                            const farm = App.state.fazendas.find(f => String(f.code) === String(group.fazendaCodigo));
+                            const normalizedPlots = (group.plots || []).map(plot => {
+                                const talhao = farm?.talhoes?.find(t => t.id === plot.talhaoId);
+                                return {
+                                    ...plot,
+                                    talhaoCodigoOuNumero: plot.talhaoCodigoOuNumero || talhao?.codigo || talhao?.numero || plot.talhaoName,
+                                    polygonKey: plot.polygonKey || App.actions.resolveTalhaoPolygonKey(talhao || plot),
+                                    status: plot.status || 'planejado',
+                                };
+                            });
+                            return {
+                                ...group,
+                                sequenciaId: group.sequenciaId || `${planToSave.id || 'draft'}-${group.id}`,
+                                sequenciaNumero: seqNum,
+                                corDaSequencia: seqColor,
+                                sequenciaCor: seqColor,
+                                fazendaId: group.fazendaId || farm?.id || null,
+                                status: group.status || 'planejado',
+                                plots: normalizedPlots,
+                                updatedAt: new Date().toISOString(),
+                            };
+                        });
+
                         if (planToSave.id) {
                             await App.data.setDocument('harvestPlans', planToSave.id, planToSave);
                         } else {
@@ -9627,7 +9866,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const talhaoId = parseInt(cb.dataset.talhaoId);
                     const talhao = farm.talhoes.find(t => t.id === talhaoId);
                     if (talhao) {
-                        selectedPlots.push({ talhaoId: talhao.id, talhaoName: talhao.name });
+                        selectedPlots.push({
+                            talhaoId: talhao.id,
+                            talhaoName: talhao.name,
+                            talhaoCodigoOuNumero: talhao.codigo || talhao.numero || talhao.name,
+                            polygonKey: App.actions.resolveTalhaoPolygonKey(talhao),
+                            status: 'planejado'
+                        });
                         totalArea += talhao.area;
                         totalProducao += talhao.producao;
                     }
@@ -9642,11 +9887,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         group.atr = atr;
                         group.maturador = maturadorValue;
                         group.maturadorDate = maturadorDateValue;
+                        group.fazendaId = farm.id;
+                        group.sequenciaNumero = Number(group.sequenciaNumero) || 1;
+                        group.corDaSequencia = group.corDaSequencia || App.ui.getSequenceColor(group.sequenciaNumero);
+                        group.status = group.status || 'planejado';
                     }
                 } else {
+                    const sequenceNumber = (App.state.activeHarvestPlan.sequence?.length || 0) + 1;
                     App.state.activeHarvestPlan.sequence.push({
-                        id: Date.now(), fazendaCodigo: farm.code, fazendaName: farm.name,
-                        plots: selectedPlots, totalArea, totalProducao, atr,
+                        id: Date.now(),
+                        sequenciaId: `SEQ-${Date.now()}`,
+                        sequenciaNumero: sequenceNumber,
+                        corDaSequencia: App.ui.getSequenceColor(sequenceNumber),
+                        status: 'planejado',
+                        fazendaId: farm.id,
+                        fazendaCodigo: farm.code,
+                        fazendaName: farm.name,
+                        plots: selectedPlots,
+                        totalArea,
+                        totalProducao,
+                        atr,
                         maturador: maturadorValue,
                         maturadorDate: maturadorDateValue
                     });
@@ -9762,6 +10022,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (e) {
                     return 'N/A';
                 }
+            },
+            normalizePolygonKey(value) {
+                return String(value || '')
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/\s+/g, '')
+                    .replace(/[^a-zA-Z0-9_-]/g, '')
+                    .toUpperCase();
+            },
+            resolveTalhaoPolygonKey(talhao) {
+                const candidate = talhao?.codigo || talhao?.numero || talhao?.name || talhao?.talhao || talhao?.id;
+                return this.normalizePolygonKey(candidate);
+            },
+            getHarvestSequenceDataset() {
+                const dataset = [];
+                (App.state.harvestPlans || []).forEach(plan => {
+                    (plan.sequence || []).forEach((group, index) => {
+                        const sequenceNumber = Number(group.sequenciaNumero) || index + 1;
+                        const sequenceLabel = `Sequência ${sequenceNumber}`;
+                        const sequenceColor = group.corDaSequencia || group.sequenciaCor || '#ff9800';
+                        (group.plots || []).forEach(plot => {
+                            dataset.push({
+                                planId: plan.id,
+                                groupId: group.id,
+                                sequenciaId: group.sequenciaId || `${plan.id || 'plan'}-${group.id}`,
+                                sequenciaNumero: sequenceNumber,
+                                sequenciaLabel: sequenceLabel,
+                                sequenciaCor: sequenceColor,
+                                fazendaId: group.fazendaId || null,
+                                fazendaCodigo: group.fazendaCodigo,
+                                fazendaName: group.fazendaName,
+                                talhaoId: plot.talhaoId,
+                                talhaoCodigoOuNumero: plot.talhaoCodigoOuNumero || plot.talhaoName,
+                                polygonKey: this.normalizePolygonKey(plot.polygonKey || plot.talhaoCodigoOuNumero || plot.talhaoName),
+                                status: plot.status || group.status || 'planejado',
+                                observacoes: plot.observacoes || group.observacoes || '',
+                                updatedAt: group.updatedAt || plan.updatedAt || plan.createdAt || null,
+                            });
+                        });
+                    });
+                });
+                return dataset;
             },
             async _saveEntry(config) {
                 const {
@@ -16954,6 +17256,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
             },
 
+            _buildHarvestSequenceReportFilters() {
+                const els = App.elements.relatorioSequenciaColheita;
+                const farm = App.state.fazendas.find(f => f.id === els.fazenda.value);
+                return {
+                    fazendaId: farm ? farm.id : '',
+                    fazendaCodigo: farm ? farm.code : '',
+                    sequenciaNumero: els.sequencia.value || '',
+                    status: els.status.value || ''
+                };
+            },
+            generateHarvestSequenceTablePDF() {
+                const filters = this._buildHarvestSequenceReportFilters();
+                this._fetchAndDownloadReport('harvest-sequence/table', { ...filters, format: 'pdf' }, 'relatorio_sequencia_colheita_tabela.pdf');
+            },
+            generateHarvestSequenceTableExcel() {
+                const filters = this._buildHarvestSequenceReportFilters();
+                this._fetchAndDownloadReport('harvest-sequence/table', { ...filters, format: 'xlsx' }, 'relatorio_sequencia_colheita_tabela.xlsx');
+            },
+            generateHarvestSequenceMapPDF() {
+                const filters = this._buildHarvestSequenceReportFilters();
+                this._fetchAndDownloadReport('harvest-sequence/map', filters, 'relatorio_sequencia_colheita_mapa.pdf');
+            },
             generateRiskViewPDF() {
                 const { inicio, fim } = App.elements.relatorioRisco;
                 if (!inicio.value || !fim.value) {
