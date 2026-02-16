@@ -8120,7 +8120,6 @@
   getShapefile.parseDbf = _parseDbf;
   getShapefile.parseZip = parseZip;
   getShapefile.parseShp = _parseShp;
-  getShapefile.proj4 = proj4;
 
   return getShapefile;
 
