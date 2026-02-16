@@ -1,0 +1,13 @@
+127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /app.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /icons/icon-512x512.png HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /js/lib/shp.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /js/lib/idb-lib.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /capacitor.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:39] "GET /js/fleet.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:39] "GET /js/lib/CalculationService.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:39] "GET /js/lib/VirtualList.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:39] "GET /js/lib/PerfLogger.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:39] "GET /js/repositories/KMRepository.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:40] "GET /service-worker.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Feb/2026 17:16:40] "GET /icons/imagens.png HTTP/1.1" 200 -

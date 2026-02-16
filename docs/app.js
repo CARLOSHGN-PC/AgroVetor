@@ -7,8 +7,11 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
 import CalculationService from './js/lib/CalculationService.js';
+import { perfLogger } from './js/lib/PerfLogger.js';
+import VirtualList from './js/lib/VirtualList.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+    perfLogger.start('App Boot');
 
     // Lógica da Tela de Abertura
     const splashScreen = document.getElementById('splash-screen');
@@ -920,6 +923,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return App.state.globalConfigs[featureKey] === true;
         },
 
+        getPerfMetrics() {
+            return perfLogger.export();
+        },
+
         debounce(func, delay = 1000) {
             let timeout;
             return (...args) => {
@@ -941,6 +948,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         init() {
+            perfLogger.start('App.init');
             OfflineDB.init();
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
@@ -948,6 +956,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.auth.checkSession();
             this.auth.onConnectivityChanged(navigator.onLine);
             this.pwa.registerServiceWorker();
+            perfLogger.end('App.init');
         },
 
         native: {
@@ -1334,7 +1343,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 // 3. Agora é seguro mostrar a tela principal
                                 App.actions.saveUserProfileLocally(App.state.currentUser);
                                 App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
-                                App.data.listenToAllData(); // Inicia os ouvintes para atualizações em tempo real
+                                App.data.listenToCoreData(); // Inicia os ouvintes para atualizações em tempo real
 
                                 if (this.pendingOfflinePassword) {
                                     try {
@@ -1473,14 +1482,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             // Agora, com os dados essenciais pré-carregados, mostra a tela da aplicação
                             App.ui.showAppScreen();
                             App.mapModule.loadOfflineShapes();
-                            App.data.listenToAllData(); // Configura os 'listeners' para futuras atualizações quando estiver online
+                            App.data.listenToCoreData(); // Configura os 'listeners' para futuras atualizações quando estiver online
 
                         } catch (error) {
                             console.error("Erro ao pré-carregar dados do cache offline:", error);
                             // Fallback para o comportamento antigo se o pré-carregamento falhar
                             App.ui.showAppScreen();
                             App.mapModule.loadOfflineShapes();
-                            App.data.listenToAllData();
+                            App.data.listenToCoreData();
                         } finally {
                             App.ui.setLoading(false);
                         }
@@ -1582,7 +1591,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 App.ui.renderMenu();
-                App.data.listenToAllData();
+                App.data.listenToCoreData();
                 await App.actions.startSync();
             },
             async confirmReauth(password) {
@@ -1821,8 +1830,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.unsubscribeListeners.forEach(unsubscribe => unsubscribe());
                 App.state.unsubscribeListeners = [];
             },
-            listenToAllData() {
+            collectionSubscriptions: {},
+
+            async subscribeTo(collectionName) {
+                if (this.collectionSubscriptions[collectionName]) return;
+
+                const companyId = App.state.currentUser.companyId;
+                const isSuperAdmin = App.state.currentUser.role === 'super-admin';
+
+                if (!companyId && !isSuperAdmin) return;
+
+                // console.log(`Subscribing to ${collectionName}...`);
+
+                let q;
+                if (isSuperAdmin) {
+                     q = collection(db, collectionName);
+                } else {
+                     q = query(collection(db, collectionName), where("companyId", "==", companyId));
+                }
+
+                const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                    const data = [];
+                    querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+                    App.state[collectionName] = data;
+
+                    if (collectionName === 'armadilhas') {
+                        if (App.state.mapboxMap) App.mapModule.loadTraps();
+                        App.mapModule.checkTrapStatusAndNotify();
+                    }
+                    App.ui.renderSpecificContent(collectionName);
+                }, (error) => {
+                    console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
+                });
+
+                this.collectionSubscriptions[collectionName] = unsubscribe;
+                // Add to global list for cleanup on logout
+                App.state.unsubscribeListeners.push(unsubscribe);
+            },
+
+            listenToCoreData() {
+                perfLogger.start('listenToCoreData');
                 this.cleanupListeners();
+                this.collectionSubscriptions = {};
 
                 // Ouve as configurações globais para TODOS os utilizadores
                 const globalConfigsRef = doc(db, 'global_configs', 'main');
@@ -1845,25 +1894,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                // OTIMIZAÇÃO: Remove 'clima' da lista padrão para evitar carregamento massivo (20k+ registros)
-                // 'controleFrota' e 'abastecimentos' também são removidos para carregamento otimizado
-                const companyScopedCollections = ['users', 'fazendas', 'personnel', 'registros', 'perdas', 'planos', 'harvestPlans', 'armadilhas', 'cigarrinha', 'cigarrinhaAmostragem', 'frentesDePlantio', 'apontamentosPlantio', 'qualidadePlantio', 'frota'];
+                // Core Collections loaded on startup
+                const coreCollections = ['users', 'fazendas', 'personnel', 'frentesDePlantio'];
+                coreCollections.forEach(col => this.subscribeTo(col));
 
                 if (isSuperAdmin) {
-                    // Super Admin ouve TODOS os dados de todas as coleções relevantes
-                    companyScopedCollections.forEach(collectionName => {
-                        const q = collection(db, collectionName); // Sem filtro 'where'
-                        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-                            const data = [];
-                            querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
-                            App.state[collectionName] = data;
-                            App.ui.renderSpecificContent(collectionName);
-                        }, (error) => {
-                            console.error(`Erro ao ouvir a coleção ${collectionName} como Super Admin: `, error);
-                        });
-                        App.state.unsubscribeListeners.push(unsubscribe);
-                    });
-
                     // Tratamento especial para Clima (Super Admin também não deve carregar tudo por padrão)
                     // Carrega apenas os últimos 6 meses
                     App.data.listenToRecentClima(null, true);
@@ -1882,25 +1917,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.renderLogoPreview();
 
                 } else if (companyId) {
-                    // Utilizador normal ouve apenas os dados da sua própria empresa
-                    companyScopedCollections.forEach(collectionName => {
-                        const q = query(collection(db, collectionName), where("companyId", "==", companyId));
-                        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-                            const data = [];
-                            querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
-                            App.state[collectionName] = data;
-
-                            if (collectionName === 'armadilhas') {
-                                if (App.state.mapboxMap) App.mapModule.loadTraps();
-                                App.mapModule.checkTrapStatusAndNotify();
-                            }
-                            App.ui.renderSpecificContent(collectionName);
-                        }, (error) => {
-                            console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
-                        });
-                        App.state.unsubscribeListeners.push(unsubscribe);
-                    });
-
                     // OTIMIZAÇÃO: Listener específico para Clima (Recent Data Only)
                     App.data.listenToRecentClima(companyId);
 
@@ -1960,6 +1976,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     console.error("Utilizador não é Super Admin e não tem companyId. Carregamento de dados bloqueado.");
                 }
+                perfLogger.end('listenToCoreData');
             },
             async getDocument(collectionName, docId, options) {
                 return await getDoc(doc(db, collectionName, docId)).then(docSnap => {
@@ -2137,7 +2154,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
-                App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
+
                 App.actions.startGpsTracking(); // O rastreamento agora é manual
                 App.actions.startAutoSync(); // Inicia a sincronização automática
             },
@@ -2493,6 +2510,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = savedValue;
             },
             showTab(id) {
+                perfLogger.start(`showTab:${id}`);
+
+                // Lazy Load Data Requirements
+                const tabDataRequirements = {
+                    'dashboard': ['registros', 'perdas', 'apontamentosPlantio', 'cigarrinha', 'armadilhas'],
+                    'monitoramentoAereo': ['armadilhas'],
+                    'planejamento': ['planos'],
+                    'planejamentoColheita': ['harvestPlans'],
+                    'lancamentoBroca': ['registros'],
+                    'lancamentoPerda': ['perdas'],
+                    'lancamentoCigarrinha': ['cigarrinha'],
+                    'lancamentoCigarrinhaAmostragem': ['cigarrinhaAmostragem'],
+                    'qualidadePlantio': ['qualidadePlantio'],
+                    'apontamentoPlantio': ['apontamentosPlantio', 'frota'],
+                    'gestaoFrota': ['frota'],
+                    'controleKM': ['controleFrota', 'frota'],
+                    'relatorioBroca': ['registros'],
+                    'relatorioPerda': ['perdas'],
+                    'relatorioCigarrinha': ['cigarrinha'],
+                    'relatorioCigarrinhaAmostragem': ['cigarrinhaAmostragem'],
+                    'relatorioQualidadePlantio': ['qualidadePlantio'],
+                    'relatorioMonitoramento': ['armadilhas'],
+                    'relatorioPlantio': ['apontamentosPlantio', 'frentesDePlantio'],
+                    'frenteDePlantio': ['frentesDePlantio']
+                };
+
+                if (tabDataRequirements[id]) {
+                    tabDataRequirements[id].forEach(col => App.data.subscribeTo(col));
+                }
+
                 const { currentUser, companies } = App.state;
 
                 // Encontrar o item de menu correspondente para obter a permissão necessária
@@ -2605,7 +2652,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
-                    if (App.state.mapboxMap) {
+
+                    if (!App.state.mapboxMap) {
+                        // Lazy Init: Initialize map only when tab is opened
+                        // setTimeout to ensure DOM is updated and allow UI thread to breathe
+                        setTimeout(() => {
+                            if (App.mapModule && App.mapModule.initMap) {
+                                App.mapModule.initMap();
+                            }
+                        }, 50);
+                    } else {
                         // Força o redimensionamento do mapa para o contêiner visível
                         setTimeout(() => App.state.mapboxMap.resize(), 0);
                     }
@@ -2727,6 +2783,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
+                perfLogger.end(`showTab:${id}`);
             },
 
             // ALTERAÇÃO PONTO 4: Nova função para atualizar o sino de notificação
@@ -3775,12 +3832,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     );
                     const querySnapshot = await getDocs(q);
 
-                    listEl.innerHTML = '';
-
-                    if (querySnapshot.empty) {
-                        listEl.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum histórico de sincronização encontrado.</p>';
-                        return;
-                    }
+                    const logs = [];
+                    querySnapshot.forEach(doc => logs.push({ id: doc.id, ...doc.data() }));
 
                     const statusMap = {
                         success: { icon: 'fa-check-circle', color: 'var(--color-success)', label: 'Sucesso' },
@@ -3790,37 +3843,35 @@ document.addEventListener('DOMContentLoaded', () => {
                         critical_error: { icon: 'fa-bomb', color: 'var(--color-danger)', label: 'Erro Crítico' },
                     };
 
-                    querySnapshot.forEach(doc => {
-                        const log = doc.data();
-                        const logId = doc.id;
-                        const logTimestamp = log.timestamp ? log.timestamp.toDate() : new Date(); // Lida com timestamps pendentes
+                    new VirtualList({
+                        containerId: 'syncHistoryList',
+                        items: logs,
+                        pageSize: 15,
+                        renderItem: (log) => {
+                            const statusInfo = statusMap[log.status] || { icon: 'fa-question-circle', color: 'var(--color-text-light)', label: 'Desconhecido' };
+                            const logTimestamp = log.timestamp ? log.timestamp.toDate() : new Date();
+                            const detailsButton = (log.items && log.items.length > 0)
+                                ? `<button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="view-sync-details" data-id="${log.id}">
+                                    <i class="fas fa-eye"></i> Ver Detalhes
+                                </button>`
+                                : '';
 
-                        const statusInfo = statusMap[log.status] || { icon: 'fa-question-circle', color: 'var(--color-text-light)', label: 'Desconhecido' };
-                        const card = document.createElement('div');
-                        card.className = 'plano-card';
-                        card.style.borderLeftColor = statusInfo.color;
-
-                        const detailsButton = (log.items && log.items.length > 0)
-                            ? `<button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="view-sync-details" data-id="${logId}">
-                                   <i class="fas fa-eye"></i> Ver Detalhes
-                               </button>`
-                            : '';
-
-                        card.innerHTML = `
-                            <div class="plano-header">
-                                <span class="plano-title"><i class="fas ${statusInfo.icon}" style="color: ${statusInfo.color};"></i> Sincronização por ${log.username || 'Sistema'}</span>
-                                <span class="plano-status" style="background-color: ${statusInfo.color}; font-size: 12px; text-transform: none;">
-                                    ${logTimestamp.toLocaleString('pt-BR')}
-                                </span>
-                            </div>
-                            <div class="plano-details" style="grid-template-columns: 1fr;">
-                                <div><i class="fas fa-comment-alt"></i> Detalhes: ${log.details}</div>
-                            </div>
-                            <div class="plano-actions">
-                                ${detailsButton}
-                            </div>
-                        `;
-                        listEl.appendChild(card);
+                            return `
+                            <div class="plano-card" style="border-left-color: ${statusInfo.color};">
+                                <div class="plano-header">
+                                    <span class="plano-title"><i class="fas ${statusInfo.icon}" style="color: ${statusInfo.color};"></i> Sincronização por ${log.username || 'Sistema'}</span>
+                                    <span class="plano-status" style="background-color: ${statusInfo.color}; font-size: 12px; text-transform: none;">
+                                        ${logTimestamp.toLocaleString('pt-BR')}
+                                    </span>
+                                </div>
+                                <div class="plano-details" style="grid-template-columns: 1fr;">
+                                    <div><i class="fas fa-comment-alt"></i> Detalhes: ${log.details}</div>
+                                </div>
+                                <div class="plano-actions">
+                                    ${detailsButton}
+                                </div>
+                            </div>`;
+                        }
                     });
 
                 } catch (error) {
@@ -11382,7 +11433,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Re-initialize the app view
                 App.ui.showImpersonationBanner(companyToImpersonate.name);
-                App.data.listenToAllData(); // This will now use the impersonated companyId
+                App.data.listenToCoreData(); // This will now use the impersonated companyId
                 App.ui.renderMenu();
                 App.ui.showTab('dashboard');
             },
@@ -11398,7 +11449,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.isImpersonating = false;
 
                 // Re-initialize the app view
-                App.data.listenToAllData(); // This will go back to super-admin view
+                App.data.listenToCoreData(); // This will go back to super-admin view
                 App.ui.renderMenu();
                 App.ui.showTab('gerenciarEmpresas'); // Go back to a sensible super-admin tab
                 App.ui.hideImpersonationBanner();
@@ -14563,18 +14614,10 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             
-            async renderBrocaDashboardCharts() {
-                const { brocaDashboardInicio, brocaDashboardFim } = App.elements.dashboard;
-                App.actions.saveDashboardDates('broca', brocaDashboardInicio.value, brocaDashboardFim.value);
-                const consolidatedData = await App.actions.getConsolidatedData('registros');
-                const data = App.actions.filterDashboardData(consolidatedData, brocaDashboardInicio.value, brocaDashboardFim.value);
-
-                // Otimização: Passar os dados já filtrados para as funções de renderização
-                this.renderTop10FazendasBroca(data);
-                this.renderBrocaMensal(data);
-                this.renderBrocaPosicao(data);
-                this.renderBrocaPorVariedade(data);
-            },
+            async renderBrocaDashboardCharts() {
+                const module = await import("./js/modules/BrocaModule.js");
+                await module.default.render(App);
+            },
             async renderPerdaDashboardCharts() {
                 const { perdaDashboardInicio, perdaDashboardFim } = App.elements.dashboard;
                 App.actions.saveDashboardDates('perda', perdaDashboardInicio.value, perdaDashboardFim.value);
@@ -14586,186 +14629,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderComposicaoPerdaPorFrente(data);
                 this.renderTop10FazendasPerda(data);
                 this.renderPerdaPorFrente(data);
-            },
-            renderTop10FazendasBroca(data) {
-                const fazendasMap = new Map();
-                data.forEach(item => {
-                    const fazendaKey = `${item.codigo} - ${item.fazenda}`;
-                    if (!fazendasMap.has(fazendaKey)) fazendasMap.set(fazendaKey, { totalEntrenos: 0, totalBrocado: 0 });
-                    const f = fazendasMap.get(fazendaKey);
-                    f.totalEntrenos += Number(item.entrenos);
-                    f.totalBrocado += Number(item.brocado);
-                });
-                const fazendasArray = Array.from(fazendasMap.entries()).map(([nome, d]) => ({ nome, indice: d.totalEntrenos > 0 ? (d.totalBrocado / d.totalEntrenos) * 100 : 0 }));
-                fazendasArray.sort((a, b) => b.indice - a.indice);
-                const top10 = fazendasArray.slice(0, 10);
-                
-                const commonOptions = this._getCommonChartOptions({ hasLongLabels: true });
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
-
-                this._createOrUpdateChart('graficoTop10FazendasBroca', {
-                    type: 'bar',
-                    data: {
-                        labels: top10.map(f => f.nome),
-                        datasets: [{
-                            label: 'Índice de Broca (%)',
-                            data: top10.map(f => f.indice),
-                            backgroundColor: this._getVibrantColors(top10.length)
-                        }]
-                    },
-                    options: { 
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                color: datalabelColor, 
-                                anchor: 'end', 
-                                align: 'end',
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)}%`
-                            }
-                        }
-                    }
-                });
-            },
-            renderBrocaMensal(data) {
-                const dataByMonth = {};
-                data.forEach(item => {
-                    if (!item.data) return;
-                    const date = new Date(item.data + 'T03:00:00Z');
-                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                    const monthLabel = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
-                    if (!dataByMonth[monthKey]) dataByMonth[monthKey] = { totalBrocado: 0, totalEntrenos: 0, label: monthLabel };
-                    dataByMonth[monthKey].totalBrocado += Number(item.brocado);
-                    dataByMonth[monthKey].totalEntrenos += Number(item.entrenos);
-                });
-                const sortedMonths = Object.keys(dataByMonth).sort();
-                const labels = sortedMonths.map(key => dataByMonth[key].label);
-                const chartData = sortedMonths.map(key => {
-                    const monthData = dataByMonth[key];
-                    return monthData.totalEntrenos > 0 ? (monthData.totalBrocado / monthData.totalEntrenos) * 100 : 0;
-                });
-                
-                const commonOptions = this._getCommonChartOptions();
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
-
-                this._createOrUpdateChart('graficoBrocaMensal', {
-                    type: 'line',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: 'Índice Mensal (%)',
-                            data: chartData,
-                            fill: true,
-                            borderColor: App.ui._getThemeColors().primary,
-                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                            tension: 0.4
-                        }]
-                    },
-                    options: { 
-                        ...commonOptions,
-                        scales: { 
-                            ...commonOptions.scales,
-                            y: { ...commonOptions.scales.y, grid: { color: 'transparent', drawBorder: false } } 
-                        },
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                anchor: 'end', align: 'top', offset: 8,
-                                color: datalabelColor,
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)}%`
-                            }
-                        }
-                    }
-                });
-            },
-            renderBrocaPosicao(data) {
-                const totalBase = data.reduce((sum, item) => sum + Number(item.base), 0);
-                const totalMeio = data.reduce((sum, item) => sum + Number(item.meio), 0);
-                const totalTopo = data.reduce((sum, item) => sum + Number(item.topo), 0);
-                const totalGeral = totalBase + totalMeio + totalTopo;
-                
-                const commonOptions = this._getCommonChartOptions();
-
-                this._createOrUpdateChart('graficoBrocaPosicao', {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Base', 'Meio', 'Topo'],
-                        datasets: [{
-                            label: 'Posição da Broca',
-                            data: [totalBase, totalMeio, totalTopo],
-                            backgroundColor: this._getVibrantColors(3)
-                        }]
-                    },
-                    options: { 
-                        responsive: true, maintainAspectRatio: false,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { ...commonOptions.plugins.legend, position: 'top' },
-                            datalabels: {
-                                color: '#FFFFFF', 
-                                font: { weight: 'bold', size: 16 },
-                                formatter: (value) => totalGeral > 0 ? `${(value / totalGeral * 100).toFixed(2)}%` : '0.00%'
-                            }
-                        }
-                    }
-                });
-            },
-            renderBrocaPorVariedade(data) {
-                const variedadesMap = new Map();
-                const fazendas = App.state.fazendas;
-
-                data.forEach(item => {
-                    const farm = fazendas.find(f => f.code === item.codigo);
-                    const talhao = farm?.talhoes.find(t => t.name.toUpperCase() === item.talhao.toUpperCase());
-                    const variedade = talhao?.variedade || 'N/A';
-
-                    if (!variedadesMap.has(variedade)) {
-                        variedadesMap.set(variedade, { totalEntrenos: 0, totalBrocado: 0 });
-                    }
-                    const v = variedadesMap.get(variedade);
-                    v.totalEntrenos += Number(item.entrenos);
-                    v.totalBrocado += Number(item.brocado);
-                });
-
-                const variedadesArray = Array.from(variedadesMap.entries())
-                    .map(([nome, d]) => ({ nome, indice: d.totalEntrenos > 0 ? (d.totalBrocado / d.totalEntrenos) * 100 : 0 }))
-                    .filter(v => v.nome !== 'N/A');
-                    
-                variedadesArray.sort((a, b) => b.indice - a.indice);
-                const top10 = variedadesArray.slice(0, 10);
-
-                const commonOptions = this._getCommonChartOptions({ indexAxis: 'y' });
-                const datalabelColor = document.body.classList.contains('theme-dark') ? '#FFFFFF' : '#333333';
-
-                this._createOrUpdateChart('graficoBrocaPorVariedade', {
-                    type: 'bar',
-                    data: {
-                        labels: top10.map(v => v.nome),
-                        datasets: [{
-                            label: 'Índice de Broca (%)',
-                            data: top10.map(v => v.indice),
-                            backgroundColor: this._getVibrantColors(top10.length).reverse()
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        plugins: {
-                            ...commonOptions.plugins,
-                            legend: { display: false },
-                            datalabels: {
-                                color: datalabelColor, 
-                                anchor: 'end', 
-                                align: 'end',
-                                font: { weight: 'bold', size: 14 },
-                                formatter: (value) => `${value.toFixed(2)}%`
-                            }
-                        }
-                    }
-                });
             },
             renderPerdaPorFrenteTurno(data) {
                 const structuredData = {};
