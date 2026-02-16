@@ -7,8 +7,11 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
 import CalculationService from './js/lib/CalculationService.js';
+import { perfLogger } from './js/core/perf-logger.js';
+import { loadModule, prefetchModules } from './js/core/module-loader.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+    perfLogger.mark('boot_start');
 
     // Lógica da Tela de Abertura
     const splashScreen = document.getElementById('splash-screen');
@@ -36,6 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const secondaryApp = initializeApp(firebaseConfig, "secondary");
     const secondaryAuth = getAuth(secondaryApp);
+
+    perfLogger.mark('firebase_init_end');
 
     // Adiciona as definições de projeção para o Proj4js
     if (window.proj4) {
@@ -261,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
             adminAction: null, // Stores a function to be executed after admin password confirmation
             expandedChart: null,
             mapboxMap: null,
+            mapModuleInitialized: false,
             mapboxUserMarker: null,
             mapboxTrapMarkers: {},
             armadilhas: [],
@@ -387,6 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 username: document.getElementById('userMenuUsername'),
                 changePasswordBtn: document.getElementById('changePasswordBtn'),
                 manualSyncBtn: document.getElementById('manualSyncBtn'),
+                diagnosticBtn: document.getElementById('diagnosticBtn'),
                 themeButtons: document.querySelectorAll('.theme-button')
             },
             confirmationModal: {
@@ -941,7 +948,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         init() {
-            OfflineDB.init();
+            OfflineDB.init().finally(() => perfLogger.mark('offline_init_end'));
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
@@ -2137,9 +2144,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
-                App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
                 App.actions.startGpsTracking(); // O rastreamento agora é manual
                 App.actions.startAutoSync(); // Inicia a sincronização automática
+                perfLogger.mark('home_render_end');
+                prefetchModules(['monitoramentoAereo']);
             },
             renderSpecificContent(collectionName) {
                 const activeTab = document.querySelector('.tab-content.active')?.id;
@@ -2492,7 +2500,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 select.value = savedValue;
             },
-            showTab(id) {
+            async showTab(id) {
                 const { currentUser, companies } = App.state;
 
                 // Encontrar o item de menu correspondente para obter a permissão necessária
@@ -2529,6 +2537,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
 
+                await perfLogger.mark(`module_open_start:${id}`);
                 const currentActiveTab = document.querySelector('.tab-content.active');
                 if (currentActiveTab && currentActiveTab.id === 'apontamentoPlantio' && App.state.apontamentoPlantioFormIsDirty && id !== 'apontamentoPlantio') {
                     App.ui.showConfirmationModal(
@@ -2605,8 +2614,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
+                    if (!App.state.mapModuleInitialized) {
+                        const mapShell = App.elements.monitoramentoAereo.mapContainer;
+                        if (mapShell) {
+                            mapShell.innerHTML = '<div class="mini-loader" style="display:flex;align-items:center;justify-content:center;height:100%;font-weight:600;color:var(--color-text-light);">A carregar mapa...</div>';
+                        }
+                        const monitoramentoModule = await loadModule('monitoramentoAereo');
+                        if (monitoramentoModule?.init) {
+                            await monitoramentoModule.init(App);
+                        }
+                        if (mapShell && mapShell.querySelector('.mini-loader')) {
+                            mapShell.innerHTML = '';
+                        }
+                    }
                     if (App.state.mapboxMap) {
-                        // Força o redimensionamento do mapa para o contêiner visível
                         setTimeout(() => App.state.mapboxMap.resize(), 0);
                     }
                 } else {
@@ -2725,6 +2746,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                 if (['lancamentoBroca', 'lancamentoPerda', 'lancamentoCigarrinha', 'apontamentoPlantio', 'qualidadePlantio'].includes(id)) this.setDefaultDatesForEntryForms();
                 
+                await perfLogger.mark(`module_open_end:${id}`);
                 localStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
             },
@@ -5374,6 +5396,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
                 if (App.elements.logoutBtn) App.elements.logoutBtn.addEventListener('click', () => App.auth.logout());
+                if (App.elements.userMenu.diagnosticBtn) App.elements.userMenu.diagnosticBtn.addEventListener('click', async () => {
+                    await perfLogger.exportJson();
+                    App.ui.showAlert('Diagnóstico exportado com sucesso.', 'success');
+                });
+                window.addEventListener('agrovetor:sync-progress', (event) => {
+                    const { processed, total, batch, batches } = event.detail || {};
+                    if (App.elements.loadingProgressText) {
+                        App.elements.loadingProgressText.textContent = `Sincronizando ${processed || 0}/${total || 0} (lote ${batch || 0}/${batches || 0})`;
+                    }
+                });
                 if (App.elements.btnToggleMenu) App.elements.btnToggleMenu.addEventListener('click', () => {
                     document.body.classList.toggle('mobile-menu-open');
                     App.elements.menu.classList.toggle('open');
@@ -6564,6 +6596,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
                 if (mapSearchInput) {
+                    const debouncedMapSearch = App.debounce(() => App.mapModule.searchFarmOnMap(), 250);
+                    mapSearchInput.addEventListener('input', () => {
+                        if (mapSearchInput.value.trim().length >= 2) debouncedMapSearch();
+                    });
                     mapSearchInput.addEventListener('keypress', (e) => {
                         if (e.key === 'Enter') {
                             App.mapModule.searchFarmOnMap();
