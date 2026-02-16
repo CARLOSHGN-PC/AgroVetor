@@ -8,7 +8,77 @@ import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
 import CalculationService from './js/lib/CalculationService.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+const PROJ4_FALLBACK_SOURCES = [
+    './vendor/proj4/proj4.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.min.js'
+];
+
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = false;
+        if (src.startsWith('http')) {
+            script.crossOrigin = 'anonymous';
+            script.referrerPolicy = 'no-referrer';
+        }
+        script.onload = () => resolve(true);
+        script.onerror = () => reject(new Error(`Falha ao carregar script: ${src}`));
+        document.head.appendChild(script);
+    });
+}
+
+async function ensureProj4Loaded() {
+    if (window.proj4) return true;
+
+    const bootstrapTag = document.querySelector('script[src*="proj4.min.js"]');
+    const candidateSources = [];
+
+    if (bootstrapTag?.getAttribute('src')) {
+        candidateSources.push(bootstrapTag.getAttribute('src'));
+    }
+
+    if (bootstrapTag?.dataset?.fallbackSrc) {
+        candidateSources.push(bootstrapTag.dataset.fallbackSrc);
+    }
+
+    candidateSources.push(...PROJ4_FALLBACK_SOURCES);
+
+    const uniqueSources = [...new Set(candidateSources.filter(Boolean))];
+
+    for (const source of uniqueSources) {
+        if (window.proj4) return true;
+        try {
+            const normalizedSource = new URL(source, window.location.href).href;
+            const existingScript = Array.from(document.querySelectorAll('script')).find((script) => script.src === normalizedSource);
+            if (!existingScript) {
+                await loadScript(source);
+            }
+
+            if (window.proj4) {
+                console.info(`Proj4js carregado com sucesso a partir de: ${source}`);
+                return true;
+            }
+        } catch (error) {
+            console.warn(`[Proj4] ${error.message}`);
+        }
+    }
+
+    return false;
+}
+
+function registerProj4Definitions() {
+    if (!window.proj4) {
+        return false;
+    }
+
+    proj4.defs('EPSG:4674', '+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs');
+    proj4.defs('EPSG:31982', '+proj=utm +zone=22 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+    proj4.defs('WGS84', '+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs');
+    return true;
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
 
     // Lógica da Tela de Abertura
     const splashScreen = document.getElementById('splash-screen');
@@ -37,16 +107,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const secondaryApp = initializeApp(firebaseConfig, "secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
-    // Adiciona as definições de projeção para o Proj4js
-    if (window.proj4) {
-        // Definição para SIRGAS 2000 geográfico (graus)
-        proj4.defs("EPSG:4674", "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs");
-        // Definição para SIRGAS 2000 / UTM zone 22S (metros) - a mais provável para o SHP
-        proj4.defs("EPSG:31982", "+proj=utm +zone=22 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
-        // Definição padrão para WGS84 (usado pelo Mapbox)
-        proj4.defs("WGS84", "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
-    } else {
-        console.error("Proj4js não foi carregado. A reprojeção de coordenadas não funcionará.");
+    const hasProj4 = await ensureProj4Loaded();
+    if (!hasProj4 || !registerProj4Definitions()) {
+        console.error('Proj4js não foi carregado. A reprojeção de coordenadas não funcionará.');
     }
 
 
