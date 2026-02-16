@@ -37,72 +37,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const secondaryApp = initializeApp(firebaseConfig, "secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
-    const PROJ4_LOCAL_URL = './vendor/proj4/proj4.min.js';
-    const PROJ4_FALLBACK_URL = 'https://cdn.jsdelivr.net/npm/proj4@2.11.0/dist/proj4.min.js';
-
-    const injectScript = (src) => new Promise((resolve, reject) => {
-        const existing = document.querySelector(`script[data-proj4-loader="${src}"]`);
-        if (existing) {
-            if (window.proj4) {
-                resolve(true);
-                return;
-            }
-            existing.addEventListener('load', () => resolve(true), { once: true });
-            existing.addEventListener('error', reject, { once: true });
-            return;
-        }
-
-        const script = document.createElement('script');
-        script.src = src;
-        script.defer = true;
-        script.dataset.proj4Loader = src;
-        script.onload = () => resolve(true);
-        script.onerror = () => reject(new Error(`Falha ao carregar script: ${src}`));
-        document.head.appendChild(script);
-    });
-
-    let proj4LoadPromise = null;
-
-    const loadProj4 = async () => {
-        if (window.proj4) return window.proj4;
-        if (!proj4LoadPromise) {
-            proj4LoadPromise = (async () => {
-                const loadErrors = [];
-
-                for (const src of [PROJ4_LOCAL_URL, PROJ4_FALLBACK_URL]) {
-                    try {
-                        await injectScript(src);
-                        if (window.proj4) {
-                            break;
-                        }
-                    } catch (error) {
-                        loadErrors.push(error);
-                    }
-                }
-
-                if (!window.proj4) {
-                    const reasons = loadErrors.map(err => err.message).join(' | ');
-                    throw new Error(`Proj4 indisponível após tentativas de carregamento. ${reasons}`);
-                }
-
-                // Definições de projeção necessárias para o fluxo do app.
-                window.proj4.defs("EPSG:4674", "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs");
-                window.proj4.defs("EPSG:31982", "+proj=utm +zone=22 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
-                window.proj4.defs("WGS84", "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
-
-                return window.proj4;
-            })();
-        }
-
-        try {
-            return await proj4LoadPromise;
-        } catch (error) {
-            console.error('[Mapa] Proj4js não pôde ser carregado. A reprojeção será desativada sem interromper o mapa.', error);
-            return null;
-        }
-    };
-
-    loadProj4();
+    // Adiciona as definições de projeção para o Proj4js
+    if (window.proj4) {
+        // Definição para SIRGAS 2000 geográfico (graus)
+        proj4.defs("EPSG:4674", "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs");
+        // Definição para SIRGAS 2000 / UTM zone 22S (metros) - a mais provável para o SHP
+        proj4.defs("EPSG:31982", "+proj=utm +zone=22 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+        // Definição padrão para WGS84 (usado pelo Mapbox)
+        proj4.defs("WGS84", "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
+    } else {
+        console.error("Proj4js não foi carregado. A reprojeção de coordenadas não funcionará.");
+    }
 
 
     enableIndexedDbPersistence(db)
@@ -12513,9 +12458,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async _reprojectGeoJSON(geojson) {
-                const proj4Instance = await loadProj4();
-                if (!proj4Instance) return false;
+            _reprojectGeoJSON(geojson) {
+                if (!window.proj4) return;
                 if (!geojson || !geojson.features || !Array.isArray(geojson.features)) {
                     console.warn("GeoJSON inválido ou vazio para reprojeção.");
                     return;
@@ -12533,7 +12477,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 return ring.map(coord => {
                                     // Ensure we only take [x, y] even if Z exists
                                     const p = [coord[0], coord[1]];
-                                    return proj4Instance(sourceProjection, destProjection, p);
+                                    return proj4(sourceProjection, destProjection, p);
                                 });
                             });
                         };
@@ -12548,7 +12492,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
                 console.log(`Reprojeção de coordenadas de ${sourceProjection} para ${destProjection} concluída.`);
-                return true;
             },
 
             async loadAndCacheShapes(url) {
@@ -12573,7 +12516,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
 
                     // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
-                    await this._reprojectGeoJSON(geojson);
+                    this._reprojectGeoJSON(geojson);
 
 
                     // ETAPA DE NORMALIZAÇÃO:
@@ -12630,7 +12573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
-                        await this._reprojectGeoJSON(geojson);
+                        this._reprojectGeoJSON(geojson);
 
                         // ETAPA DE NORMALIZAÇÃO (CACHE OFFLINE): Garante a consistência dos dados carregados do cache.
                         let featureIdCounter = 0;
@@ -12669,36 +12612,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
                 }
-            },
-
-
-            _resolvePaintFallback(value) {
-                if (typeof value === 'number') return value;
-                if (Array.isArray(value) && value.length > 0) {
-                    return this._resolvePaintFallback(value[value.length - 1]);
-                }
-                return null;
-            },
-
-            _ensureTalhoesBorderVisible({ reapplyOnFailure = true } = {}) {
-                const map = App.state.mapboxMap;
-                if (!map || !map.getLayer('talhoes-border-layer')) return true;
-
-                const widthPaint = map.getPaintProperty('talhoes-border-layer', 'line-width');
-                const opacityPaint = map.getPaintProperty('talhoes-border-layer', 'line-opacity');
-                const fallbackWidth = this._resolvePaintFallback(widthPaint);
-                const fallbackOpacity = this._resolvePaintFallback(opacityPaint);
-                const hasVisibleStroke = (fallbackWidth === null || fallbackWidth >= 1) && (fallbackOpacity === null || fallbackOpacity >= 0.8);
-
-                if (!hasVisibleStroke && reapplyOnFailure && !App.state.riskViewActive) {
-                    console.warn('[Mapa] Borda dos talhões estava invisível. Reaplicando estilo padrão de segurança.');
-                    map.setPaintProperty('talhoes-border-layer', 'line-width', 1.5);
-                    map.setPaintProperty('talhoes-border-layer', 'line-opacity', 0.9);
-                    map.setPaintProperty('talhoes-border-layer', 'line-color', '#FFFFFF');
-                    return false;
-                }
-
-                return hasVisibleStroke;
             },
 
             loadShapesOnMap() {
@@ -12750,36 +12663,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                if (!map.getLayer(borderLayerId)) {
-                     map.addLayer({
-                        id: borderLayerId,
-                        type: 'line',
-                        source: sourceId,
-                        paint: {
-                            'line-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF',
-                                ['boolean', ['feature-state', 'searched'], false], '#00FFFF',
-                                '#FFFFFF'
-                            ],
-                            'line-width': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], 3,
-                                ['boolean', ['feature-state', 'searched'], false], 4,
-                                1.5
-                            ],
-                            'line-opacity': 0.9
-                        }
-                    });
-                }
-
                 // Adicionar rótulos aos polígonos
                 if (!map.getLayer(labelLayerId)) {
                     map.addLayer({
                         id: labelLayerId,
                         type: 'symbol',
                         source: sourceId,
-                        minzoom: 10,
+                        minzoom: 10, // Show labels even earlier
                         layout: {
                             'symbol-placement': 'point',
                             'text-field': [
@@ -12789,27 +12679,41 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }
                             ],
                             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                            'text-size': 14,
+                            'text-size': 14, // Larger font size
                             'text-ignore-placement': true,
                             'text-allow-overlap': true,
                             'text-pitch-alignment': 'viewport',
                         },
                         paint: {
                             'text-color': '#FFFFFF',
-                            'text-halo-color': 'rgba(0, 0, 0, 0.9)',
-                            'text-halo-width': 2
+                            'text-halo-color': 'rgba(0, 0, 0, 0.9)', // Darker halo
+                            'text-halo-width': 2 // Thicker halo for better contrast
                         }
                     });
                 }
 
-                if (map.getLayer(borderLayerId)) {
-                    map.moveLayer(borderLayerId);
+                if (!map.getLayer(borderLayerId)) {
+                     map.addLayer({
+                        id: borderLayerId,
+                        type: 'line',
+                        source: sourceId,
+                        paint: {
+                            'line-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF', // Ciano brilhante para selecionado
+                                ['boolean', ['feature-state', 'searched'], false], '#00FFFF', // Ciano brilhante para pesquisado
+                                '#FFFFFF' // Borda branca padrão
+                            ],
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 3,
+                                ['boolean', ['feature-state', 'searched'], false], 4,
+                                1.5 // Borda padrão mais sutil
+                            ],
+                            'line-opacity': 0.9
+                        }
+                    });
                 }
-                if (map.getLayer(labelLayerId)) {
-                    map.moveLayer(labelLayerId);
-                }
-
-                this._ensureTalhoesBorderVisible({ reapplyOnFailure: true });
 
                 let hoveredFeatureId = null;
 
