@@ -7,8 +7,10 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
 import CalculationService from './js/lib/CalculationService.js';
+import { perfLogger, runOnIdle, yieldToMainThread } from './js/core/performance-logger.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await perfLogger.log('app_boot_start');
 
     // Lógica da Tela de Abertura
     const splashScreen = document.getElementById('splash-screen');
@@ -36,6 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const secondaryApp = initializeApp(firebaseConfig, "secondary");
     const secondaryAuth = getAuth(secondaryApp);
+
+    await perfLogger.log('firebase_init_end');
 
     // Adiciona as definições de projeção para o Proj4js
     if (window.proj4) {
@@ -387,6 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 username: document.getElementById('userMenuUsername'),
                 changePasswordBtn: document.getElementById('changePasswordBtn'),
                 manualSyncBtn: document.getElementById('manualSyncBtn'),
+                diagnosticExportBtn: document.getElementById('diagnosticExportBtn'),
                 themeButtons: document.querySelectorAll('.theme-button')
             },
             confirmationModal: {
@@ -940,8 +945,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return 0;
         },
 
-        init() {
-            OfflineDB.init();
+        async init() {
+            const offlineInitPromise = OfflineDB.init();
+            offlineInitPromise.then(() => perfLogger.log('offline_init_end')).catch(() => null);
+            await perfLogger.init();
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
@@ -1583,7 +1590,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.ui.renderMenu();
                 App.data.listenToAllData();
-                await App.actions.startSync();
             },
             async confirmReauth(password) {
                 if (!password) {
@@ -2137,9 +2143,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderAllDynamicContent();
                 App.actions.resetInactivityTimer();
                 App.actions.loadNotificationHistory(); // Carrega o histórico de notificações
-                App.mapModule.initMap(); // INICIALIZA O MAPA AQUI
                 App.actions.startGpsTracking(); // O rastreamento agora é manual
                 App.actions.startAutoSync(); // Inicia a sincronização automática
+
+                requestAnimationFrame(() => perfLogger.log('home_render_end'));
+                runOnIdle(() => import('./js/modules/monitoramentoAereo.module.js').catch(() => null));
             },
             renderSpecificContent(collectionName) {
                 const activeTab = document.querySelector('.tab-content.active')?.id;
@@ -2492,8 +2500,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 select.value = savedValue;
             },
-            showTab(id) {
+            async showTab(id) {
                 const { currentUser, companies } = App.state;
+                await perfLogger.log('module_open_start', { module: id });
 
                 // Encontrar o item de menu correspondente para obter a permissão necessária
                 let requiredPermission = null;
@@ -2605,10 +2614,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
-                    if (App.state.mapboxMap) {
-                        // Força o redimensionamento do mapa para o contêiner visível
-                        setTimeout(() => App.state.mapboxMap.resize(), 0);
-                    }
+                    const monitoramentoModule = await import('./js/modules/monitoramentoAereo.module.js');
+                    await monitoramentoModule.openMonitoramentoAereo(App, perfLogger);
                 } else {
                     mapContainer.classList.remove('active');
                 }
@@ -2727,6 +2734,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
+                await perfLogger.log('module_open_end', { module: id });
             },
 
             // ALTERAÇÃO PONTO 4: Nova função para atualizar o sino de notificação
@@ -3790,38 +3798,61 @@ document.addEventListener('DOMContentLoaded', () => {
                         critical_error: { icon: 'fa-bomb', color: 'var(--color-danger)', label: 'Erro Crítico' },
                     };
 
-                    querySnapshot.forEach(doc => {
-                        const log = doc.data();
-                        const logId = doc.id;
-                        const logTimestamp = log.timestamp ? log.timestamp.toDate() : new Date(); // Lida com timestamps pendentes
+                    const docs = querySnapshot.docs;
+                    const pageSize = 30;
+                    let rendered = 0;
 
-                        const statusInfo = statusMap[log.status] || { icon: 'fa-question-circle', color: 'var(--color-text-light)', label: 'Desconhecido' };
-                        const card = document.createElement('div');
-                        card.className = 'plano-card';
-                        card.style.borderLeftColor = statusInfo.color;
+                    const renderPage = () => {
+                        const fragment = document.createDocumentFragment();
+                        const end = Math.min(rendered + pageSize, docs.length);
 
-                        const detailsButton = (log.items && log.items.length > 0)
-                            ? `<button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="view-sync-details" data-id="${logId}">
-                                   <i class="fas fa-eye"></i> Ver Detalhes
-                               </button>`
-                            : '';
+                        for (let i = rendered; i < end; i++) {
+                            const entry = docs[i];
+                            const log = entry.data();
+                            const logId = entry.id;
+                            const logTimestamp = log.timestamp ? log.timestamp.toDate() : new Date();
 
-                        card.innerHTML = `
-                            <div class="plano-header">
-                                <span class="plano-title"><i class="fas ${statusInfo.icon}" style="color: ${statusInfo.color};"></i> Sincronização por ${log.username || 'Sistema'}</span>
-                                <span class="plano-status" style="background-color: ${statusInfo.color}; font-size: 12px; text-transform: none;">
-                                    ${logTimestamp.toLocaleString('pt-BR')}
-                                </span>
-                            </div>
-                            <div class="plano-details" style="grid-template-columns: 1fr;">
-                                <div><i class="fas fa-comment-alt"></i> Detalhes: ${log.details}</div>
-                            </div>
-                            <div class="plano-actions">
-                                ${detailsButton}
-                            </div>
-                        `;
-                        listEl.appendChild(card);
-                    });
+                            const statusInfo = statusMap[log.status] || { icon: 'fa-question-circle', color: 'var(--color-text-light)', label: 'Desconhecido' };
+                            const card = document.createElement('div');
+                            card.className = 'plano-card';
+                            card.style.borderLeftColor = statusInfo.color;
+
+                            const detailsButton = (log.items && log.items.length > 0)
+                                ? `<button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="view-sync-details" data-id="${logId}"><i class="fas fa-eye"></i> Ver Detalhes</button>`
+                                : '';
+
+                            card.innerHTML = `
+                                <div class="plano-header">
+                                    <span class="plano-title"><i class="fas ${statusInfo.icon}" style="color: ${statusInfo.color};"></i> Sincronização por ${log.username || 'Sistema'}</span>
+                                    <span class="plano-status" style="background-color: ${statusInfo.color}; font-size: 12px; text-transform: none;">${logTimestamp.toLocaleString('pt-BR')}</span>
+                                </div>
+                                <div class="plano-details" style="grid-template-columns: 1fr;">
+                                    <div><i class="fas fa-comment-alt"></i> Detalhes: ${log.details}</div>
+                                </div>
+                                <div class="plano-actions">${detailsButton}</div>
+                            `;
+                            fragment.appendChild(card);
+                        }
+
+                        rendered = end;
+                        listEl.appendChild(fragment);
+
+                        const existingBtn = document.getElementById('syncHistoryLoadMoreBtn');
+                        if (existingBtn) existingBtn.remove();
+
+                        if (rendered < docs.length) {
+                            const loadMoreBtn = document.createElement('button');
+                            loadMoreBtn.id = 'syncHistoryLoadMoreBtn';
+                            loadMoreBtn.className = 'save';
+                            loadMoreBtn.style.margin = '12px auto';
+                            loadMoreBtn.style.display = 'block';
+                            loadMoreBtn.innerHTML = '<i class="fas fa-chevron-down"></i> Carregar mais';
+                            loadMoreBtn.addEventListener('click', renderPage);
+                            listEl.appendChild(loadMoreBtn);
+                        }
+                    };
+
+                    renderPage();
 
                 } catch (error) {
                     console.error("Erro ao renderizar histórico de sincronização do Firestore:", error);
@@ -5545,6 +5576,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cpModal = App.elements.changePasswordModal;
                 if (App.elements.userMenu.changePasswordBtn) App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
                 if (App.elements.userMenu.manualSyncBtn) App.elements.userMenu.manualSyncBtn.addEventListener('click', () => App.actions.forceTokenRefresh(true));
+                if (App.elements.userMenu.diagnosticExportBtn) {
+                    App.elements.userMenu.diagnosticExportBtn.addEventListener('click', async () => {
+                        await perfLogger.downloadSessionJson();
+                        App.ui.showAlert('Diagnóstico exportado com sucesso.', 'success');
+                    });
+                }
+                let diagnosticClicks = 0;
+                if (App.elements.userMenu.username) {
+                    App.elements.userMenu.username.addEventListener('click', () => {
+                        diagnosticClicks += 1;
+                        if (diagnosticClicks >= 5 && App.elements.userMenu.diagnosticExportBtn) {
+                            App.elements.userMenu.diagnosticExportBtn.style.display = 'inline-flex';
+                            App.ui.showAlert('Modo diagnóstico ativado.', 'info');
+                        }
+                    });
+                }
                 if (cpModal.closeBtn) cpModal.closeBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
                 if (cpModal.cancelBtn) cpModal.cancelBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
                 if (cpModal.saveBtn) cpModal.saveBtn.addEventListener('click', () => App.actions.changePassword());
@@ -10706,6 +10753,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.state.syncStatus = 'syncing';
                 App.ui.updateConnectivityStatus();
+                await perfLogger.log('sync_start');
                 this.syncGpsLocations(); // Sync GPS data
                 await this.syncOfflineWrites(options);
             },
@@ -10721,6 +10769,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let hadAuthError = false;
                 let hadFailures = false;
                 let tokenRefreshAttempted = false;
+                let processedItems = 0;
 
                 const logEntry = {
                     userId: App.state.currentUser.uid,
@@ -10759,10 +10808,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     let failedWrites = 0; // Erros recuperáveis (ex: rede)
                     let discardedWrites = 0; // Erros irrecuperáveis (dados malformados)
 
-                    // Etapa 2: Iterar sobre os dados em memória e tentar sincronizar
+                    // Etapa 2: Iterar sobre os dados em memória e tentar sincronizar em lotes
+                    const batchSize = 25;
                     for (let i = 0; i < writesToSync.length; i++) {
                         const write = writesToSync[i];
                         const key = keysToSync[i];
+                        processedItems++;
                         try {
                             // Verificação de segurança para o objeto de escrita
                             if (!write || typeof write !== 'object' || !write.collection || !write.data || !write.id) {
@@ -10905,6 +10956,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                         }
+                        if (i > 0 && i % batchSize === 0) {
+                            await yieldToMainThread();
+                        }
                     }
 
                     // Etapa 3: Apagar todos os registos sincronizados com sucesso E os irrecuperáveis
@@ -10959,6 +11013,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }, 3000);
                     }
+                    await perfLogger.log('sync_end', {
+                        itemsProcessed: typeof processedItems === 'number' ? processedItems : 0,
+                        status: App.state.syncStatus
+                    });
                     console.log("Processo de sincronização finalizado.");
                     App.ui.updateConnectivityStatus();
                 }
@@ -17062,6 +17120,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Inicia a aplicação
-    App.init();
+    await App.init();
     window.App = App; // Expor para testes e depuração
 });
