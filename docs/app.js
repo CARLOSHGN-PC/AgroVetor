@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const secondaryAuth = getAuth(secondaryApp);
 
     // Adiciona as definições de projeção para o Proj4js
+    console.log(`[SHP] proj4 loaded = ${typeof window.proj4 === 'function'}`);
     if (window.proj4) {
         // Definição para SIRGAS 2000 geográfico (graus)
         proj4.defs("EPSG:4674", "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs");
@@ -109,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         worker.onmessage = (event) => {
             worker.terminate();
             if (event.data?.ok) {
-                resolve(event.data.geojson);
+                resolve({ geojson: event.data.geojson, debug: event.data.debug || null });
             } else {
                 reject(new Error(event.data?.error || 'Falha ao processar mapa no worker.'));
             }
@@ -535,6 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnDownloadClosedTemplate: document.getElementById('btnDownloadClosedTemplate'),
                 shapefileUploadArea: document.getElementById('shapefileUploadArea'),
                 shapefileInput: document.getElementById('shapefileInput'),
+                btnTestShapefileDebug: document.getElementById('btnTestShapefileDebug'),
                 historicalReportUploadArea: document.getElementById('historicalReportUploadArea'),
                 historicalReportInput: document.getElementById('historicalReportInput'),
                 btnDownloadHistoricalTemplate: document.getElementById('btnDownloadHistoricalTemplate'),
@@ -5702,6 +5704,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.btnDownloadClosedTemplate) companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
                 if (companyConfigEls.shapefileUploadArea) companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
                 if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
+                if (companyConfigEls.btnTestShapefileDebug) companyConfigEls.btnTestShapefileDebug.addEventListener('click', () => App.mapModule.runShapefileDebugTest());
 
                 const btnCleanDuplicateTraps = document.getElementById('btnCleanDuplicateTraps');
                 if (btnCleanDuplicateTraps) {
@@ -12587,7 +12590,10 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             _reprojectGeoJSON(geojson) {
-                if (!window.proj4) return;
+                if (!window.proj4) {
+                    console.warn('[SHP] Reprojeção indisponível no main thread (proj4 ausente).');
+                    return;
+                }
                 if (!geojson || !geojson.features || !Array.isArray(geojson.features)) {
                     console.warn("GeoJSON inválido ou vazio para reprojeção.");
                     return;
@@ -12638,7 +12644,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     console.log("Processando e desenhando os talhões no mapa...");
                     // Valida o shapefile antes de salvar no cache
-                    let geojson = await runShapefileWorker(buffer);
+                    const { geojson, debug } = await runShapefileWorker(buffer);
+                    console.log('[SHP] features lidas:', geojson?.features?.length || 0);
+                    if (debug) {
+                        console.log('[SHP] proj4 loaded =', debug.proj4Loaded);
+                        console.log('[SHP] CRS detectado:', debug.sourceProjection || 'desconhecido');
+                        console.log('[SHP] features reprojetadas:', debug.reprojectedCount || 0);
+                        if (debug.fallbackReason) console.warn('[SHP] reprojeção indisponível/fallback:', debug.fallbackReason);
+                    }
 
                     // Se o parsing foi bem sucedido, salva no cache
                     await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
@@ -12693,7 +12706,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         let geojson;
                         try {
-                            geojson = await runShapefileWorker(buffer);
+                            const workerResult = await runShapefileWorker(buffer);
+                            geojson = workerResult.geojson;
+                            const debug = workerResult.debug;
+                            console.log('[SHP] features lidas (offline):', geojson?.features?.length || 0);
+                            if (debug) {
+                                console.log('[SHP] proj4 loaded (offline) =', debug.proj4Loaded);
+                                console.log('[SHP] CRS detectado (offline):', debug.sourceProjection || 'desconhecido');
+                                console.log('[SHP] features reprojetadas (offline):', debug.reprojectedCount || 0);
+                                if (debug.fallbackReason) console.warn('[SHP] reprojeção indisponível/fallback (offline):', debug.fallbackReason);
+                            }
                         } catch (parseError) {
                             console.error("Erro ao analisar o shapefile (shpjs):", parseError);
                             throw new Error("O arquivo de mapa offline está corrompido ou inválido.");
@@ -12740,6 +12762,66 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+
+            _getGeoJsonBounds(geojson) {
+                if (!geojson?.features?.length) return null;
+                let minLng = Infinity;
+                let minLat = Infinity;
+                let maxLng = -Infinity;
+                let maxLat = -Infinity;
+
+                const visit = (coords) => {
+                    if (!Array.isArray(coords)) return;
+                    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+                        minLng = Math.min(minLng, coords[0]);
+                        minLat = Math.min(minLat, coords[1]);
+                        maxLng = Math.max(maxLng, coords[0]);
+                        maxLat = Math.max(maxLat, coords[1]);
+                        return;
+                    }
+                    coords.forEach(visit);
+                };
+
+                geojson.features.forEach((feature) => visit(feature?.geometry?.coordinates));
+
+                if (!Number.isFinite(minLng) || !Number.isFinite(minLat) || !Number.isFinite(maxLng) || !Number.isFinite(maxLat)) {
+                    return null;
+                }
+                return [[minLng, minLat], [maxLng, maxLat]];
+            },
+
+            async runShapefileDebugTest() {
+                const url = App.state.companyConfig?.shapefileURL;
+                if (!url) {
+                    App.ui.showAlert('Nenhum shapefile configurado para teste.', 'warning');
+                    return;
+                }
+
+                console.group('[SHP DEBUG] Testar SHP');
+                const startedAt = performance.now();
+                try {
+                    const response = await fetch(`${url}?debug=${Date.now()}`);
+                    if (!response.ok) throw new Error(`Falha no download do SHP: ${response.statusText}`);
+                    const buffer = await response.arrayBuffer();
+                    const { geojson, debug } = await runShapefileWorker(buffer);
+                    const bounds = this._getGeoJsonBounds(geojson);
+
+                    console.log('[SHP DEBUG] proj4 loaded =', typeof window.proj4 === 'function');
+                    console.log('[SHP DEBUG] CRS detectado =', debug?.sourceProjection || 'desconhecido');
+                    console.log('[SHP DEBUG] features count =', geojson?.features?.length || 0);
+                    console.log('[SHP DEBUG] features reprojetadas =', debug?.reprojectedCount || 0);
+                    console.log('[SHP DEBUG] bounds =', bounds);
+                    console.log('[SHP DEBUG] tempo total (ms) =', Math.round(performance.now() - startedAt));
+
+                    App.ui.showAlert('Teste SHP concluído. Verifique os logs no console.', 'success');
+                } catch (error) {
+                    console.error('[SHP DEBUG] Falha no teste de shapefile:', error);
+                    App.ui.showAlert('Falha no teste de shapefile. Veja o console.', 'error');
+                } finally {
+                    console.groupEnd();
+                }
+            },
+
             loadShapesOnMap() {
                 const mapContainer = document.getElementById('map-container');
                 if (!App.state.mapboxMap || !App.state.geoJsonData) {
@@ -12753,6 +12835,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const borderLayerId = 'talhoes-border-layer';
                 const labelLayerId = 'talhoes-labels';
 
+                const bounds = this._getGeoJsonBounds(App.state.geoJsonData);
+                console.log('[SHP] bounds calculado:', bounds);
+                console.log('[SHP] layer adicionada ao mapa');
                 if (map.getSource(sourceId)) {
                     map.getSource(sourceId).setData(App.state.geoJsonData);
                 } else {
@@ -12834,7 +12919,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 'case',
                                 ['boolean', ['feature-state', 'selected'], false], 3,
                                 ['boolean', ['feature-state', 'searched'], false], 4,
-                                1.5 // Borda padrão mais sutil
+                                2 // Borda padrão mais visível
                             ],
                             'line-opacity': 0.9
                         }
