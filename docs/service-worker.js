@@ -4,6 +4,11 @@ importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.0.0/workbox
 const SW_VERSION = 'v20';
 const APP_SHELL_CACHE = `agrovetor-shell-${SW_VERSION}`;
 const OFFLINE_FALLBACK_URL = './index.html';
+const PUBLIC_API_CACHE_PATHS = [
+  /^\/api\/public\//,
+  /^\/api\/health$/,
+  /^\/api\/version$/
+];
 const DB_NAME = 'agrovetor-offline-storage';
 const DB_VERSION = 8;
 const OFFLINE_WRITES_STORE = 'offline-writes';
@@ -59,7 +64,12 @@ workbox.routing.registerRoute(
 );
 
 workbox.routing.registerRoute(
-  ({ url }) => url.pathname.includes('/api/'),
+  ({ request, url }) => {
+    if (request.method !== 'GET') return false;
+    if (!url.pathname.includes('/api/')) return false;
+    if (request.headers.has('authorization')) return false;
+    return PUBLIC_API_CACHE_PATHS.some((pattern) => pattern.test(url.pathname));
+  },
   new workbox.strategies.NetworkFirst({
     cacheName: `agrovetor-api-${SW_VERSION}`,
     networkTimeoutSeconds: 10,
@@ -73,7 +83,7 @@ workbox.routing.registerRoute(
 
 workbox.routing.setCatchHandler(async ({ event }) => {
   if (event.request.destination === 'document') {
-    return caches.match(OFFLINE_FALLBACK_URL);
+    return workbox.precaching.matchPrecache(OFFLINE_FALLBACK_URL);
   }
   return Response.error();
 });
