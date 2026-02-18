@@ -14,14 +14,14 @@ if (hasProj4) {
 }
 
 function resolveSourceProjection(geojson) {
-  const defaultProjection = 'EPSG:4326';
+  const defaultProjection = 'EPSG:31982';
   const prjName = geojson?.fileName?.toUpperCase?.() || '';
   const prjContent = geojson?.prj?.toUpperCase?.() || '';
 
   if (prjName.includes('4674') || prjName.includes('SIRGAS 2000') || prjContent.includes('SIRGAS_2000')) return 'EPSG:4674';
   if (prjName.includes('31982') || prjContent.includes('31982') || prjContent.includes('UTM') || prjContent.includes('22S')) return 'EPSG:31982';
   if (prjName.includes('4326') || prjName.includes('WGS84') || prjContent.includes('WGS_1984')) return 'WGS84';
-  console.info('[SHP] reprojection fallback sem PRJ detectado: assumindo EPSG:4326');
+  console.info('[SHP] reprojection fallback sem PRJ detectado: assumindo EPSG:31982');
   return defaultProjection;
 }
 
