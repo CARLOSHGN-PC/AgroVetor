@@ -1,7 +1,7 @@
 /* global workbox */
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.0.0/workbox-sw.js');
 
-const SW_VERSION = 'v20';
+const SW_VERSION = 'v21';
 const APP_SHELL_CACHE = `agrovetor-shell-${SW_VERSION}`;
 const OFFLINE_FALLBACK_URL = './index.html';
 const DB_NAME = 'agrovetor-offline-storage';
@@ -18,6 +18,7 @@ workbox.precaching.precacheAndRoute([
   { url: './capacitor.js', revision: SW_VERSION },
   { url: './manifest.json', revision: SW_VERSION },
   { url: './js/lib/shp.js', revision: SW_VERSION },
+  { url: './vendor/proj4.js', revision: SW_VERSION },
   { url: './js/lib/idb-lib.js', revision: SW_VERSION },
   { url: './icons/icon-192x192.png', revision: SW_VERSION },
   { url: './icons/icon-512x512.png', revision: SW_VERSION }
@@ -70,6 +71,20 @@ workbox.routing.registerRoute(
   }),
   'GET'
 );
+
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    const cacheNames = await caches.keys();
+    const removals = cacheNames
+      .filter((cacheName) => cacheName.includes('proj4') || cacheName.includes('cdnjs.cloudflare.com'))
+      .map((cacheName) => caches.delete(cacheName));
+    if (removals.length) {
+      await Promise.all(removals);
+      console.log('[SW] cache atualizado: entradas antigas de CDN/proj4 removidas.');
+    }
+  })());
+});
 
 workbox.routing.setCatchHandler(async ({ event }) => {
   if (event.request.destination === 'document') {

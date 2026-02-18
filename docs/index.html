@@ -3856,6 +3856,9 @@
                         <p>Clique ou arraste um arquivo .zip aqui</p>
                     </div>
                     <input type="file" id="shapefileInput" accept=".zip" style="display: none;">
+                    <div style="display: flex; justify-content: center; margin-top: 15px;">
+                        <button id="btnTestShapefileDebug" class="btn-secondary" style="max-width: 300px; margin-top: 0;"><i class="fas fa-vial"></i> Testar SHP</button>
+                    </div>
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-danger); margin-top: 30px;">
@@ -4698,8 +4701,8 @@
     <!-- Turf.js for spatial analysis -->
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
 
-    <!-- Proj4.js for coordinate reprojection -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.min.js" integrity="sha512-Xc9+1uP2n/3/O/45gK/yHqj/t/fG0e/j/gP/b/2i2c/m3/d/Jg/a/f/H/V" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- Proj4.js local para evitar bloqueios de SRI/CDN -->
+    <script src="./vendor/proj4.js"></script>
 
     <!-- Crypto-JS for hashing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
