@@ -155,6 +155,15 @@ document.addEventListener('DOMContentLoaded', () => {
         console.info(`[${nowIso()}] ${stage}${payload}`);
     };
 
+    const logBootError = (stage, error, extra = {}) => {
+        console.error(`[${nowIso()}] ${stage}`, {
+            ...extra,
+            message: error?.message || String(error),
+            stack: error?.stack || null,
+            code: error?.code || null,
+        });
+    };
+
     const withTimeout = async (promise, ms, label = 'operação remota') => {
         let timeoutId;
         const timeoutPromise = new Promise((_, reject) => {
@@ -165,6 +174,44 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             clearTimeout(timeoutId);
         }
+    };
+
+    const inspectStorageHealth = async () => {
+        const diagnostics = {
+            indexedDbAvailable: typeof indexedDB !== 'undefined',
+            cacheStorageAvailable: typeof caches !== 'undefined',
+            persistedStorage: null,
+            quotaMb: null,
+            usageMb: null,
+            cacheCount: null,
+            cacheNames: [],
+        };
+
+        try {
+            if (navigator.storage?.persisted) {
+                diagnostics.persistedStorage = await navigator.storage.persisted();
+            }
+            if (navigator.storage?.estimate) {
+                const estimate = await navigator.storage.estimate();
+                diagnostics.quotaMb = estimate?.quota ? Number((estimate.quota / (1024 * 1024)).toFixed(2)) : null;
+                diagnostics.usageMb = estimate?.usage ? Number((estimate.usage / (1024 * 1024)).toFixed(2)) : null;
+            }
+        } catch (error) {
+            logBootError('STORAGE:estimate:error', error);
+        }
+
+        try {
+            if (typeof caches !== 'undefined') {
+                const names = await caches.keys();
+                diagnostics.cacheCount = names.length;
+                diagnostics.cacheNames = names;
+            }
+        } catch (error) {
+            logBootError('CACHE:error', error);
+        }
+
+        logBootStage('STORAGE:diagnostics', diagnostics);
+        return diagnostics;
     };
 
     const bootstrapCache = {
@@ -272,19 +319,45 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         async get(storeName, key) {
-            return (await this.dbPromise).get(storeName, key);
+            try {
+                return (await this.dbPromise).get(storeName, key);
+            } catch (error) {
+                logBootError('INDEXEDDB:error', error, { operation: 'get', storeName, key });
+                throw error;
+            }
         },
         async getAll(storeName) {
-            return (await this.dbPromise).getAll(storeName);
+            try {
+                return (await this.dbPromise).getAll(storeName);
+            } catch (error) {
+                logBootError('INDEXEDDB:error', error, { operation: 'getAll', storeName });
+                throw error;
+            }
         },
         async set(storeName, value, key) {
-            return (await this.dbPromise).put(storeName, value, key);
+            try {
+                return (await this.dbPromise).put(storeName, value, key);
+            } catch (error) {
+                logBootError('INDEXEDDB:error', error, { operation: 'put', storeName, key });
+                throw error;
+            }
         },
         async add(storeName, val) {
-            return (await this.dbPromise).add(storeName, val);
+            try {
+                return (await this.dbPromise).add(storeName, val);
+            } catch (error) {
+                const isQuota = error?.name === 'QuotaExceededError';
+                logBootError(isQuota ? 'INDEXEDDB:quota' : 'INDEXEDDB:error', error, { operation: 'add', storeName });
+                throw error;
+            }
         },
         async delete(storeName, key) {
-            return (await this.dbPromise).delete(storeName, key);
+            try {
+                return (await this.dbPromise).delete(storeName, key);
+            } catch (error) {
+                logBootError('INDEXEDDB:error', error, { operation: 'delete', storeName, key });
+                throw error;
+            }
         },
     };
 
@@ -397,6 +470,8 @@ document.addEventListener('DOMContentLoaded', () => {
             bootStage: 'BOOT: start',
             menuRenderedAt: null,
             bootWatchdogTimer: null,
+            loginUiRenderedAt: null,
+            loginWatchdogTimer: null,
             requiresReauthForSync: false,
             reauthDeferred: false,
             isCheckingConnection: false,
@@ -1117,16 +1192,34 @@ document.addEventListener('DOMContentLoaded', () => {
             return 0;
         },
 
-        init() {
+        async init() {
             perfLogger.start('App.init');
-            logBootStage('BOOT: start', { isOnline: navigator.onLine });
-            OfflineDB.init();
+            logBootStage('BOOT:start', { isOnline: navigator.onLine });
+            logBootStage(`NET:isOnline=${navigator.onLine}`);
+            logBootStage('AUTH:init');
+            this.auth.startLoginWatchdog(7000);
+
+            try {
+                await OfflineDB.init();
+                logBootStage('INDEXEDDB:ready', { db: 'agrovetor-offline-storage', version: 8 });
+            } catch (error) {
+                logBootError('INDEXEDDB:error', error, { context: 'OfflineDB.init' });
+            }
+
+            await inspectStorageHealth();
+            const offlineMapManifest = await bootstrapCache.get('offline-map-manifest:last', null);
+            if (offlineMapManifest) {
+                logBootStage('MAP:CACHE:manifest', offlineMapManifest);
+            } else {
+                logBootStage('MAP:CACHE:manifest', { status: 'missing' });
+            }
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
             this.auth.onConnectivityChanged(navigator.onLine);
             this.pwa.registerServiceWorker();
+            logBootStage('APP:ready');
             perfLogger.end('App.init');
         },
 
@@ -1487,6 +1580,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }, timeoutMs);
             },
+            _clearLoginWatchdog() {
+                if (App.state.loginWatchdogTimer) {
+                    clearTimeout(App.state.loginWatchdogTimer);
+                    App.state.loginWatchdogTimer = null;
+                }
+            },
+            startLoginWatchdog(timeoutMs = 7000) {
+                this._clearLoginWatchdog();
+                App.state.loginWatchdogTimer = setTimeout(() => {
+                    if (!App.state.loginUiRenderedAt) {
+                        logBootError('BOOT:watchdog:login-timeout', new Error('LOGIN:UI:rendered timeout'), {
+                            stage: App.state.bootStage,
+                            isOnline: App.state.isOnline,
+                            authMode: App.state.authMode,
+                        });
+                        App.ui.showLoginScreen({ forced: true, reason: 'watchdog-timeout' });
+                        App.ui.showLoginMessage('Modo offline disponível. Faça login quando possível.');
+                    }
+                }, timeoutMs);
+            },
 
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
@@ -1505,7 +1618,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 return;
                             }
 
-                            this._setBootStage('AUTH: resolved', { userId: user.uid });
+                            this._setBootStage('AUTH:resolved', { userId: user.uid });
 
                             let companyDoc = null;
                             if (userDoc.role === 'super-admin') {
@@ -1595,16 +1708,16 @@ document.addEventListener('DOMContentLoaded', () => {
                                 return;
                             }
                             const localProfiles = App.actions.getLocalUserProfiles();
-                            if (localProfiles.length > 0 && !navigator.onLine) {
-                                App.ui.showOfflineUserSelection();
-                            } else {
-                                App.ui.showLoginScreen();
+                            this._setBootStage('AUTH:resolved', { userId: null, mode: 'guest' });
+                            App.ui.showLoginScreen();
+                            if (!navigator.onLine) {
+                                App.ui.showLoginMessage('Sem conexão. Você pode entrar com credenciais offline já sincronizadas.');
                             }
                         }
                     } catch (error) {
-                        console.error('Erro no fluxo checkSession:', error);
-                        App.ui.showAlert('Falha ao inicializar sessão. Carregando modo seguro offline.', 'warning', 5000);
-                        App.ui.showAppScreen();
+                        logBootError('AUTH:error', error, { context: 'checkSession' });
+                        App.ui.showAlert('Falha ao inicializar sessão. Mostrando login em modo seguro offline.', 'warning', 5000);
+                        App.ui.showLoginScreen({ forced: true, reason: 'checkSession-error' });
                     } finally {
                         App.ui.setLoading(false);
                     }
@@ -1613,8 +1726,14 @@ document.addEventListener('DOMContentLoaded', () => {
             async login() {
                 const email = App.elements.loginUser.value.trim();
                 const password = App.elements.loginPass.value;
+                logBootStage('LOGIN:submit', { email: email || null, isOnline: navigator.onLine });
                 if (!email || !password) {
                     App.ui.showLoginMessage("Preencha e-mail e senha.");
+                    return;
+                }
+                if (!navigator.onLine) {
+                    logBootStage('LOGIN:offlineAttempt', { email });
+                    await this.loginOffline(email, password);
                     return;
                 }
                 await this.loginOnline(email, password);
@@ -1625,6 +1744,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await setPersistence(auth, browserSessionPersistence);
                     await signInWithEmailAndPassword(auth, email, password);
                     this.pendingOfflinePassword = password;
+                    logBootStage('LOGIN:success', { mode: 'online', email });
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                         App.ui.showLoginMessage("E-mail ou senha inválidos.");
@@ -1633,7 +1753,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         App.ui.showLoginMessage("Ocorreu um erro ao fazer login.");
                     }
-                    console.error("Erro de login:", error.code, error.message);
+                    logBootError('LOGIN:error', error, { mode: 'online', email });
                     App.ui.setLoading(false);
                 }
             },
@@ -1645,6 +1765,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 try {
+                    logBootStage('LOGIN:offlineAttempt', { email });
                     const normalizedEmail = this._normalizeEmail(email);
                     const credentials = await this._getStoredOfflineCredential(normalizedEmail);
 
@@ -1725,12 +1846,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     App.ui.showAppScreen();
                     this._setBootStage('UI: ready');
+                    logBootStage('LOGIN:success', { mode: 'offline', email });
                     App.mapModule.loadOfflineShapes();
                     App.data.listenToCoreData();
                 } catch (error) {
                     App.ui.showAlert("Ocorreu um erro durante o login offline.", "error");
-                    console.error("Erro no login offline:", error);
-                    App.ui.showAppScreen();
+                    logBootError('LOGIN:error', error, { mode: 'offline', email });
+                    App.ui.showLoginScreen({ forced: true, reason: 'offline-login-error' });
                 } finally {
                     App.ui.setLoading(false);
                 }
@@ -1765,6 +1887,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             async onConnectivityChanged(isOnline) {
                 App.state.isOnline = isOnline;
+                logBootStage(`NET:isOnline=${isOnline}`);
                 if (!isOnline) {
                     App.state.syncStatus = 'idle';
                 }
@@ -2409,7 +2532,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
                 App.elements.loadingProgressText.textContent = progressText;
             },
-            showLoginScreen() {
+            showLoginScreen(options = {}) {
                 App.elements.loginForm.style.display = 'block';
                 App.elements.offlineUserSelection.style.display = 'none';
                 App.elements.loginScreen.style.display = 'flex';
@@ -2427,6 +2550,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loginUser.focus();
                 this.closeAllMenus();
                 App.ui.setLoading(false);
+                App.state.loginUiRenderedAt = nowIso();
+                App.auth._clearLoginWatchdog();
+                logBootStage('LOGIN:UI:rendered', { ...options, isOnline: navigator.onLine });
                 App.ui.updateConnectivityStatus();
             },
             showOfflineUserSelection() { // Removed profiles argument
@@ -2445,6 +2571,8 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             showAppScreen() {
                 const { currentUser } = App.state;
+                App.auth._clearLoginWatchdog();
+                App.state.loginUiRenderedAt = nowIso();
                 App.ui.setLoading(false);
                 App.elements.loginScreen.style.display = 'none';
                 App.elements.appScreen.style.display = 'flex';
@@ -2612,6 +2740,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!App.state.isAuthenticated) {
                     badge.style.display = 'none';
                     this.hideReauthBanner();
+                    if (!navigator.onLine && App.elements.loginMessage && App.elements.loginScreen.style.display === 'flex') {
+                        App.elements.loginMessage.textContent = 'OFFLINE: o login continua disponível para credenciais já sincronizadas.';
+                    }
                     return;
                 }
 
@@ -13491,10 +13622,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 progressBar.value = 0;
                 progressBar.max = totalTilesToDownload;
 
-                this.downloadTiles(allTileUrls);
+                this.downloadTiles(allTileUrls, { feature, bbox });
             },
 
-            async downloadTiles(urls) {
+            async downloadTiles(urls, metadata = {}) {
                 const infoBox = App.elements.monitoramentoAereo.infoBox;
                 const progressContainer = infoBox.querySelector('.download-progress-container');
                 const progressText = infoBox.querySelector('.download-progress-text');
@@ -13536,6 +13667,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     progressBar.value = processedCount;
                     progressText.textContent = `A guardar mapa offline... ${processedCount}/${totalTiles} (Falhas: ${failedCount})`;
                 }
+
+                const offlineManifest = {
+                    downloadedAt: nowIso(),
+                    appVersion: 'v23',
+                    tileCount: totalTiles,
+                    failedTiles: failedCount,
+                    talhaoId: metadata.feature?.properties?.id || null,
+                    talhaoNome: metadata.feature?.properties?.talhao || null,
+                    fazendaNome: metadata.feature?.properties?.fazenda || null,
+                    bbox: metadata.bbox || null,
+                };
+                await bootstrapCache.set('offline-map-manifest:last', offlineManifest);
+                logBootStage('MAP:CACHE:manifest:updated', offlineManifest);
 
                 if (failedCount > 0) {
                     App.ui.showAlert(`Download concluído com ${failedCount} falhas. Tente novamente se o mapa offline estiver incompleto.`, 'warning');
@@ -17400,7 +17544,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.addEventListener('load', async () => {
                         try {
                             const registration = await navigator.serviceWorker.register('./service-worker.js');
-                            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                            logBootStage('SW:registered', { scope: registration.scope });
+                            const swReady = await navigator.serviceWorker.ready;
+                            logBootStage('SW:ready', { scope: swReady.scope });
+
+                            if (registration.waiting) {
+                                App.ui.showAlert('Atualização disponível. Aplicando nova versão...', 'info', 4000);
+                                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                            }
+
+                            registration.addEventListener('updatefound', () => {
+                                const newWorker = registration.installing;
+                                if (!newWorker) return;
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                        App.ui.showAlert('Nova versão baixada. Atualizando...', 'info', 4000);
+                                        newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                    }
+                                });
+                            });
 
                             if (navigator.storage?.persist) {
                                 try {
@@ -17415,7 +17577,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             let refreshing;
                             navigator.serviceWorker.addEventListener('controllerchange', function() {
                                 if (refreshing) return;
-                                window.location.reload();
+                                App.ui.showAlert('Atualização disponível. Recarregando a aplicação...', 'info', 3500);
+                                setTimeout(() => window.location.reload(), 1200);
                                 refreshing = true;
                             });
 
@@ -17441,7 +17604,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                         } catch (error) {
-                            console.log('ServiceWorker registration failed: ', error);
+                            logBootError('SW:error', error, { context: 'registerServiceWorker' });
                         }
                     });
 
@@ -17457,8 +17620,18 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
 
+
+    window.onerror = function(message, source, lineno, colno, error) {
+        logBootError('WINDOW:error', error || new Error(String(message)), {
+            source: source || null,
+            lineno: lineno || null,
+            colno: colno || null,
+        });
+        return false;
+    };
+
     window.addEventListener('unhandledrejection', (event) => {
-        console.error('[UnhandledPromiseRejection]', event.reason);
+        logBootError('WINDOW:unhandledrejection', event.reason instanceof Error ? event.reason : new Error(String(event.reason || 'Unhandled rejection')));
         if (App.state.isAuthenticated && !App.state.menuRenderedAt) {
             App.ui.renderFallbackMenu();
             App.ui.showAlert('Falha ao carregar alguns dados. Modo offline mínimo ativado.', 'warning', 5000);
@@ -17489,7 +17662,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Inicia a aplicação
-    App.init();
-    appDiagnostics.finishBoot();
+    App.init()
+        .catch((error) => {
+            logBootError('APP:init:error', error);
+            App.ui.showLoginScreen({ forced: true, reason: 'init-error' });
+        })
+        .finally(() => {
+            appDiagnostics.finishBoot();
+        });
     window.App = App; // Expor para testes e depuração
 });

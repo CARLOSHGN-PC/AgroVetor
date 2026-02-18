@@ -19,6 +19,7 @@ public class MainActivity extends BridgeActivity {
             settings.setAllowFileAccess(true);
             settings.setAllowContentAccess(true);
             settings.setGeolocationEnabled(true);
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         }
     }
 }
