@@ -11,13 +11,34 @@ export class OfflineManager {
         this.dbPromise = null;
     }
 
+    logStage(stage, extra = {}) {
+        const payload = Object.keys(extra).length ? ` ${JSON.stringify(extra)}` : '';
+        console.info(`[OfflineManager][${new Date().toISOString()}] ${stage}${payload}`);
+    }
+
+    logError(stage, error, extra = {}) {
+        console.error(`[OfflineManager][${new Date().toISOString()}] ${stage}`, {
+            ...extra,
+            message: error?.message || String(error),
+            stack: error?.stack || null,
+            code: error?.code || null,
+        });
+    }
+
     async init() {
         if (this.dbPromise) return this.dbPromise;
 
         // Use the global 'idb' object loaded via <script> tag
         const { openDB } = window.idb;
 
-        this.dbPromise = openDB(this.dbName, this.dbVersion, {
+        this.logStage('INIT:start', {
+            indexedDbAvailable: typeof indexedDB !== 'undefined',
+            isOnline: navigator.onLine,
+            dbVersion: this.dbVersion,
+        });
+
+        try {
+            this.dbPromise = openDB(this.dbName, this.dbVersion, {
             upgrade(db, oldVersion, newVersion, transaction) {
                 // Stores Legados (Mantidos para compatibilidade durante migração)
                 if (!db.objectStoreNames.contains('offline-writes')) {
@@ -75,7 +96,13 @@ export class OfflineManager {
             },
         });
 
-        return this.dbPromise;
+            this.logStage('INIT:ready', { dbName: this.dbName, dbVersion: this.dbVersion });
+            return this.dbPromise;
+        } catch (error) {
+            const isQuota = error?.name === 'QuotaExceededError';
+            this.logError(isQuota ? 'INIT:quota' : 'INIT:error', error, { dbName: this.dbName, dbVersion: this.dbVersion });
+            throw error;
+        }
     }
 
     /**
