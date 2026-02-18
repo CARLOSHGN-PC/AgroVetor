@@ -377,6 +377,30 @@ document.addEventListener('DOMContentLoaded', () => {
             armadilhas: [],
             geoJsonData: null,
             selectedMapFeature: null, // NOVO: Armazena a feature do talhão selecionado no mapa
+            isMapDebugMode: new URLSearchParams(window.location.search).get('debug') === '1',
+            mapInteractionHandlersBound: false,
+            mapInteractionHandlers: {
+                mousemove: null,
+                mouseleave: null,
+                click: null
+            },
+            mapGestureState: {
+                activePointers: new Map(),
+                lastPointerDownAt: 0,
+                lastPointerUpAt: 0,
+                lastTapAt: 0,
+                lastGestureMode: 'idle',
+                lastGestureEndedAt: 0,
+                downPoint: null,
+                movedDistance: 0,
+                mode: 'idle',
+                pendingGhost: false
+            },
+            lastMapSelection: {
+                featureId: null,
+                selectedAt: 0
+            },
+            lastTalhaoInfoSignature: null,
             trapNotifications: [],
             unreadNotificationCount: 0,
             notifiedTrapIds: new Set(JSON.parse(sessionStorage.getItem('notifiedTrapIds')) || []),
@@ -12523,16 +12547,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
                     const mapContainer = App.elements.monitoramentoAereo.mapContainer;
 
+                    const isTouchDevice = this._isTouchDevice();
+                    const isCapacitor = this._isCapacitor();
                     App.state.mapboxMap = new mapboxgl.Map({
                         container: mapContainer,
                         style: 'mapbox://styles/mapbox/satellite-streets-v12', // Estilo satélite com ruas
                         center: [-48.45, -21.17], // [lng, lat]
                         zoom: 12,
-                        attributionControl: false
+                        attributionControl: false,
+                        touchZoomRotate: true,
+                        cooperativeGestures: isTouchDevice
                     });
+
+                    if ((isTouchDevice || isCapacitor) && App.state.mapboxMap.doubleClickZoom) {
+                        App.state.mapboxMap.doubleClickZoom.disable();
+                    }
 
                     App.state.mapboxMap.on('load', () => {
                         console.log("Mapbox map loaded.");
+                        this._bindMapGestureGuards(App.state.mapboxMap);
+                        this._bindMapDebugEvents(App.state.mapboxMap);
                         this.watchUserPosition();
                         this.loadShapesOnMap();
                         this.loadTraps();
@@ -12592,6 +12626,257 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     App.ui.showAlert("Ainda não foi possível obter sua localização.", "info");
                 }
+            },
+
+            _isTouchDevice() {
+                return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            },
+
+            _isCapacitor() {
+                return typeof window !== 'undefined' && !!window.Capacitor;
+            },
+
+            _logMapDebugEvent(eventType, originalEvent = null, extra = {}) {
+                if (!App.state.isMapDebugMode) return;
+
+                const timestamp = new Date().toISOString();
+                const point = extra.point || originalEvent?.point || null;
+                const lngLat = extra.lngLat || originalEvent?.lngLat || null;
+                const nativeEvent = originalEvent?.originalEvent || originalEvent || null;
+                const touches = nativeEvent?.touches?.length ?? nativeEvent?.changedTouches?.length ?? (extra.activePointers ?? App.state.mapGestureState.activePointers.size ?? 0);
+                const target = extra.target || nativeEvent?.target?.className || nativeEvent?.target?.id || 'unknown';
+                const delta = extra.delta || { x: 0, y: 0 };
+
+                console.debug('[MAP DEBUG]', {
+                    timestamp,
+                    eventType,
+                    touches,
+                    point: point ? { x: Math.round(point.x), y: Math.round(point.y) } : null,
+                    lngLat: lngLat ? { lng: Number(lngLat.lng).toFixed(6), lat: Number(lngLat.lat).toFixed(6) } : null,
+                    delta,
+                    target,
+                    mode: App.state.mapGestureState.mode,
+                    activePointers: App.state.mapGestureState.activePointers.size
+                });
+            },
+
+            _bindMapDebugEvents(map) {
+                if (!App.state.isMapDebugMode || map.__agroDebugEventsBound) return;
+
+                const canvas = map.getCanvas();
+                const domEvents = ['click', 'pointerdown', 'pointerup', 'touchstart', 'touchend', 'touchmove', 'dblclick'];
+                domEvents.forEach((eventName) => {
+                    canvas.addEventListener(eventName, (event) => {
+                        this._logMapDebugEvent(eventName, event, { target: event.target?.className || 'map-canvas' });
+                    }, { passive: true });
+                });
+
+                ['zoomstart', 'zoomend', 'movestart', 'moveend'].forEach((eventName) => {
+                    map.on(eventName, (event) => {
+                        this._logMapDebugEvent(eventName, event, { target: 'map-instance' });
+                    });
+                });
+
+                map.__agroDebugEventsBound = true;
+                console.info('[MAP DEBUG] Instrumentação ativa via ?debug=1');
+            },
+
+            _bindMapGestureGuards(map) {
+                if (map.__agroGestureGuardBound) return;
+
+                const canvas = map.getCanvas();
+                const state = App.state.mapGestureState;
+
+                const resetGesture = () => {
+                    state.activePointers.clear();
+                    state.downPoint = null;
+                    state.movedDistance = 0;
+                    state.mode = 'idle';
+                    state.pendingGhost = false;
+                };
+
+                canvas.addEventListener('pointerdown', (event) => {
+                    const now = Date.now();
+                    const isRapidPointerBurst = now - state.lastPointerDownAt < 50;
+                    state.lastPointerDownAt = now;
+
+                    if (isRapidPointerBurst && state.activePointers.size > 0) {
+                        state.pendingGhost = true;
+                    }
+
+                    state.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY, at: now });
+                    if (!state.downPoint) {
+                        state.downPoint = { x: event.clientX, y: event.clientY };
+                    }
+
+                    if (state.activePointers.size >= 2) {
+                        state.mode = 'pinch';
+                    } else if (state.mode === 'idle') {
+                        state.mode = 'tap';
+                    }
+
+                    this._logMapDebugEvent('pointerdown', event, {
+                        delta: { x: 0, y: 0 },
+                        activePointers: state.activePointers.size,
+                        target: event.target?.className || 'map-canvas'
+                    });
+                }, { passive: true });
+
+                canvas.addEventListener('pointermove', (event) => {
+                    const pointer = state.activePointers.get(event.pointerId);
+                    if (!pointer) return;
+
+                    const dx = event.clientX - pointer.x;
+                    const dy = event.clientY - pointer.y;
+                    pointer.x = event.clientX;
+                    pointer.y = event.clientY;
+
+                    state.movedDistance += Math.hypot(dx, dy);
+                    if (state.activePointers.size === 1 && state.movedDistance > 10) {
+                        state.mode = 'pan';
+                    }
+
+                    this._logMapDebugEvent('pointermove', event, {
+                        delta: { x: Math.round(dx), y: Math.round(dy) },
+                        activePointers: state.activePointers.size,
+                        target: event.target?.className || 'map-canvas'
+                    });
+                }, { passive: true });
+
+                canvas.addEventListener('pointerup', (event) => {
+                    state.lastPointerUpAt = Date.now();
+                    state.activePointers.delete(event.pointerId);
+
+                    this._logMapDebugEvent('pointerup', event, {
+                        activePointers: state.activePointers.size,
+                        target: event.target?.className || 'map-canvas'
+                    });
+
+                    if (state.activePointers.size === 0) {
+                        if (state.mode === 'tap' && state.movedDistance < 12) {
+                            state.lastTapAt = Date.now();
+                        } else {
+                            state.lastGestureMode = state.mode;
+                            state.lastGestureEndedAt = Date.now();
+                        }
+                        resetGesture();
+                    }
+                }, { passive: true });
+
+                canvas.addEventListener('pointercancel', resetGesture, { passive: true });
+                map.__agroGestureGuardBound = true;
+            },
+
+            _shouldIgnoreGhostClick(nativeEvent) {
+                const state = App.state.mapGestureState;
+                if (!nativeEvent) return false;
+
+                const now = Date.now();
+                const recentlyPinching = state.mode === 'pinch' || state.activePointers.size >= 2;
+                const recentlyEndedComplexGesture = state.lastGestureMode === 'pinch' && (now - state.lastGestureEndedAt) < 180;
+                const rapidAfterPointerDown = now - state.lastPointerDownAt < 45;
+                const pendingGhost = state.pendingGhost;
+
+                if (recentlyPinching || recentlyEndedComplexGesture || rapidAfterPointerDown || pendingGhost) {
+                    this._logMapDebugEvent('ghost-click-ignored', nativeEvent, {
+                        target: nativeEvent.target?.className || 'map-canvas'
+                    });
+                    state.pendingGhost = false;
+                    return true;
+                }
+                return false;
+            },
+
+            _shouldIgnoreDuplicateSelection(featureId) {
+                const lockMs = 320;
+                const now = Date.now();
+                const { featureId: lastFeatureId, selectedAt } = App.state.lastMapSelection;
+                if (lastFeatureId === featureId && now - selectedAt < lockMs) {
+                    this._logMapDebugEvent('selection-locked', null, { target: `feature:${featureId}` });
+                    return true;
+                }
+
+                App.state.lastMapSelection = { featureId, selectedAt: now };
+                return false;
+            },
+
+            _bindTalhoesInteractions(map, layerId, sourceId) {
+                if (App.state.mapInteractionHandlersBound) return;
+
+                let hoveredFeatureId = null;
+                const handlers = App.state.mapInteractionHandlers;
+
+                handlers.mousemove = (e) => {
+                    map.getCanvas().style.cursor = 'pointer';
+                    if (e.features.length > 0) {
+                        if (hoveredFeatureId !== null) {
+                            map.setFeatureState({ source: sourceId, id: hoveredFeatureId }, { hover: false });
+                        }
+                        hoveredFeatureId = e.features[0].id;
+                        map.setFeatureState({ source: sourceId, id: hoveredFeatureId }, { hover: true });
+                    }
+                    this._logMapDebugEvent('mousemove-layer', e, { target: layerId });
+                };
+
+                handlers.mouseleave = () => {
+                    map.getCanvas().style.cursor = '';
+                    if (hoveredFeatureId !== null) {
+                        map.setFeatureState({ source: sourceId, id: hoveredFeatureId }, { hover: false });
+                    }
+                    hoveredFeatureId = null;
+                    this._logMapDebugEvent('mouseleave-layer', null, { target: layerId });
+                };
+
+                handlers.click = (e) => {
+                    const nativeEvent = e.originalEvent;
+                    if (nativeEvent?.target?.closest('.mapboxgl-marker')) {
+                        return;
+                    }
+                    if (this._shouldIgnoreGhostClick(nativeEvent)) {
+                        return;
+                    }
+                    if (e.features.length === 0) return;
+
+                    const clickedFeature = e.features[0];
+                    if (this._shouldIgnoreDuplicateSelection(clickedFeature.id)) {
+                        return;
+                    }
+
+                    this._logMapDebugEvent('click-layer', e, { target: layerId });
+
+                    if (App.state.trapPlacementMode === 'manual_select') {
+                        const clickPosition = e.lngLat;
+                        this.showTrapPlacementModal('manual_confirm', { feature: clickedFeature, position: clickPosition });
+                        return;
+                    }
+
+                    if (App.state.selectedMapFeature) {
+                        map.setFeatureState({ source: sourceId, id: App.state.selectedMapFeature.id }, { selected: false });
+                    }
+
+                    if (App.state.selectedMapFeature && App.state.selectedMapFeature.id === clickedFeature.id) {
+                        App.state.selectedMapFeature = null;
+                        this.hideTalhaoInfo();
+                        return;
+                    }
+
+                    App.state.selectedMapFeature = clickedFeature;
+                    map.setFeatureState({ source: sourceId, id: clickedFeature.id }, { selected: true });
+
+                    let riskPercentage = null;
+                    if (App.state.riskViewActive) {
+                        const farmCode = this._findProp(clickedFeature, ['FUNDO_AGR']);
+                        if (App.state.farmRiskPercentages && App.state.farmRiskPercentages[farmCode] !== undefined) {
+                            riskPercentage = App.state.farmRiskPercentages[farmCode];
+                        }
+                    }
+                    this.showTalhaoInfo(clickedFeature, riskPercentage);
+                };
+
+                map.on('mousemove', layerId, handlers.mousemove);
+                map.on('mouseleave', layerId, handlers.mouseleave);
+                map.on('click', layerId, handlers.click);
+                App.state.mapInteractionHandlersBound = true;
             },
 
             async handleShapefileUpload(e) {
@@ -13002,65 +13287,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.info('[SHP] layer bounds=null');
                 }
 
-                let hoveredFeatureId = null;
-
-                map.on('mousemove', layerId, (e) => {
-                    map.getCanvas().style.cursor = 'pointer';
-                    if (e.features.length > 0) {
-                        if (hoveredFeatureId !== null) {
-                            map.setFeatureState({ source: sourceId, id: hoveredFeatureId }, { hover: false });
-                        }
-                        hoveredFeatureId = e.features[0].id;
-                        map.setFeatureState({ source: sourceId, id: hoveredFeatureId }, { hover: true });
-                    }
-                });
-
-                map.on('mouseleave', layerId, () => {
-                    map.getCanvas().style.cursor = '';
-                    if (hoveredFeatureId !== null) {
-                        map.setFeatureState({ source: sourceId, id: hoveredFeatureId }, { hover: false });
-                    }
-                    hoveredFeatureId = null;
-                });
-
                 App.elements.monitoramentoAereo.btnToggleRiskView.style.display = 'flex';
-                map.on('click', layerId, (e) => {
-                    // Impede que o clique no talhão seja acionado se um marcador (armadilha) for clicado
-                    if (e.originalEvent.target.closest('.mapboxgl-marker')) {
-                        return;
-                    }
-
-                    if (e.features.length === 0) return;
-                    const clickedFeature = e.features[0];
-                    const userMarker = App.state.mapboxUserMarker;
-
-                    if (App.state.trapPlacementMode === 'manual_select') {
-                        // Não instala diretamente. Mostra um modal de confirmação primeiro.
-                        const clickPosition = e.lngLat;
-                        this.showTrapPlacementModal('manual_confirm', { feature: clickedFeature, position: clickPosition });
-                    } else {
-                        if (App.state.selectedMapFeature) {
-                             map.setFeatureState({ source: sourceId, id: App.state.selectedMapFeature.id }, { selected: false });
-                        }
-                        
-                        if (App.state.selectedMapFeature && App.state.selectedMapFeature.id === clickedFeature.id) {
-                            App.state.selectedMapFeature = null;
-                            this.hideTalhaoInfo();
-                        } else {
-                            App.state.selectedMapFeature = clickedFeature;
-                            map.setFeatureState({ source: sourceId, id: clickedFeature.id }, { selected: true });
-
-                            let riskPercentage = null;
-                            if (App.state.riskViewActive) {
-                                const farmCode = this._findProp(clickedFeature, ['FUNDO_AGR']);
-                                if (App.state.farmRiskPercentages && App.state.farmRiskPercentages[farmCode] !== undefined) {
-                                    riskPercentage = App.state.farmRiskPercentages[farmCode];
-                                }
-                            }
-                            this.showTalhaoInfo(clickedFeature, riskPercentage);
-                        }
-                    }
-                });
+                this._bindTalhoesInteractions(map, layerId, sourceId);
             },
 
             _findProp(feature, keys) {
@@ -13087,6 +13315,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const talhaoNome = feature.properties.AGV_TALHAO || 'Não identificado';
                 const areaHa = this._findProp(feature, ['AREA_HA', 'AREA', 'HECTARES']);
                 const variedade = this._findProp(feature, ['VARIEDADE', 'CULTURA']);
+                const infoSignature = `${feature.id}-${talhaoNome}-${riskPercentage ?? 'no-risk'}`;
+                const infoBox = App.elements.monitoramentoAereo.infoBox;
+                if (App.state.lastTalhaoInfoSignature === infoSignature && infoBox.classList.contains('visible')) {
+                    this._logMapDebugEvent('info-skipped-same-talhao', null, { target: `feature:${feature.id}` });
+                    return;
+                }
 
                 const riskInfoHTML = riskPercentage !== null ? `
                     <div class="info-item risk-info">
@@ -13138,7 +13372,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 this.hideTrapInfo();
-                App.elements.monitoramentoAereo.infoBox.classList.add('visible');
+                App.state.lastTalhaoInfoSignature = infoSignature;
+                infoBox.classList.add('visible');
             },
 
             tileMath: {
@@ -13256,6 +13491,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.mapboxMap.setFeatureState({ source: 'talhoes-source', id: App.state.selectedMapFeature.id }, { selected: false });
                     App.state.selectedMapFeature = null;
                 }
+                App.state.lastTalhaoInfoSignature = null;
                 App.elements.monitoramentoAereo.infoBox.classList.remove('visible');
             },
 

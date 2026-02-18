@@ -1201,11 +1201,17 @@
           flex-grow: 1;
           height: 100%;
           position: relative;
+          touch-action: pan-x pan-y;
+          overscroll-behavior: contain;
       }
       #map {
           width: 100%;
           height: 100%;
           z-index: 1;
+          touch-action: pan-x pan-y;
+      }
+      #map-container .mapboxgl-canvas {
+          touch-action: pan-x pan-y;
       }
       .map-controls {
           position: absolute;
