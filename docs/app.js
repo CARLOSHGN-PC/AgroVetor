@@ -13116,9 +13116,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         attributionControl: false
                     });
 
-                    await new Promise((resolve, reject) => {
+                    await new Promise((resolve) => {
                         App.state.mapboxMap.once('load', () => resolve());
-                        App.state.mapboxMap.once('error', (error) => reject(error?.error || error));
+                        App.state.mapboxMap.once('error', (error) => {
+                            logAereoOfflineError('map:init:first-error', error?.error || error);
+                        });
                     });
                     App.state.mapboxMapIsLoaded = true;
                     logAereoOffline('map:init:loaded', { ms: Math.round(performance.now() - startedAt) });
