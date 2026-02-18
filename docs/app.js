@@ -377,6 +377,9 @@ document.addEventListener('DOMContentLoaded', () => {
             armadilhas: [],
             geoJsonData: null,
             selectedMapFeature: null, // NOVO: Armazena a feature do talhão selecionado no mapa
+            selectedTalhaoId: null,
+            mapInteractionHandlers: null,
+            mapLastTalhaoClickAt: 0,
             trapNotifications: [],
             unreadNotificationCount: 0,
             notifiedTrapIds: new Set(JSON.parse(sessionStorage.getItem('notifiedTrapIds')) || []),
@@ -12904,6 +12907,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 const layerId = 'talhoes-layer';
                 const borderLayerId = 'talhoes-border-layer';
                 const labelLayerId = 'talhoes-labels';
+                const DEBUG_MAP = !!window.DEBUG_MAP;
+
+                if (DEBUG_MAP) {
+                    console.groupCollapsed('[MAP DEBUG] loadShapesOnMap');
+                    console.log('hasSourceBefore=', !!map.getSource(sourceId));
+                    console.log('layerCountBefore=', Object.keys(map.style?._layers || {}).length);
+                    console.log('selectedTalhaoId=', App.state.selectedTalhaoId);
+                }
+
+                if (App.state.mapInteractionHandlers) {
+                    map.off('mousemove', layerId, App.state.mapInteractionHandlers.mousemove);
+                    map.off('mouseleave', layerId, App.state.mapInteractionHandlers.mouseleave);
+                    map.off('click', layerId, App.state.mapInteractionHandlers.click);
+                    if (DEBUG_MAP) console.log('removedOldHandlers=true');
+                    App.state.mapInteractionHandlers = null;
+                }
+
+                if (App.state.selectedMapFeature?.id !== undefined && App.state.selectedMapFeature?.id !== null) {
+                    map.setFeatureState({ source: sourceId, id: App.state.selectedMapFeature.id }, { selected: false });
+                }
+                App.state.selectedMapFeature = null;
+                App.state.selectedTalhaoId = null;
 
                 const bounds = this._getGeoJsonBounds(App.state.geoJsonData);
                 if (map.getSource(sourceId)) {
@@ -12912,7 +12937,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     map.addSource(sourceId, {
                         type: 'geojson',
                         data: App.state.geoJsonData,
-                        generateId: true // Important for feature state
+                        generateId: true
                     });
                 }
 
@@ -12927,8 +12952,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             'fill-color': [
                                 'case',
                                 ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
-                                ['boolean', ['feature-state', 'hover'], false], '#607D8B', // Lighter grey for hover
-                                ['boolean', ['feature-state', 'risk'], false], '#d32f2f', // Red for risk
+                                ['boolean', ['feature-state', 'hover'], false], '#607D8B',
+                                ['boolean', ['feature-state', 'risk'], false], '#d32f2f',
                                 '#1C1C1C'
                             ],
                             'fill-opacity': [
@@ -12936,19 +12961,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ['boolean', ['feature-state', 'selected'], false], 0.9,
                                 ['boolean', ['feature-state', 'hover'], false], 0.8,
                                 ['boolean', ['feature-state', 'risk'], false], 0.6,
-                                0.7 // Default opacity
+                                0.7
                             ]
                         }
                     });
                 }
 
-                // Adicionar rótulos aos polígonos
                 if (!map.getLayer(labelLayerId)) {
                     map.addLayer({
                         id: labelLayerId,
                         type: 'symbol',
                         source: sourceId,
-                        minzoom: 10, // Show labels even earlier
+                        minzoom: 10,
                         layout: {
                             'symbol-placement': 'point',
                             'text-field': [
@@ -12958,36 +12982,36 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }
                             ],
                             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                            'text-size': 14, // Larger font size
+                            'text-size': 14,
                             'text-ignore-placement': true,
                             'text-allow-overlap': true,
                             'text-pitch-alignment': 'viewport',
                         },
                         paint: {
                             'text-color': '#FFFFFF',
-                            'text-halo-color': 'rgba(0, 0, 0, 0.9)', // Darker halo
-                            'text-halo-width': 2 // Thicker halo for better contrast
+                            'text-halo-color': 'rgba(0, 0, 0, 0.9)',
+                            'text-halo-width': 2
                         }
                     });
                 }
 
                 if (!map.getLayer(borderLayerId)) {
-                     map.addLayer({
+                    map.addLayer({
                         id: borderLayerId,
                         type: 'line',
                         source: sourceId,
                         paint: {
                             'line-color': [
                                 'case',
-                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF', // Ciano brilhante para selecionado
-                                ['boolean', ['feature-state', 'searched'], false], '#00FFFF', // Ciano brilhante para pesquisado
-                                '#FFFFFF' // Borda branca padrão
+                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF',
+                                ['boolean', ['feature-state', 'searched'], false], '#00FFFF',
+                                '#FFFFFF'
                             ],
                             'line-width': [
                                 'case',
                                 ['boolean', ['feature-state', 'selected'], false], 3,
                                 ['boolean', ['feature-state', 'searched'], false], 4,
-                                2 // Borda padrão mais visível
+                                2
                             ],
                             'line-opacity': 0.95
                         }
@@ -13004,7 +13028,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let hoveredFeatureId = null;
 
-                map.on('mousemove', layerId, (e) => {
+                const handleMouseMove = (e) => {
                     map.getCanvas().style.cursor = 'pointer';
                     if (e.features.length > 0) {
                         if (hoveredFeatureId !== null) {
@@ -13013,55 +13037,89 @@ document.addEventListener('DOMContentLoaded', () => {
                         hoveredFeatureId = e.features[0].id;
                         map.setFeatureState({ source: sourceId, id: hoveredFeatureId }, { hover: true });
                     }
-                });
+                };
 
-                map.on('mouseleave', layerId, () => {
+                const handleMouseLeave = () => {
                     map.getCanvas().style.cursor = '';
                     if (hoveredFeatureId !== null) {
                         map.setFeatureState({ source: sourceId, id: hoveredFeatureId }, { hover: false });
                     }
                     hoveredFeatureId = null;
-                });
+                };
 
-                App.elements.monitoramentoAereo.btnToggleRiskView.style.display = 'flex';
-                map.on('click', layerId, (e) => {
-                    // Impede que o clique no talhão seja acionado se um marcador (armadilha) for clicado
-                    if (e.originalEvent.target.closest('.mapboxgl-marker')) {
+                const handleTalhaoClick = (e) => {
+                    if (e.originalEvent.target.closest('.mapboxgl-marker')) return;
+                    if (e.features.length === 0) return;
+
+                    const now = Date.now();
+                    const elapsed = now - App.state.mapLastTalhaoClickAt;
+                    if (elapsed < 180) {
+                        if (DEBUG_MAP) console.log('[MAP DEBUG] clickIgnoredByThrottle elapsedMs=', elapsed);
+                        return;
+                    }
+                    App.state.mapLastTalhaoClickAt = now;
+
+                    const clickedFeature = e.features[0];
+                    const clickedTalhaoId = String(clickedFeature.id);
+
+                    if (DEBUG_MAP) {
+                        console.groupCollapsed('[MAP DEBUG] talhaoClick');
+                        console.log('clickedFeatureId=', clickedFeature.id);
+                        console.log('clickedTalhaoId=', clickedTalhaoId);
+                        console.log('selectedTalhaoIdBefore=', App.state.selectedTalhaoId);
+                        console.log('mapLayerCount=', Object.keys(map.style?._layers || {}).length);
+                    }
+
+                    if (App.state.trapPlacementMode === 'manual_select') {
+                        const clickPosition = e.lngLat;
+                        this.showTrapPlacementModal('manual_confirm', { feature: clickedFeature, position: clickPosition });
+                        if (DEBUG_MAP) console.groupEnd();
                         return;
                     }
 
-                    if (e.features.length === 0) return;
-                    const clickedFeature = e.features[0];
-                    const userMarker = App.state.mapboxUserMarker;
+                    if (App.state.selectedMapFeature?.id !== undefined && App.state.selectedMapFeature?.id !== null) {
+                        map.setFeatureState({ source: sourceId, id: App.state.selectedMapFeature.id }, { selected: false });
+                    }
 
-                    if (App.state.trapPlacementMode === 'manual_select') {
-                        // Não instala diretamente. Mostra um modal de confirmação primeiro.
-                        const clickPosition = e.lngLat;
-                        this.showTrapPlacementModal('manual_confirm', { feature: clickedFeature, position: clickPosition });
-                    } else {
-                        if (App.state.selectedMapFeature) {
-                             map.setFeatureState({ source: sourceId, id: App.state.selectedMapFeature.id }, { selected: false });
-                        }
-                        
-                        if (App.state.selectedMapFeature && App.state.selectedMapFeature.id === clickedFeature.id) {
-                            App.state.selectedMapFeature = null;
-                            this.hideTalhaoInfo();
-                        } else {
-                            App.state.selectedMapFeature = clickedFeature;
-                            map.setFeatureState({ source: sourceId, id: clickedFeature.id }, { selected: true });
+                    App.state.selectedMapFeature = clickedFeature;
+                    App.state.selectedTalhaoId = clickedTalhaoId;
+                    map.setFeatureState({ source: sourceId, id: clickedFeature.id }, { selected: true });
 
-                            let riskPercentage = null;
-                            if (App.state.riskViewActive) {
-                                const farmCode = this._findProp(clickedFeature, ['FUNDO_AGR']);
-                                if (App.state.farmRiskPercentages && App.state.farmRiskPercentages[farmCode] !== undefined) {
-                                    riskPercentage = App.state.farmRiskPercentages[farmCode];
-                                }
-                            }
-                            this.showTalhaoInfo(clickedFeature, riskPercentage);
+                    let riskPercentage = null;
+                    if (App.state.riskViewActive) {
+                        const farmCode = this._findProp(clickedFeature, ['FUNDO_AGR']);
+                        if (App.state.farmRiskPercentages && App.state.farmRiskPercentages[farmCode] !== undefined) {
+                            riskPercentage = App.state.farmRiskPercentages[farmCode];
                         }
                     }
-                });
+
+                    this.showTalhaoInfo(clickedFeature, riskPercentage);
+                    if (DEBUG_MAP) {
+                        console.log('selectedTalhaoIdAfter=', App.state.selectedTalhaoId);
+                        console.log('infoBoxVisible=', App.elements.monitoramentoAereo.infoBox.classList.contains('visible'));
+                        console.groupEnd();
+                    }
+                };
+
+                map.on('mousemove', layerId, handleMouseMove);
+                map.on('mouseleave', layerId, handleMouseLeave);
+                map.on('click', layerId, handleTalhaoClick);
+
+                App.state.mapInteractionHandlers = {
+                    mousemove: handleMouseMove,
+                    mouseleave: handleMouseLeave,
+                    click: handleTalhaoClick
+                };
+
+                App.elements.monitoramentoAereo.btnToggleRiskView.style.display = 'flex';
+
+                if (DEBUG_MAP) {
+                    console.log('handlersBound=1 per event');
+                    console.log('layerCountAfter=', Object.keys(map.style?._layers || {}).length);
+                    console.groupEnd();
+                }
             },
+
 
             _findProp(feature, keys) {
                 if (!feature || !feature.properties) return 'Não identificado';
@@ -13082,11 +13140,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // ALTERAÇÃO PONTO 5: Melhoria na busca de propriedades do Shapefile
             showTalhaoInfo(feature, riskPercentage = null) { // feature is now a GeoJSON feature
+                const DEBUG_MAP = !!window.DEBUG_MAP;
                 const fundoAgricola = feature.properties.AGV_FUNDO || 'Não identificado';
                 const fazendaNome = this._findProp(feature, ['NM_IMOVEL', 'NM_FAZENDA', 'NOME_FAZEN', 'FAZENDA']);
                 const talhaoNome = feature.properties.AGV_TALHAO || 'Não identificado';
-                const areaHa = this._findProp(feature, ['AREA_HA', 'AREA', 'HECTARES']);
+                const areaHaRaw = this._findProp(feature, ['AREA_HA', 'AREA', 'HECTARES']);
+                const areaHa = Number.parseFloat(String(areaHaRaw).replace(',', '.'));
                 const variedade = this._findProp(feature, ['VARIEDADE', 'CULTURA']);
+
+                if (DEBUG_MAP) {
+                    console.groupCollapsed('[MAP DEBUG] showTalhaoInfo');
+                    console.log('featureId=', feature?.id);
+                    console.log('selectedTalhaoId=', App.state.selectedTalhaoId);
+                    console.log('reusingInfoPanel=', !!App.elements.monitoramentoAereo.infoBoxContent?.firstElementChild);
+                }
 
                 const riskInfoHTML = riskPercentage !== null ? `
                     <div class="info-item risk-info">
@@ -13120,7 +13187,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="info-item">
                         <span class="label">Área Total</span>
-                        <span class="value">${(typeof areaHa === 'number' ? areaHa : 0).toFixed(2).replace('.',',')} ha</span>
+                        <span class="value">${Number.isFinite(areaHa) ? areaHa.toFixed(2).replace('.',',') : '0,00'} ha</span>
                     </div>
                     <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
                         <button class="btn-download-map save" style="width: 100%;">
@@ -13133,12 +13200,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
 
-                contentEl.querySelector('.btn-download-map').addEventListener('click', () => {
-                    this.startOfflineMapDownload(feature);
-                });
-                
+                const downloadBtn = contentEl.querySelector('.btn-download-map');
+                if (downloadBtn) {
+                    downloadBtn.onclick = () => this.startOfflineMapDownload(feature);
+                }
+
                 this.hideTrapInfo();
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
+
+                if (DEBUG_MAP) {
+                    console.log('infoBoxVisibleAfter=', App.elements.monitoramentoAereo.infoBox.classList.contains('visible'));
+                    console.groupEnd();
+                }
             },
 
             tileMath: {
@@ -13252,11 +13325,17 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             hideTalhaoInfo() {
-                if (App.state.selectedMapFeature) {
+                const DEBUG_MAP = !!window.DEBUG_MAP;
+                if (App.state.selectedMapFeature && App.state.mapboxMap) {
                     App.state.mapboxMap.setFeatureState({ source: 'talhoes-source', id: App.state.selectedMapFeature.id }, { selected: false });
-                    App.state.selectedMapFeature = null;
                 }
+                App.state.selectedMapFeature = null;
+                App.state.selectedTalhaoId = null;
                 App.elements.monitoramentoAereo.infoBox.classList.remove('visible');
+
+                if (DEBUG_MAP) {
+                    console.log('[MAP DEBUG] hideTalhaoInfo called');
+                }
             },
 
             loadTraps() {
