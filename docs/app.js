@@ -149,6 +149,58 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error('Formato de buffer SHP não suportado.');
     };
 
+    const nowIso = () => new Date().toISOString();
+    const logBootStage = (stage, extra = {}) => {
+        const payload = Object.keys(extra).length ? ` ${JSON.stringify(extra)}` : '';
+        console.info(`[${nowIso()}] ${stage}${payload}`);
+    };
+
+    const withTimeout = async (promise, ms, label = 'operação remota') => {
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error(`Timeout (${ms}ms): ${label}`)), ms);
+        });
+        try {
+            return await Promise.race([promise, timeoutPromise]);
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    };
+
+    const bootstrapCache = {
+        dbPromise: null,
+        async init() {
+            if (!this.dbPromise) {
+                this.dbPromise = openDB('agrovetor-bootstrap-cache', 1, {
+                    upgrade(db) {
+                        if (!db.objectStoreNames.contains('kv')) {
+                            db.createObjectStore('kv');
+                        }
+                    }
+                });
+            }
+            return this.dbPromise;
+        },
+        async get(key, fallback = null) {
+            try {
+                const dbInstance = await this.init();
+                const value = await dbInstance.get('kv', key);
+                return value ?? fallback;
+            } catch (error) {
+                console.warn('[bootstrap-cache] falha ao ler chave', key, error?.message || error);
+                return fallback;
+            }
+        },
+        async set(key, value) {
+            try {
+                const dbInstance = await this.init();
+                await dbInstance.put('kv', value, key);
+            } catch (error) {
+                console.warn('[bootstrap-cache] falha ao gravar chave', key, error?.message || error);
+            }
+        }
+    };
+
     const readShapefileAsArrayBuffer = async (url, context = 'online') => {
         if (isCapacitorNative()) {
             try {
@@ -342,6 +394,9 @@ document.addEventListener('DOMContentLoaded', () => {
             authMode: null, // 'online' | 'offline'
             isOnline: navigator.onLine,
             syncStatus: 'idle', // 'idle' | 'syncing' | 'error' | 'done'
+            bootStage: 'BOOT: start',
+            menuRenderedAt: null,
+            bootWatchdogTimer: null,
             requiresReauthForSync: false,
             reauthDeferred: false,
             isCheckingConnection: false,
@@ -349,6 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUser: null,
             users: [],
             companies: [],
+            cachedSubscribedModules: [],
             globalConfigs: {}, // NOVO: Para armazenar configurações globais como feature flags
             companyConfig: {},
             registros: [],
@@ -1030,8 +1086,10 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         isFeatureGloballyActive(featureKey) {
-            // A funcionalidade está ativa se a flag correspondente for explicitamente `true`.
-            // Se a flag não existir ou for `false`, a funcionalidade está desativada.
+            // Em modo offline/fail-soft, a ausência de configuração global não deve travar o menu.
+            if (!App.state.globalConfigs || Object.keys(App.state.globalConfigs).length === 0) {
+                return App.state.authMode === 'offline' ? true : false;
+            }
             return App.state.globalConfigs[featureKey] === true;
         },
 
@@ -1061,6 +1119,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         init() {
             perfLogger.start('App.init');
+            logBootStage('BOOT: start', { isOnline: navigator.onLine });
             OfflineDB.init();
             this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
@@ -1402,112 +1461,155 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.requiresReauthForSync = requiresReauthForSync;
                 App.ui.updateConnectivityStatus();
             },
+            _setBootStage(stage, extra = {}) {
+                App.state.bootStage = stage;
+                logBootStage(stage, { authMode: App.state.authMode, isOnline: App.state.isOnline, ...extra });
+            },
+            _clearBootWatchdog() {
+                if (App.state.bootWatchdogTimer) {
+                    clearTimeout(App.state.bootWatchdogTimer);
+                    App.state.bootWatchdogTimer = null;
+                }
+            },
+            _startBootWatchdog(timeoutMs = 2500) {
+                this._clearBootWatchdog();
+                App.state.bootWatchdogTimer = setTimeout(() => {
+                    if (!App.state.menuRenderedAt) {
+                        console.error('BOOT_WATCHDOG timeout', {
+                            stage: App.state.bootStage,
+                            authMode: App.state.authMode,
+                            isOnline: App.state.isOnline,
+                            user: App.state.currentUser?.uid || null,
+                            stack: new Error('BOOT_WATCHDOG').stack
+                        });
+                        App.ui.renderFallbackMenu();
+                        App.ui.showAlert('Menu offline mínimo carregado. Sincronize quando voltar internet.', 'warning', 4000);
+                    }
+                }, timeoutMs);
+            },
+
             async checkSession() {
                 onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        this._setAuthState({ isAuthenticated: true, authMode: 'online', requiresReauthForSync: false });
-                        App.ui.setLoading(true, "A carregar dados do utilizador...");
-                        const userDoc = await App.data.getUserData(user.uid);
+                    try {
+                        if (user) {
+                            this._setBootStage('BOOT: start');
+                            this._setAuthState({ isAuthenticated: true, authMode: 'online', requiresReauthForSync: false });
+                            App.state.menuRenderedAt = null;
+                            this._startBootWatchdog(2500);
+                            App.ui.setLoading(true, "A carregar dados do utilizador...");
 
-                        if (userDoc && userDoc.active) {
-                            let companyDoc = null;
-                            // [CORREÇÃO] Se for super-admin, o companyId deve ser ignorado para acesso global.
-                            if (userDoc.role === 'super-admin') {
-                                delete userDoc.companyId; // Garante que a sessão do super-admin não fique presa a uma empresa.
+                            const userDoc = await withTimeout(App.data.getUserData(user.uid), 8000, 'loadUser');
+                            if (!(userDoc && userDoc.active)) {
+                                this.logout();
+                                App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
+                                return;
                             }
 
-                            // Bloqueia o login se a empresa do utilizador estiver inativa
+                            this._setBootStage('AUTH: resolved', { userId: user.uid });
+
+                            let companyDoc = null;
+                            if (userDoc.role === 'super-admin') {
+                                delete userDoc.companyId;
+                            }
+
                             if (userDoc.role !== 'super-admin' && userDoc.companyId) {
-                                companyDoc = await App.data.getDocument('companies', userDoc.companyId);
-                                if (!companyDoc || companyDoc.active === false) {
-                                    App.auth.logout();
-                                    App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
-                                    return;
+                                try {
+                                    companyDoc = await withTimeout(App.data.getDocument('companies', userDoc.companyId), 8000, 'loadCompany');
+                                    if (!companyDoc || companyDoc.active === false) {
+                                        App.auth.logout();
+                                        App.ui.showLoginMessage("A sua empresa está desativada. Por favor, contate o suporte.", "error");
+                                        return;
+                                    }
+                                    await bootstrapCache.set(`company:${userDoc.companyId}`, companyDoc);
+                                    await bootstrapCache.set(`modules:${userDoc.companyId}`, companyDoc.subscribedModules || ['dashboard']);
+                                    this._setBootStage('DATA: company loaded', { companyId: userDoc.companyId });
+                                } catch (error) {
+                                    console.warn('Falha/timeout ao carregar empresa online:', error?.message || error);
                                 }
                             }
 
                             App.state.currentUser = { ...user, ...userDoc };
 
-                            // Validação CRÍTICA para o modelo multi-empresa
                             if (!App.state.currentUser.companyId && App.state.currentUser.role !== 'super-admin') {
                                 App.auth.logout();
                                 App.ui.showLoginMessage("A sua conta não está associada a uma empresa. Contacte o suporte.", "error");
                                 return;
                             }
 
-                            // **FIX DA CORRIDA DE DADOS**: Carrega os dados essenciais ANTES de renderizar a tela.
+                            App.state.currentUser.permissions = await App.repositories.permissions.getEffectivePermissions();
+                            await bootstrapCache.set(`permissions:${App.state.currentUser.uid || App.state.currentUser.email || 'anonymous'}`, App.state.currentUser.permissions || {});
+                            this._setBootStage('PERM: loaded', { permissionCount: Object.keys(App.state.currentUser.permissions || {}).length });
+                            if (App.state.currentUser.companyId) {
+                                App.state.cachedSubscribedModules = await App.repositories.modules.getEffectiveModules(App.state.currentUser.companyId);
+                            }
+
                             App.ui.setLoading(true, "A carregar configurações...");
                             try {
-                                // 1. Carregar configurações globais
-                                const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
+                                const globalConfigsDoc = await withTimeout(getDoc(doc(db, 'global_configs', 'main')), 8000, 'loadGlobalConfigs');
                                 if (globalConfigsDoc.exists()) {
                                     App.state.globalConfigs = globalConfigsDoc.data();
+                                    await bootstrapCache.set('global_configs:main', App.state.globalConfigs);
                                 } else {
-                                    console.warn("Documento de configurações globais 'main' não encontrado.");
                                     App.state.globalConfigs = {};
                                 }
-
-                                // 2. Pré-popular os dados da empresa (se já foram carregados)
-                                if (companyDoc) {
-                                    App.state.companies = [companyDoc];
-                                }
-
-                                // 3. Agora é seguro mostrar a tela principal
-                                App.actions.saveUserProfileLocally(App.state.currentUser);
-                                App.ui.showAppScreen(); // A renderização do menu aqui agora terá os dados necessários
-                                App.data.listenToCoreData(); // Inicia os ouvintes para atualizações em tempo real
-
-                                if (this.pendingOfflinePassword) {
-                                    try {
-                                        await this.updateOfflineCredential(user.uid, this.pendingOfflinePassword);
-                                    } finally {
-                                        this.pendingOfflinePassword = null;
-                                    }
-                                }
-
-                                const draftRestored = await App.actions.checkForDraft();
-                                if (!draftRestored) {
-                                    const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
-                                    App.ui.showTab(lastTab || 'dashboard');
-                                }
-
-                                if (App.state.isOnline) {
-                                    await this.resumeOnlineSessionAndSync();
-                                }
-
-                                App.actions.checkSequence();
-
                             } catch (error) {
-                                console.error("Falha crítica ao carregar dados iniciais:", error);
-                                App.auth.logout();
-                                App.ui.showLoginMessage("Não foi possível carregar as configurações da aplicação. Tente novamente.", "error");
+                                App.state.globalConfigs = await bootstrapCache.get('global_configs:main', {});
+                                console.warn('Falha ao carregar configurações globais online, usando cache:', error?.message || error);
                             }
 
-                        } else {
-                            this.logout();
-                            App.ui.showLoginMessage("A sua conta foi desativada ou não foi encontrada.");
-                        }
-                    } else {
-                        if (App.state.isAuthenticated) {
-                            App.state.authMode = 'offline';
-                            if (App.state.isOnline) {
-                                this._markReauthRequired();
+                            if (companyDoc) {
+                                App.state.companies = [companyDoc];
                             }
+
+                            App.actions.saveUserProfileLocally(App.state.currentUser);
                             App.ui.showAppScreen();
-                            App.ui.setLoading(false);
-                            return;
-                        }
-                        const localProfiles = App.actions.getLocalUserProfiles();
-                        if (localProfiles.length > 0 && !navigator.onLine) {
-                            App.ui.showOfflineUserSelection();
+                            App.data.listenToCoreData();
+
+                            if (this.pendingOfflinePassword) {
+                                try {
+                                    await this.updateOfflineCredential(user.uid, this.pendingOfflinePassword);
+                                } finally {
+                                    this.pendingOfflinePassword = null;
+                                }
+                            }
+
+                            const draftRestored = await App.actions.checkForDraft();
+                            if (!draftRestored) {
+                                const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
+                                App.ui.showTab(lastTab || 'dashboard');
+                            }
+
+                            if (App.state.isOnline) {
+                                await this.resumeOnlineSessionAndSync();
+                            }
+
+                            App.actions.checkSequence();
                         } else {
-                            App.ui.showLoginScreen();
+                            if (App.state.isAuthenticated) {
+                                App.state.authMode = 'offline';
+                                if (App.state.isOnline) {
+                                    this._markReauthRequired();
+                                }
+                                App.ui.showAppScreen();
+                                App.ui.setLoading(false);
+                                return;
+                            }
+                            const localProfiles = App.actions.getLocalUserProfiles();
+                            if (localProfiles.length > 0 && !navigator.onLine) {
+                                App.ui.showOfflineUserSelection();
+                            } else {
+                                App.ui.showLoginScreen();
+                            }
                         }
+                    } catch (error) {
+                        console.error('Erro no fluxo checkSession:', error);
+                        App.ui.showAlert('Falha ao inicializar sessão. Carregando modo seguro offline.', 'warning', 5000);
+                        App.ui.showAppScreen();
+                    } finally {
+                        App.ui.setLoading(false);
                     }
-                    App.ui.setLoading(false);
                 });
             },
-
             async login() {
                 const email = App.elements.loginUser.value.trim();
                 const password = App.elements.loginPass.value;
@@ -1535,6 +1637,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                 }
             },
+
             async loginOffline(email, password) {
                 if (!email || !password) {
                     App.ui.showAlert("Por favor, insira e-mail e senha.", "warning");
@@ -1551,66 +1654,85 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     const isValid = await this._verifyPassword(password, credentials);
-                    if (isValid) {
-                        let userProfile = null;
-                        if (credentials.encryptedProfile) {
-                            userProfile = await this._decryptProfile(credentials.encryptedProfile, password, credentials.kdfParams.iterations);
-                        } else if (credentials.userProfile) {
-                            userProfile = credentials.userProfile;
-                            await this.updateOfflineCredential(credentials.userId || userProfile.uid, password, userProfile);
-                        }
-
-                        if (!userProfile) {
-                            App.ui.showAlert("Credencial offline inválida. Conecte-se à internet e faça login novamente.", "error");
-                            return;
-                        }
-
-                        App.state.currentUser = userProfile;
-                        this._setAuthState({ isAuthenticated: true, authMode: 'offline', requiresReauthForSync: false });
-                        App.state.reauthDeferred = false;
-
-                        App.ui.setLoading(true, "A carregar dados offline...");
-                        try {
-                            const companyId = App.state.currentUser.companyId;
-
-                            // Pré-carrega os dados da empresa a partir do cache offline
-                            if (companyId) {
-                                const companyDoc = await App.data.getDocument('companies', companyId);
-                                if (companyDoc) {
-                                     App.state.companies = [companyDoc];
-                                } else {
-                                    console.warn("Documento da empresa não encontrado no cache offline durante o login.");
-                                }
-                            }
-
-                            // Pré-carrega as configurações globais a partir do cache offline
-                            const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
-                            if (globalConfigsDoc.exists()) {
-                                App.state.globalConfigs = globalConfigsDoc.data();
-                            } else {
-                                console.warn("Configurações globais não encontradas no cache offline durante o login.");
-                            }
-
-                            // Agora, com os dados essenciais pré-carregados, mostra a tela da aplicação
-                            App.ui.showAppScreen();
-                            App.mapModule.loadOfflineShapes();
-                            App.data.listenToCoreData(); // Configura os 'listeners' para futuras atualizações quando estiver online
-
-                        } catch (error) {
-                            console.error("Erro ao pré-carregar dados do cache offline:", error);
-                            // Fallback para o comportamento antigo se o pré-carregamento falhar
-                            App.ui.showAppScreen();
-                            App.mapModule.loadOfflineShapes();
-                            App.data.listenToCoreData();
-                        } finally {
-                            App.ui.setLoading(false);
-                        }
-                    } else {
+                    if (!isValid) {
                         App.ui.showAlert("Sua senha mudou. Conecte-se à internet e faça login uma vez para atualizar o acesso offline.", "error");
+                        return;
                     }
+
+                    let userProfile = null;
+                    if (credentials.encryptedProfile) {
+                        userProfile = await this._decryptProfile(credentials.encryptedProfile, password, credentials.kdfParams.iterations);
+                    } else if (credentials.userProfile) {
+                        userProfile = credentials.userProfile;
+                        await this.updateOfflineCredential(credentials.userId || userProfile.uid, password, userProfile);
+                    }
+
+                    if (!userProfile) {
+                        App.ui.showAlert("Credencial offline inválida. Conecte-se à internet e faça login novamente.", "error");
+                        return;
+                    }
+
+                    App.state.currentUser = userProfile;
+                    this._setAuthState({ isAuthenticated: true, authMode: 'offline', requiresReauthForSync: false });
+                    App.state.reauthDeferred = false;
+                    App.state.menuRenderedAt = null;
+
+                    this._setBootStage('BOOT: start');
+                    this._setBootStage('AUTH: resolved', { userId: userProfile.uid || null });
+                    this._startBootWatchdog(2000);
+
+                    App.ui.setLoading(true, "A carregar dados offline...");
+
+                    const companyId = App.state.currentUser.companyId;
+                    const effectivePermissions = await App.repositories.permissions.getEffectivePermissions();
+                    App.state.currentUser.permissions = effectivePermissions;
+                    this._setBootStage('PERM: loaded', { permissionCount: Object.keys(effectivePermissions || {}).length });
+
+                    if (companyId) {
+                        App.state.cachedSubscribedModules = await App.repositories.modules.getEffectiveModules(companyId);
+                        let companyDoc = await bootstrapCache.get(`company:${companyId}`, null);
+                        if (!companyDoc) {
+                            try {
+                                companyDoc = await withTimeout(App.data.getDocument('companies', companyId), 8000, 'loadCompany');
+                            } catch (error) {
+                                console.warn('Falha/timeout ao carregar empresa no login offline:', error?.message || error);
+                            }
+                        }
+                        if (companyDoc) {
+                            App.state.companies = [companyDoc];
+                            await bootstrapCache.set(`company:${companyId}`, companyDoc);
+                            await bootstrapCache.set(`modules:${companyId}`, companyDoc.subscribedModules || ['dashboard']);
+                            this._setBootStage('DATA: company loaded', { companyId });
+                        } else {
+                            App.ui.showAlert("Dados da empresa indisponíveis offline. Mostrando menu mínimo.", "info", 5000);
+                        }
+                    }
+
+                    let globalConfigs = await bootstrapCache.get('global_configs:main', null);
+                    if (globalConfigs) {
+                        App.state.globalConfigs = globalConfigs;
+                    }
+
+                    withTimeout(getDoc(doc(db, 'global_configs', 'main')), 8000, 'loadGlobalConfigs')
+                        .then(async (globalConfigsDoc) => {
+                            if (globalConfigsDoc?.exists()) {
+                                App.state.globalConfigs = globalConfigsDoc.data();
+                                await bootstrapCache.set('global_configs:main', App.state.globalConfigs);
+                                App.ui.renderMenu();
+                            }
+                        })
+                        .catch((error) => console.warn('Falha/timeout ao atualizar configurações globais em background:', error?.message || error));
+
+                    App.ui.showAppScreen();
+                    this._setBootStage('UI: ready');
+                    App.mapModule.loadOfflineShapes();
+                    App.data.listenToCoreData();
                 } catch (error) {
                     App.ui.showAlert("Ocorreu um erro durante o login offline.", "error");
                     console.error("Erro no login offline:", error);
+                    App.ui.showAppScreen();
+                } finally {
+                    App.ui.setLoading(false);
                 }
             },
             async updateOfflineCredential(userId, password, userProfile = App.state.currentUser) {
@@ -1664,7 +1786,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (options.isManual) {
                             App.ui.showSystemNotification("Sincronização", message, "info");
                         }
-                        await auth.currentUser.getIdToken(true);
+                        await withTimeout(auth.currentUser.getIdToken(true), 8000, 'refreshToken');
                         await this._afterOnlineSessionReady();
                     } catch (error) {
                         console.error("Falha ao atualizar token:", error);
@@ -1690,13 +1812,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.hideReauthBanner();
                 App.ui.updateConnectivityStatus();
 
-                const globalConfigsDoc = await getDoc(doc(db, 'global_configs', 'main'));
-                if (globalConfigsDoc.exists()) {
-                    App.state.globalConfigs = globalConfigsDoc.data();
+                try {
+                    const globalConfigsDoc = await withTimeout(getDoc(doc(db, 'global_configs', 'main')), 8000, 'loadGlobalConfigs');
+                    if (globalConfigsDoc.exists()) {
+                        App.state.globalConfigs = globalConfigsDoc.data();
+                        await bootstrapCache.set('global_configs:main', App.state.globalConfigs);
+                    }
+                } catch (error) {
+                    App.state.globalConfigs = await bootstrapCache.get('global_configs:main', App.state.globalConfigs || {});
+                    console.warn('Falha ao atualizar configurações globais no retorno online:', error?.message || error);
                 }
 
                 if (App.state.currentUser?.companyId && App.state.currentUser.role !== 'super-admin') {
-                    const companyDoc = await App.data.getDocument('companies', App.state.currentUser.companyId);
+                    const companyDoc = await App.repositories.company.getEffectiveCompany(App.state.currentUser.companyId);
                     if (companyDoc) {
                         App.state.companies = [companyDoc];
                     }
@@ -1704,7 +1832,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.ui.renderMenu();
                 App.data.listenToCoreData();
-                await App.actions.startSync();
+                try {
+                    await App.actions.startSync();
+                } catch (error) {
+                    console.error('Falha na sincronização em background:', error);
+                }
             },
             async confirmReauth(password) {
                 if (!password) {
@@ -1934,6 +2066,78 @@ document.addEventListener('DOMContentLoaded', () => {
                 await App.data.updateDocument('users', userId, { role, permissions });
                 App.ui.showAlert("Alterações guardadas com sucesso!");
                 App.ui.closeUserEditModal();
+            }
+        },
+
+        repositories: {
+            permissions: {
+                async getEffectivePermissions() {
+                    const user = App.state.currentUser;
+                    const minimumPermissions = App.config.roles[user?.role || 'user'] || App.config.roles.user;
+                    if (!user) {
+                        return { ...minimumPermissions };
+                    }
+
+                    const cacheKey = `permissions:${user.uid || user.email || 'anonymous'}`;
+                    const cachedPermissions = await bootstrapCache.get(cacheKey, null);
+                    const mergedCached = { ...minimumPermissions, ...(cachedPermissions || {}), ...(user.permissions || {}) };
+
+                    if (!App.state.isOnline || App.state.authMode === 'offline') {
+                        if (!cachedPermissions && !user.permissions) {
+                            App.ui.showAlert("Permissões offline mínimas carregadas. Sincronize uma vez online para habilitar todos os módulos.", "info", 5000);
+                        }
+                        return mergedCached;
+                    }
+
+                    withTimeout(App.data.getUserData(user.uid), 8000, 'loadPermissions')
+                        .then(async (freshUserDoc) => {
+                            if (freshUserDoc?.permissions) {
+                                App.state.currentUser.permissions = freshUserDoc.permissions;
+                                await bootstrapCache.set(cacheKey, freshUserDoc.permissions);
+                                App.ui.renderMenu();
+                            }
+                        })
+                        .catch((error) => console.warn('Falha ao atualizar permissões em background:', error?.message || error));
+
+                    return mergedCached;
+                }
+            },
+            company: {
+                async getEffectiveCompany(companyId) {
+                    if (!companyId) return null;
+                    const cacheKey = `company:${companyId}`;
+                    const cachedCompany = await bootstrapCache.get(cacheKey, null);
+
+                    if (App.state.isOnline && App.state.authMode !== 'offline') {
+                        withTimeout(App.data.getDocument('companies', companyId), 8000, 'loadCompany')
+                            .then(async (remoteCompany) => {
+                                if (remoteCompany) {
+                                    await bootstrapCache.set(cacheKey, remoteCompany);
+                                    App.state.companies = [remoteCompany];
+                                    App.ui.renderMenu();
+                                }
+                            })
+                            .catch((error) => console.warn('Falha ao atualizar empresa em background:', error?.message || error));
+                    }
+
+                    return cachedCompany;
+                }
+            },
+            modules: {
+                async getEffectiveModules(companyId) {
+                    const minimumModules = ['dashboard'];
+                    if (!companyId) return minimumModules;
+                    const cacheKey = `modules:${companyId}`;
+                    const cachedModules = await bootstrapCache.get(cacheKey, null);
+                    if (cachedModules?.length) {
+                        return cachedModules;
+                    }
+                    const cachedCompany = await App.repositories.company.getEffectiveCompany(companyId);
+                    const modules = cachedCompany?.subscribedModules || minimumModules;
+                    App.state.cachedSubscribedModules = modules;
+                    await bootstrapCache.set(cacheKey, modules);
+                    return modules;
+                }
             }
         },
 
@@ -2248,7 +2452,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.notificationBell.container.style.display = 'block';
                 App.elements.userMenu.username.textContent = currentUser.username || currentUser.email;
                 App.ui.updateConnectivityStatus();
-                
+                logBootStage('UI: ready', { screen: 'app' });
+
                 // ALTERAÇÃO PONTO 3: Alterar título do cabeçalho
                 App.elements.headerTitle.innerHTML = `<i class="fas fa-leaf"></i> AgroVetor`;
 
@@ -2477,6 +2682,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.actions.saveNotification(newNotification); // Salva a notificação completa
             },
             updateDateTime() { App.elements.currentDateTime.innerHTML = `<i class="fas fa-clock"></i> ${new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`; },
+            renderFallbackMenu() {
+                const { menu } = App.elements;
+                if (!menu) return;
+                menu.innerHTML = '';
+                const menuContent = document.createElement('div');
+                menuContent.className = 'menu-content';
+                menu.appendChild(menuContent);
+                const btn = document.createElement('button');
+                btn.className = 'menu-item active';
+                btn.innerHTML = `<i class="fas fa-tachometer-alt"></i><span>Dashboard</span>`;
+                btn.addEventListener('click', () => App.ui.showTab('dashboard'));
+                menuContent.appendChild(btn);
+                App.state.menuRenderedAt = nowIso();
+                App.state.bootStage = 'MENU: rendered';
+                App.auth._clearBootWatchdog();
+                logBootStage('MENU: rendered', { fallback: true });
+            },
             renderMenu() {
                 const { menu } = App.elements; const { menuConfig } = App.config; const { currentUser } = App.state;
                 if (!App.state.isAuthenticated || !currentUser) {
@@ -2500,7 +2722,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (!isSuperAdmin) {
                         const userCompany = companies.find(c => c.id === currentUser.companyId);
-                        const subscribedModules = new Set(userCompany?.subscribedModules || []);
+                        const fallbackModules = App.state.cachedSubscribedModules?.length ? App.state.cachedSubscribedModules : ['dashboard'];
+                        const subscribedModules = new Set(userCompany?.subscribedModules || fallbackModules);
 
                         const isVisible = item.submenu ?
                             item.submenu.some(sub => App.isFeatureGloballyActive(sub.permission) && subscribedModules.has(sub.permission)) :
@@ -2538,6 +2761,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     return btn;
                 };
                 menuConfig.forEach(item => { const menuItem = createMenuItem(item); if (menuItem) menuContent.appendChild(menuItem); });
+                App.state.menuRenderedAt = nowIso();
+                App.state.bootStage = 'MENU: rendered';
+                App.auth._clearBootWatchdog();
+                logBootStage('MENU: rendered', { items: menuContent.childElementCount });
             },
             renderSubmenu(parentItem) {
                 const { menu } = App.elements;
@@ -2558,7 +2785,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const { currentUser, companies } = App.state;
                 const userCompany = currentUser.role !== 'super-admin' ? companies.find(c => c.id === currentUser.companyId) : null;
-                const subscribedModules = new Set(userCompany?.subscribedModules || []);
+                const fallbackModules = App.state.cachedSubscribedModules?.length ? App.state.cachedSubscribedModules : ['dashboard'];
+                const subscribedModules = new Set(userCompany?.subscribedModules || fallbackModules);
 
                 parentItem.submenu.forEach(subItem => {
                     const isSuperAdmin = currentUser.role === 'super-admin';
@@ -2676,11 +2904,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     const userCompany = companies.find(c => c.id === currentUser.companyId);
-                    if (!userCompany) {
-                        console.warn(`Tentativa de acesso ao módulo ${requiredPermission} sem dados da empresa carregados. A bloquear.`);
-                        return;
-                    }
-                    const subscribedModules = new Set(userCompany?.subscribedModules || []);
+                    const fallbackModules = App.state.cachedSubscribedModules?.length ? App.state.cachedSubscribedModules : ['dashboard'];
+                    const subscribedModules = new Set(userCompany?.subscribedModules || fallbackModules);
                     if (!subscribedModules.has(requiredPermission)) {
                         App.ui.showAlert("Este módulo não está incluído na subscrição da sua empresa.", "warning", 5000);
                         return; // Bloqueia a navegação
@@ -17230,6 +17455,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+
+
+    window.addEventListener('unhandledrejection', (event) => {
+        console.error('[UnhandledPromiseRejection]', event.reason);
+        if (App.state.isAuthenticated && !App.state.menuRenderedAt) {
+            App.ui.renderFallbackMenu();
+            App.ui.showAlert('Falha ao carregar alguns dados. Modo offline mínimo ativado.', 'warning', 5000);
+        }
+    });
 
     window.addEventListener('offline', () => {
         App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
