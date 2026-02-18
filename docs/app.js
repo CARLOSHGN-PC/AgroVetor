@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
             farmsCount: window.App?.state?.fazendas?.length || 0
         };
         try {
-            const db = await openDB('agrovetor-offline-storage', 8);
+            const db = await openDB('agrovetor-offline-storage', OFFLINE_DB_VERSION);
             await db.put('data_cache', {
                 id: `offline-opt-${Date.now()}`,
                 collection: 'offline-opt',
@@ -122,7 +122,34 @@ document.addEventListener('DOMContentLoaded', () => {
         worker.postMessage({ type: 'PARSE_SHP_BUFFER', payload: arrayBuffer });
     });
 
+    const OFFLINE_DB_VERSION = 9;
+
     const isCapacitorNative = () => Boolean(window.Capacitor && Capacitor.isNativePlatform?.());
+    const isAereoOfflineDebugEnabled = () => Boolean(window.DEBUG_AEREO_OFFLINE || localStorage.getItem('DEBUG_AEREO_OFFLINE') === '1');
+
+    const logAereoOffline = (stage, payload = {}) => {
+        if (!isAereoOfflineDebugEnabled()) return;
+        const entry = {
+            stage,
+            at: nowIso(),
+            isOnline: navigator.onLine,
+            ...payload,
+        };
+        console.info('[AEREO_OFFLINE]', entry);
+    };
+
+    const logAereoOfflineError = (stage, error, payload = {}) => {
+        const entry = {
+            stage,
+            at: nowIso(),
+            isOnline: navigator.onLine,
+            ...payload,
+            name: error?.name || null,
+            message: error?.message || String(error),
+            stack: error?.stack || null,
+        };
+        console.error('[AEREO_OFFLINE]', entry);
+    };
 
     const logShpSource = (source, detail = '') => {
         const suffix = detail ? ` ${detail}` : '';
@@ -150,6 +177,149 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const nowIso = () => new Date().toISOString();
+    const getContourCacheKey = () => `company:${App.state.currentUser?.companyId || 'anon'}:default`;
+
+    const validateGeoJsonContours = (geojson) => {
+        if (!geojson || geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
+            throw new Error('GeoJSON inválido: FeatureCollection/features ausentes.');
+        }
+        return geojson.features.length;
+    };
+
+    class ContourStorageWeb {
+        async save({ key, buffer, geojson }) {
+            const startedAt = performance.now();
+            const normalizedBuffer = await normalizeToArrayBuffer(buffer);
+            const normalizedGeoJson = JSON.parse(JSON.stringify(geojson));
+            const jsonText = JSON.stringify(normalizedGeoJson);
+            const metadata = {
+                key,
+                updatedAt: nowIso(),
+                filePath: null,
+                checksum: `${normalizedBuffer.byteLength}:${normalizedGeoJson.features?.length || 0}`,
+                size: normalizedBuffer.byteLength,
+                source: 'indexeddb-web'
+            };
+            await OfflineDB.set('shapefile-cache', normalizedBuffer, `shapefile-zip:${key}`);
+            await OfflineDB.set('contours_geojson', jsonText, key);
+            await OfflineDB.set('contours_index', metadata);
+            logAereoOffline('storage:web:save', { key, bytes: normalizedBuffer.byteLength, ms: Math.round(performance.now() - startedAt) });
+            return metadata;
+        }
+
+        async load(key) {
+            const startedAt = performance.now();
+            logAereoOffline('storage:web:load:start', { key, dbName: 'agrovetor-offline-storage', dbVersion: OFFLINE_DB_VERSION, store: 'contours_geojson', getKey: key });
+            const metadata = await OfflineDB.get('contours_index', key);
+            const raw = await OfflineDB.get('contours_geojson', key);
+            if (!raw) {
+                logAereoOffline('storage:web:load:miss', { key, metadataExists: Boolean(metadata), getResult: raw == null ? String(raw) : 'value' });
+                return null;
+            }
+            const geojson = JSON.parse(raw);
+            const featureCount = validateGeoJsonContours(geojson);
+            logAereoOffline('storage:web:load:success', { key, featureCount, bytes: raw.length, ms: Math.round(performance.now() - startedAt) });
+            return { geojson, metadata };
+        }
+
+        async clear(key) {
+            await OfflineDB.delete('contours_index', key);
+            await OfflineDB.delete('contours_geojson', key);
+            await OfflineDB.delete('shapefile-cache', `shapefile-zip:${key}`);
+        }
+    }
+
+    class ContourStorageNative {
+        constructor() {
+            this.directory = 'DATA';
+        }
+
+        _ensurePlugin() {
+            const fs = Capacitor?.Plugins?.Filesystem;
+            if (!fs) throw new Error('Filesystem plugin indisponível no Capacitor.');
+            return fs;
+        }
+
+        async save({ key, buffer, geojson }) {
+            const startedAt = performance.now();
+            const normalizedBuffer = await normalizeToArrayBuffer(buffer);
+            const normalizedGeoJson = JSON.parse(JSON.stringify(geojson));
+            const jsonText = JSON.stringify(normalizedGeoJson);
+            const bytes = new TextEncoder().encode(jsonText).byteLength;
+            const filePath = `contours/${encodeURIComponent(key)}.geojson`;
+            const fs = this._ensurePlugin();
+            await fs.writeFile({ path: filePath, data: btoa(unescape(encodeURIComponent(jsonText))), directory: this.directory, recursive: true });
+            const metadata = {
+                key,
+                updatedAt: nowIso(),
+                filePath,
+                checksum: `${normalizedBuffer.byteLength}:${normalizedGeoJson.features?.length || 0}`,
+                size: bytes,
+                source: 'filesystem-native'
+            };
+            await OfflineDB.set('shapefile-cache', normalizedBuffer, `shapefile-zip:${key}`);
+            await OfflineDB.set('contours_geojson', jsonText, key);
+            await OfflineDB.set('contours_index', metadata);
+            logAereoOffline('storage:native:save', { key, directory: this.directory, path: filePath, bytes, ms: Math.round(performance.now() - startedAt) });
+            return metadata;
+        }
+
+        async load(key) {
+            const startedAt = performance.now();
+            const metadata = await OfflineDB.get('contours_index', key);
+            logAereoOffline('storage:native:metadata', { key, dbName: 'agrovetor-offline-storage', dbVersion: OFFLINE_DB_VERSION, store: 'contours_index', getKey: key, found: Boolean(metadata) });
+            const fs = this._ensurePlugin();
+            if (metadata?.filePath) {
+                try {
+                    logAereoOffline('storage:native:filesystem:read:start', { directory: this.directory, path: metadata.filePath });
+                    const fileResult = await fs.readFile({ path: metadata.filePath, directory: this.directory });
+                    const fileData = typeof fileResult?.data === 'string' ? fileResult.data : '';
+                    const jsonText = decodeURIComponent(escape(atob(fileData)));
+                    const geojson = JSON.parse(jsonText);
+                    const featureCount = validateGeoJsonContours(geojson);
+                    logAereoOffline('storage:native:filesystem:read:success', { key, featureCount, bytes: jsonText.length, ms: Math.round(performance.now() - startedAt) });
+                    return { geojson, metadata, source: 'filesystem' };
+                } catch (error) {
+                    logAereoOfflineError('storage:native:filesystem:read:error', error, { directory: this.directory, path: metadata.filePath });
+                }
+            }
+
+            const indexedRaw = await OfflineDB.get('contours_geojson', key);
+            logAereoOffline('storage:native:indexeddb:fallback', { store: 'contours_geojson', getKey: key, found: Boolean(indexedRaw) });
+            if (!indexedRaw) return null;
+
+            const geojson = JSON.parse(indexedRaw);
+            validateGeoJsonContours(geojson);
+            const rebuiltPath = metadata?.filePath || `contours/${encodeURIComponent(key)}.geojson`;
+            await fs.writeFile({ path: rebuiltPath, data: btoa(unescape(encodeURIComponent(indexedRaw))), directory: this.directory, recursive: true });
+            await OfflineDB.set('contours_index', { ...(metadata || {}), key, filePath: rebuiltPath, size: indexedRaw.length, updatedAt: nowIso(), source: 'filesystem-rebuilt' });
+            logAereoOffline('storage:native:filesystem:rebuilt', { key, directory: this.directory, path: rebuiltPath, bytes: indexedRaw.length });
+            return { geojson, metadata: await OfflineDB.get('contours_index', key), source: 'indexeddb-rebuild' };
+        }
+
+        async clear(key) {
+            const metadata = await OfflineDB.get('contours_index', key);
+            if (metadata?.filePath) {
+                try {
+                    const fs = this._ensurePlugin();
+                    await fs.deleteFile({ path: metadata.filePath, directory: this.directory });
+                } catch (error) {
+                    logAereoOfflineError('storage:native:clear:file:error', error, { key, path: metadata?.filePath, directory: this.directory });
+                }
+            }
+            await OfflineDB.delete('contours_index', key);
+            await OfflineDB.delete('contours_geojson', key);
+            await OfflineDB.delete('shapefile-cache', `shapefile-zip:${key}`);
+        }
+    }
+
+    const getContourStorageAdapter = () => {
+        if (App.state.contourStorageAdapter) return App.state.contourStorageAdapter;
+        App.state.contourStorageAdapter = isCapacitorNative() ? new ContourStorageNative() : new ContourStorageWeb();
+        logAereoOffline('storage:adapter:selected', { adapter: App.state.contourStorageAdapter.constructor.name, native: isCapacitorNative() });
+        return App.state.contourStorageAdapter;
+    };
+
     const logBootStage = (stage, extra = {}) => {
         const payload = Object.keys(extra).length ? ` ${JSON.stringify(extra)}` : '';
         console.info(`[${nowIso()}] ${stage}${payload}`);
@@ -277,8 +447,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dbPromise: null,
         async init() {
             if (this.dbPromise) return;
-            // Version 8 for Qualidade de Plantio local cache
-            this.dbPromise = openDB('agrovetor-offline-storage', 8, {
+            // Version 9 adiciona metadata persistente de contornos para o módulo aéreo
+            this.dbPromise = openDB('agrovetor-offline-storage', OFFLINE_DB_VERSION, {
                 upgrade(db, oldVersion) {
                     if (oldVersion < 1) {
                         db.createObjectStore('shapefile-cache');
@@ -314,6 +484,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         qualidadeStore.createIndex('data', 'data', { unique: false });
                         qualidadeStore.createIndex('indicadorCodigo', 'indicadorCodigo', { unique: false });
                         qualidadeStore.createIndex('tipoPlantio', 'tipoPlantio', { unique: false });
+                    }
+                    if (oldVersion < 9) {
+                        const contoursIndex = db.createObjectStore('contours_index', { keyPath: 'key' });
+                        contoursIndex.createIndex('updatedAt', 'updatedAt', { unique: false });
+                        db.createObjectStore('contours_geojson');
                     }
                 },
             });
@@ -503,10 +678,15 @@ document.addEventListener('DOMContentLoaded', () => {
             adminAction: null, // Stores a function to be executed after admin password confirmation
             expandedChart: null,
             mapboxMap: null,
+            mapboxMapInitPromise: null,
+            mapboxMapInitializing: false,
+            mapboxMapIsLoaded: false,
             mapboxUserMarker: null,
             mapboxTrapMarkers: {},
             armadilhas: [],
             geoJsonData: null,
+            contourStorageAdapter: null,
+            activeContourCacheKey: null,
             selectedMapFeature: null, // NOVO: Armazena a feature do talhão selecionado no mapa
             selectedTalhaoId: null,
             mapInteractionHandlers: null,
@@ -1201,7 +1381,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 await OfflineDB.init();
-                logBootStage('INDEXEDDB:ready', { db: 'agrovetor-offline-storage', version: 8 });
+                logBootStage('INDEXEDDB:ready', { db: 'agrovetor-offline-storage', version: OFFLINE_DB_VERSION });
             } catch (error) {
                 logBootError('INDEXEDDB:error', error, { context: 'OfflineDB.init' });
             }
@@ -1240,11 +1420,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Exibe o status inicial
                     const status = await Network.getStatus();
                     console.log(`Status inicial da rede: ${status.connected ? 'Online' : 'Offline'}`);
+                    logAereoOffline('network:capacitor:initial', { connected: status.connected });
                     App.auth.onConnectivityChanged(status.connected);
 
                     // Adiciona um 'ouvinte' para quando o status da rede mudar
                     Network.addListener('networkStatusChange', (status) => {
                         console.log(`Status da rede alterado para: ${status.connected ? 'Online' : 'Offline'}`);
+                        logAereoOffline('network:capacitor:change', { connected: status.connected });
                         const eventName = status.connected ? 'online' : 'offline';
                         window.dispatchEvent(new Event(eventName));
                     });
@@ -12870,36 +13052,120 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         mapModule: {
-            initMap() {
-                if (App.state.mapboxMap) return; // Evita reinicialização
-                if (typeof mapboxgl === 'undefined') {
-                    console.error("Mapbox GL JS não está carregado.");
-                    App.ui.showAlert("Erro ao carregar a biblioteca do mapa.", "error");
+            async initMap() {
+                if (App.state.mapboxMapInitPromise) {
+                    logAereoOffline('init:skip:promise-active');
+                    return App.state.mapboxMapInitPromise;
+                }
+
+                App.state.mapboxMapInitPromise = (async () => {
+                    if (typeof mapboxgl === 'undefined') {
+                        console.error("Mapbox GL JS não está carregado.");
+                        App.ui.showAlert("Erro ao carregar a biblioteca do mapa.", "error");
+                        return;
+                    }
+
+                    logAereoOffline('init:start', { native: isCapacitorNative(), online: navigator.onLine });
+
+                    try {
+                        await this._initMapInstanceSafe();
+                        await this.loadBaseLayerOfflineSafe();
+                        await this.loadContoursOfflineSafe();
+                        this.watchUserPosition();
+                        this.loadTraps();
+                        logAereoOffline('init:done', { hasMap: Boolean(App.state.mapboxMap), hasContours: Boolean(App.state.geoJsonData?.features?.length) });
+                    } catch (e) {
+                        logAereoOfflineError('init:error', e);
+                        App.ui.showAlert("Não foi possível carregar o mapa.", "error");
+                    } finally {
+                        App.state.mapboxMapInitPromise = null;
+                    }
+                })();
+
+                return App.state.mapboxMapInitPromise;
+            },
+
+            async _initMapInstanceSafe() {
+                if (App.state.mapboxMap) {
+                    if (App.state.mapboxMapIsLoaded) return;
+                    await new Promise((resolve) => App.state.mapboxMap.once('load', resolve));
+                    App.state.mapboxMapIsLoaded = true;
                     return;
                 }
 
+                if (App.state.mapboxMapInitializing) {
+                    logAereoOffline('map:init:lock:wait');
+                    while (App.state.mapboxMapInitializing) {
+                        await new Promise((resolve) => setTimeout(resolve, 25));
+                    }
+                    return;
+                }
+
+                App.state.mapboxMapInitializing = true;
+                const startedAt = performance.now();
                 try {
                     mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
                     const mapContainer = App.elements.monitoramentoAereo.mapContainer;
+                    logAereoOffline('map:init:create');
 
                     App.state.mapboxMap = new mapboxgl.Map({
                         container: mapContainer,
-                        style: 'mapbox://styles/mapbox/satellite-streets-v12', // Estilo satélite com ruas
-                        center: [-48.45, -21.17], // [lng, lat]
+                        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                        center: [-48.45, -21.17],
                         zoom: 12,
                         attributionControl: false
                     });
 
-                    App.state.mapboxMap.on('load', () => {
-                        console.log("Mapbox map loaded.");
-                        this.watchUserPosition();
-                        this.loadShapesOnMap();
-                        this.loadTraps();
+                    await new Promise((resolve, reject) => {
+                        App.state.mapboxMap.once('load', () => resolve());
+                        App.state.mapboxMap.once('error', (error) => reject(error?.error || error));
                     });
+                    App.state.mapboxMapIsLoaded = true;
+                    logAereoOffline('map:init:loaded', { ms: Math.round(performance.now() - startedAt) });
+                } finally {
+                    App.state.mapboxMapInitializing = false;
+                }
+            },
 
-                } catch (e) {
-                    console.error("Erro ao inicializar o Mapbox:", e);
-                    App.ui.showAlert("Não foi possível carregar o mapa.", "error");
+            async loadBaseLayerOfflineSafe() {
+                if (!App.state.mapboxMap) return;
+                try {
+                    logAereoOffline('map:base-layer:ok', { styleLoaded: App.state.mapboxMap.isStyleLoaded?.() });
+                    App.state.mapboxMap.resize();
+                } catch (error) {
+                    logAereoOfflineError('map:base-layer:error', error);
+                    App.ui.showAlert('Sem base offline disponível. O mapa será exibido com fundo neutro.', 'warning', 5000);
+                }
+            },
+
+            async loadContoursOfflineSafe() {
+                const mapContainer = document.getElementById('map-container');
+                if (mapContainer) mapContainer.classList.add('loading');
+                const key = getContourCacheKey();
+                App.state.activeContourCacheKey = key;
+                logAereoOffline('contours:load:start', { key, online: navigator.onLine });
+
+                try {
+                    const loaded = await this._loadContoursFromStorage(key);
+                    if (loaded) {
+                        this.loadShapesOnMap();
+                        return;
+                    }
+
+                    if (navigator.onLine && App.state.companyConfig?.shapefileURL) {
+                        await this.loadAndCacheShapes(App.state.companyConfig.shapefileURL);
+                        return;
+                    }
+
+                    App.state.geoJsonData = null;
+                    App.ui.showAlert('Contornos offline não encontrados. Conecte-se para baixar novamente.', 'warning', 7000);
+                    logAereoOffline('contours:load:missing', { key, online: navigator.onLine });
+                } catch (error) {
+                    logAereoOfflineError('contours:load:error', error, { key });
+                    App.state.geoJsonData = null;
+                    App.ui.showAlert('Não foi possível carregar os contornos offline. Baixe novamente quando estiver online.', 'warning', 8000);
+                } finally {
+                    if (mapContainer) mapContainer.classList.remove('loading');
                 }
             },
 
@@ -13052,146 +13318,95 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (mapContainer) mapContainer.classList.remove('loading');
                     return;
                 }
-                console.log("Iniciando o carregamento dos contornos do mapa em segundo plano...");
+
+                const key = App.state.activeContourCacheKey || getContourCacheKey();
+                const startedAt = performance.now();
                 if (mapContainer) mapContainer.classList.add('loading');
+                logAereoOffline('contours:network:fetch:start', { key, url });
+
                 try {
-                    const urlWithCacheBuster = `${url}?t=${new Date().getTime()}`;
+                    const urlWithCacheBuster = `${url}?t=${Date.now()}`;
                     const buffer = await readShapefileAsArrayBuffer(urlWithCacheBuster, 'online');
+                    logAereoOffline('contours:network:fetch:done', { key, bytes: buffer?.byteLength || 0, ms: Math.round(performance.now() - startedAt) });
 
-                    console.info(`[SHP] bytes shp=${buffer?.byteLength || 0} dbf=0 prj=0`);
-                    console.log("Processando e desenhando os talhões no mapa...");
-                    // Valida o shapefile antes de salvar no cache
                     const { geojson, debug } = await runShapefileWorker(buffer);
-                    const featuresCount = geojson?.features?.length || 0;
-                    console.info(`[SHP] parsed features=${featuresCount}`);
                     if (debug) {
-                        console.log('[SHP] proj4 loaded =', debug.proj4Loaded);
-                        console.log('[SHP] CRS detectado:', debug.sourceProjection || 'desconhecido');
-                        console.log('[SHP] features reprojetadas:', debug.reprojectedCount || 0);
-                        if (debug.fallbackReason) {
-                            console.info('[SHP] reprojection failed');
-                            console.info('[SHP] fallback sem reprojeção');
-                            console.warn('[SHP] reprojeção indisponível/fallback:', debug.fallbackReason);
-                        } else {
-                            console.info('[SHP] reprojection ok');
-                        }
+                        logAereoOffline('contours:network:worker:debug', {
+                            key,
+                            sourceProjection: debug.sourceProjection || null,
+                            reprojectedCount: debug.reprojectedCount || 0,
+                            fallbackReason: debug.fallbackReason || null
+                        });
                     }
 
-                    // Se o parsing foi bem sucedido, salva no cache
-                    await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
-
-                    // Reprojeção executada no worker para evitar travamento da UI thread.
-
-
-                    // ETAPA DE NORMALIZAÇÃO:
-                    // O código da aplicação espera propriedades padronizadas (ex: 'AGV_FUNDO').
-                    // No entanto, os shapefiles podem ter nomes de colunas diferentes (ex: 'FUNDO_AGR', 'FUNDO_AGRI').
-                    // O loop abaixo normaliza esses dados, criando as propriedades padronizadas que o resto do código usa.
-                    let featureIdCounter = 0;
-                    geojson.features.forEach(feature => {
-                        feature.id = featureIdCounter++; // Adiciona um ID numérico único para o estado do Mapbox
-
-                        // Busca por vários nomes possíveis para o "fundo agrícola" e normaliza para 'AGV_FUNDO'.
-                        const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
-                        feature.properties.AGV_FUNDO = String(fundo).trim();
-
-                        // Faz o mesmo para o nome do talhão.
-                        const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
-                        feature.properties.AGV_TALHAO = String(talhao).trim();
+                    const normalizedGeoJson = this._normalizeContourGeoJson(geojson);
+                    await getContourStorageAdapter().save({ key, buffer, geojson: normalizedGeoJson });
+                    App.state.geoJsonData = normalizedGeoJson;
+                    if (App.state.mapboxMap) this.loadShapesOnMap();
+                    logAereoOffline('contours:network:ready', {
+                        key,
+                        features: normalizedGeoJson.features?.length || 0,
+                        ms: Math.round(performance.now() - startedAt)
                     });
-
-
-                    App.state.geoJsonData = geojson;
-                    if (App.state.mapboxMap) {
-                        this.loadShapesOnMap();
+                } catch (err) {
+                    logAereoOfflineError('contours:network:error', err, { key, url });
+                    App.ui.showAlert('Falha ao carregar contornos da rede. Tentando usar cache offline.', 'warning');
+                    const restored = await this._loadContoursFromStorage(key);
+                    if (!restored) {
+                        App.ui.showAlert('Não foi possível carregar os contornos do mapa offline; algumas funcionalidades podem estar indisponíveis.', 'warning', 8000);
                     }
-                    console.log("Contornos do mapa carregados com sucesso.");
-                } catch(err) {
-                    console.error("Erro ao carregar shapefile do Storage:", err);
-                    App.ui.showAlert("Falha ao carregar os desenhos do mapa. Tentando usar o cache.", "warning");
-                    if (mapContainer) mapContainer.classList.remove('loading');
-                    this.loadOfflineShapes();
-                }
-            },
-
-            async loadOfflineShapes() {
-                const mapContainer = document.getElementById('map-container');
-                if (mapContainer) mapContainer.classList.add('loading');
-                try {
-                    let buffer = await OfflineDB.get('shapefile-cache', 'shapefile-zip');
-                    if (buffer) {
-                        App.ui.showAlert("A carregar mapa do cache offline.", "info");
-
-                        // Correção para Android 13/WebView e payload base64/string: normaliza sempre para ArrayBuffer
-                        buffer = await normalizeToArrayBuffer(buffer);
-                        logShpSource('indexeddb-offline', 'shapefile-cache');
-                        console.info(`[SHP] bytes shp=${buffer?.byteLength || 0} dbf=0 prj=0`);
-
-                        let geojson;
-                        try {
-                            const workerResult = await runShapefileWorker(buffer);
-                            geojson = workerResult.geojson;
-                            const debug = workerResult.debug;
-                            const featuresCount = geojson?.features?.length || 0;
-                            console.info(`[SHP] parsed features=${featuresCount}`);
-                            if (debug) {
-                                console.log('[SHP] proj4 loaded (offline) =', debug.proj4Loaded);
-                                console.log('[SHP] CRS detectado (offline):', debug.sourceProjection || 'desconhecido');
-                                console.log('[SHP] features reprojetadas (offline):', debug.reprojectedCount || 0);
-                                if (debug.fallbackReason) {
-                                    console.info('[SHP] reprojection failed');
-                                    console.info('[SHP] fallback sem reprojeção');
-                                    console.warn('[SHP] reprojeção indisponível/fallback (offline):', debug.fallbackReason);
-                                } else {
-                                    console.info('[SHP] reprojection ok');
-                                }
-                            }
-                        } catch (parseError) {
-                            console.error("Erro ao analisar o shapefile (shpjs):", parseError);
-                            throw new Error("O arquivo de mapa offline está corrompido ou inválido.");
-                        }
-
-                        // Reprojeção executada no worker para evitar travamento da UI thread.
-
-                        // ETAPA DE NORMALIZAÇÃO (CACHE OFFLINE): Garante a consistência dos dados carregados do cache.
-                        let featureIdCounter = 0;
-                        if (geojson && geojson.features) {
-                            geojson.features.forEach(feature => {
-                                feature.id = featureIdCounter++; // Adiciona um ID numérico único
-                                const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
-                                feature.properties.AGV_FUNDO = String(fundo).trim();
-
-                                const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
-                                feature.properties.AGV_TALHAO = String(talhao).trim();
-                            });
-
-                            App.state.geoJsonData = geojson;
-                            if (App.state.mapboxMap) {
-                                this.loadShapesOnMap();
-                            }
-                        } else {
-                            console.warn("GeoJSON inválido ou sem features após carregamento offline.");
-                        }
-                    }
-                } catch (error) {
-                    console.error("Erro ao carregar ou processar o mapa offline:", error);
-
-                    // Limpa o cache corrompido para permitir nova tentativa de download
-                    try {
-                        console.log("Tentando limpar cache de mapa corrompido...");
-                        await OfflineDB.delete('shapefile-cache', 'shapefile-zip');
-                        console.log("Cache de mapa limpo.");
-                    } catch (e) {
-                        console.warn("Falha ao limpar cache de mapa:", e);
-                    }
-
-                    // Usa uma notificação menos alarmante do que "Erro Crítico"
-                    App.ui.showAlert("Não foi possível carregar os contornos do mapa offline. Algumas funcionalidades do mapa podem estar indisponíveis.", "warning", 8000);
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
                 }
             },
 
+            async _loadContoursFromStorage(key) {
+                const startedAt = performance.now();
+                try {
+                    const loaded = await getContourStorageAdapter().load(key);
+                    if (!loaded?.geojson) return false;
+                    App.state.geoJsonData = this._normalizeContourGeoJson(loaded.geojson);
+                    logAereoOffline('contours:storage:loaded', {
+                        key,
+                        source: loaded.source || loaded.metadata?.source || 'unknown',
+                        features: App.state.geoJsonData.features?.length || 0,
+                        ms: Math.round(performance.now() - startedAt)
+                    });
+                    return true;
+                } catch (error) {
+                    logAereoOfflineError('contours:storage:error', error, { key });
+                    try {
+                        await getContourStorageAdapter().clear(key);
+                    } catch (clearError) {
+                        logAereoOfflineError('contours:storage:clear:error', clearError, { key });
+                    }
+                    return false;
+                }
+            },
+
+            async loadOfflineShapes() {
+                const key = App.state.activeContourCacheKey || getContourCacheKey();
+                const loaded = await this._loadContoursFromStorage(key);
+                if (!loaded) {
+                    App.ui.showAlert('Contornos offline ausentes ou corrompidos. Faça download novamente quando estiver online.', 'warning', 7000);
+                    return;
+                }
+                if (App.state.mapboxMap) this.loadShapesOnMap();
+            },
+
+            _normalizeContourGeoJson(geojson) {
+                validateGeoJsonContours(geojson);
+                let featureIdCounter = 0;
+                geojson.features.forEach((feature) => {
+                    feature.id = featureIdCounter++;
+                    feature.properties = feature.properties || {};
+                    const fundo = this._findProp(feature, ['FUNDO_AGR', 'FUNDO_AGRI', 'FUNDOAGRICOLA']);
+                    feature.properties.AGV_FUNDO = String(fundo || '').trim();
+                    const talhao = this._findProp(feature, ['CD_TALHAO', 'TALHAO', 'COD_TALHAO', 'NAME']);
+                    feature.properties.AGV_TALHAO = String(talhao || '').trim();
+                });
+                return geojson;
+            },
 
             _getGeoJsonBounds(geojson) {
                 if (!geojson?.features?.length) return null;
@@ -17639,6 +17854,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('offline', () => {
+        logAereoOffline('network:browser:event', { connected: false });
         App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
         App.auth.onConnectivityChanged(false);
         if (App.state.connectionCheckInterval) {
@@ -17649,6 +17865,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('online', () => {
+        logAereoOffline('network:browser:event', { connected: true });
         console.log("Browser reports 'online'. Starting active connection checks.");
         App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
         App.auth.onConnectivityChanged(true);
