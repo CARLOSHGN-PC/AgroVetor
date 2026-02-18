@@ -122,6 +122,57 @@ document.addEventListener('DOMContentLoaded', () => {
         worker.postMessage({ type: 'PARSE_SHP_BUFFER', payload: arrayBuffer });
     });
 
+    const isCapacitorNative = () => Boolean(window.Capacitor && Capacitor.isNativePlatform?.());
+
+    const logShpSource = (source, detail = '') => {
+        const suffix = detail ? ` ${detail}` : '';
+        console.info(`[SHP] source=${source}${suffix}`);
+    };
+
+    const normalizeToArrayBuffer = async (input) => {
+        if (input instanceof ArrayBuffer) return input;
+        if (input instanceof Blob) return input.arrayBuffer();
+        if (input instanceof Uint8Array) {
+            return input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength);
+        }
+        if (typeof input === 'string') {
+            const cleaned = input.includes(',') ? input.split(',').pop() : input;
+            const binary = atob(cleaned || '');
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+            return bytes.buffer;
+        }
+        if (input?.buffer instanceof ArrayBuffer) {
+            const bytes = new Uint8Array(input.buffer, input.byteOffset || 0, input.byteLength || input.buffer.byteLength);
+            return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        }
+        throw new Error('Formato de buffer SHP não suportado.');
+    };
+
+    const readShapefileAsArrayBuffer = async (url, context = 'online') => {
+        if (isCapacitorNative()) {
+            try {
+                const { CapacitorHttp } = Capacitor.Plugins;
+                if (CapacitorHttp?.request) {
+                    logShpSource(`capacitor-http-${context}`, url);
+                    const response = await CapacitorHttp.request({ url, method: 'GET', responseType: 'arraybuffer', headers: { 'Cache-Control': 'no-store' } });
+                    if (!response || response.status < 200 || response.status >= 300) {
+                        throw new Error(`HTTP ${response?.status || 'desconhecido'}`);
+                    }
+                    const normalized = await normalizeToArrayBuffer(response.data);
+                    return normalized;
+                }
+            } catch (error) {
+                console.warn('[SHP] CapacitorHttp indisponível, fallback para fetch.', error?.message || error);
+            }
+        }
+
+        logShpSource(`fetch-${context}`, url);
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.status} ${response.statusText}`);
+        return response.arrayBuffer();
+    };
+
     // Módulo para gerenciar o banco de dados local (IndexedDB)
     const OfflineDB = {
         dbPromise: null,
@@ -5704,7 +5755,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyConfigEls.btnDownloadClosedTemplate) companyConfigEls.btnDownloadClosedTemplate.addEventListener('click', () => App.actions.downloadHarvestReportTemplate('closed'));
                 if (companyConfigEls.shapefileUploadArea) companyConfigEls.shapefileUploadArea.addEventListener('click', () => companyConfigEls.shapefileInput.click());
                 if (companyConfigEls.shapefileInput) companyConfigEls.shapefileInput.addEventListener('change', (e) => App.mapModule.handleShapefileUpload(e));
-                if (companyConfigEls.btnTestShapefileDebug) companyConfigEls.btnTestShapefileDebug.addEventListener('click', () => App.mapModule.runShapefileDebugTest());
+                if (companyConfigEls.btnTestShapefileDebug) {
+                    companyConfigEls.btnTestShapefileDebug.addEventListener('click', () => App.mapModule.runShapefileDebugTest());
+                    const isDebugMode = new URLSearchParams(window.location.search).get('debug') === '1';
+                    if (isDebugMode) {
+                        companyConfigEls.btnTestShapefileDebug.style.display = 'inline-flex';
+                        console.info('[SHP] source=debug-button ?debug=1 ativo');
+                        setTimeout(() => App.mapModule.runShapefileDebugTest(), 1200);
+                    }
+                }
 
                 const btnCleanDuplicateTraps = document.getElementById('btnCleanDuplicateTraps');
                 if (btnCleanDuplicateTraps) {
@@ -12638,19 +12697,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (mapContainer) mapContainer.classList.add('loading');
                 try {
                     const urlWithCacheBuster = `${url}?t=${new Date().getTime()}`;
-                    const response = await fetch(urlWithCacheBuster);
-                    if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.statusText}`);
-                    const buffer = await response.arrayBuffer();
+                    const buffer = await readShapefileAsArrayBuffer(urlWithCacheBuster, 'online');
 
+                    console.info(`[SHP] bytes shp=${buffer?.byteLength || 0} dbf=0 prj=0`);
                     console.log("Processando e desenhando os talhões no mapa...");
                     // Valida o shapefile antes de salvar no cache
                     const { geojson, debug } = await runShapefileWorker(buffer);
-                    console.log('[SHP] features lidas:', geojson?.features?.length || 0);
+                    const featuresCount = geojson?.features?.length || 0;
+                    console.info(`[SHP] parsed features=${featuresCount}`);
                     if (debug) {
                         console.log('[SHP] proj4 loaded =', debug.proj4Loaded);
                         console.log('[SHP] CRS detectado:', debug.sourceProjection || 'desconhecido');
                         console.log('[SHP] features reprojetadas:', debug.reprojectedCount || 0);
-                        if (debug.fallbackReason) console.warn('[SHP] reprojeção indisponível/fallback:', debug.fallbackReason);
+                        if (debug.fallbackReason) {
+                            console.info('[SHP] reprojection failed');
+                            console.info('[SHP] fallback sem reprojeção');
+                            console.warn('[SHP] reprojeção indisponível/fallback:', debug.fallbackReason);
+                        } else {
+                            console.info('[SHP] reprojection ok');
+                        }
                     }
 
                     // Se o parsing foi bem sucedido, salva no cache
@@ -12698,23 +12763,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (buffer) {
                         App.ui.showAlert("A carregar mapa do cache offline.", "info");
 
-                        // Correção para Android 13/WebView: Converte Blob para ArrayBuffer se necessário
-                        if (buffer instanceof Blob) {
-                            console.log("Convertendo Blob do cache para ArrayBuffer...");
-                            buffer = await buffer.arrayBuffer();
-                        }
+                        // Correção para Android 13/WebView e payload base64/string: normaliza sempre para ArrayBuffer
+                        buffer = await normalizeToArrayBuffer(buffer);
+                        logShpSource('indexeddb-offline', 'shapefile-cache');
+                        console.info(`[SHP] bytes shp=${buffer?.byteLength || 0} dbf=0 prj=0`);
 
                         let geojson;
                         try {
                             const workerResult = await runShapefileWorker(buffer);
                             geojson = workerResult.geojson;
                             const debug = workerResult.debug;
-                            console.log('[SHP] features lidas (offline):', geojson?.features?.length || 0);
+                            const featuresCount = geojson?.features?.length || 0;
+                            console.info(`[SHP] parsed features=${featuresCount}`);
                             if (debug) {
                                 console.log('[SHP] proj4 loaded (offline) =', debug.proj4Loaded);
                                 console.log('[SHP] CRS detectado (offline):', debug.sourceProjection || 'desconhecido');
                                 console.log('[SHP] features reprojetadas (offline):', debug.reprojectedCount || 0);
-                                if (debug.fallbackReason) console.warn('[SHP] reprojeção indisponível/fallback (offline):', debug.fallbackReason);
+                                if (debug.fallbackReason) {
+                                    console.info('[SHP] reprojection failed');
+                                    console.info('[SHP] fallback sem reprojeção');
+                                    console.warn('[SHP] reprojeção indisponível/fallback (offline):', debug.fallbackReason);
+                                } else {
+                                    console.info('[SHP] reprojection ok');
+                                }
                             }
                         } catch (parseError) {
                             console.error("Erro ao analisar o shapefile (shpjs):", parseError);
@@ -12800,9 +12871,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.group('[SHP DEBUG] Testar SHP');
                 const startedAt = performance.now();
                 try {
-                    const response = await fetch(`${url}?debug=${Date.now()}`);
-                    if (!response.ok) throw new Error(`Falha no download do SHP: ${response.statusText}`);
-                    const buffer = await response.arrayBuffer();
+                    const buffer = await readShapefileAsArrayBuffer(`${url}?debug=${Date.now()}`, 'debug');
+                    console.info(`[SHP] bytes shp=${buffer?.byteLength || 0} dbf=0 prj=0`);
                     const { geojson, debug } = await runShapefileWorker(buffer);
                     const bounds = this._getGeoJsonBounds(geojson);
 
@@ -12836,8 +12906,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const labelLayerId = 'talhoes-labels';
 
                 const bounds = this._getGeoJsonBounds(App.state.geoJsonData);
-                console.log('[SHP] bounds calculado:', bounds);
-                console.log('[SHP] layer adicionada ao mapa');
                 if (map.getSource(sourceId)) {
                     map.getSource(sourceId).setData(App.state.geoJsonData);
                 } else {
@@ -12921,9 +12989,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ['boolean', ['feature-state', 'searched'], false], 4,
                                 2 // Borda padrão mais visível
                             ],
-                            'line-opacity': 0.9
+                            'line-opacity': 0.95
                         }
                     });
+                }
+
+                console.info('[SHP] layer added');
+                if (bounds) {
+                    console.info(`[SHP] layer bounds=${JSON.stringify(bounds)}`);
+                    map.fitBounds(bounds, { padding: 60, duration: 800 });
+                } else {
+                    console.info('[SHP] layer bounds=null');
                 }
 
                 let hoveredFeatureId = null;

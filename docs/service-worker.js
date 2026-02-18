@@ -1,7 +1,7 @@
 /* global workbox */
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.0.0/workbox-sw.js');
 
-const SW_VERSION = 'v21';
+const SW_VERSION = 'v22';
 const APP_SHELL_CACHE = `agrovetor-shell-${SW_VERSION}`;
 const OFFLINE_FALLBACK_URL = './index.html';
 const DB_NAME = 'agrovetor-offline-storage';
@@ -85,6 +85,23 @@ self.addEventListener('activate', (event) => {
     }
   })());
 });
+
+
+workbox.routing.registerRoute(
+  ({ request, url }) => {
+    const pathname = url.pathname.toLowerCase();
+    const isShpAsset = pathname.endsWith('.zip') || pathname.endsWith('.shp') || pathname.endsWith('.dbf') || pathname.endsWith('.prj') || pathname.includes('/shapefiles/');
+    return request.method === 'GET' && isShpAsset;
+  },
+  new workbox.strategies.NetworkFirst({
+    cacheName: `agrovetor-shapefiles-${SW_VERSION}`,
+    networkTimeoutSeconds: 12,
+    plugins: [
+      new workbox.expiration.ExpirationPlugin({ maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 30 }),
+      new workbox.cacheableResponse.CacheableResponsePlugin({ statuses: [0, 200] })
+    ]
+  })
+);
 
 workbox.routing.setCatchHandler(async ({ event }) => {
   if (event.request.destination === 'document') {
