@@ -1,6 +1,7 @@
 // docs/js/lib/SyncQueue.js
 
 import { offlineManager } from './OfflineManager.js';
+import { requestWithResilience } from './apiClient.js';
 
 /**
  * Gerencia a fila de sincronização: processamento, retry e dependências.
@@ -97,13 +98,18 @@ class SyncQueue {
         const attemptSync = async (forceRefresh = false) => {
             const token = await this.authProvider(forceRefresh);
             if (!token) throw new Error("Usuário não autenticado.");
-            return fetch(url, {
+            return requestWithResilience(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(body)
+            }, {
+                timeoutMs: 10000,
+                retries: 1,
+                retryDelayMs: 1000,
+                onRetry: (attempt, reason) => console.warn(`[SyncQueue] retry ${attempt} for ${op.collection}:`, reason)
             });
         };
 

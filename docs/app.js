@@ -9,9 +9,11 @@ import FleetModule from './js/fleet.js';
 import CalculationService from './js/lib/CalculationService.js';
 import { perfLogger } from './js/lib/PerfLogger.js';
 import VirtualList from './js/lib/VirtualList.js';
+import { appDiagnostics } from './js/lib/AppDiagnostics.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     perfLogger.start('App Boot');
+    appDiagnostics.start();
 
     // Lógica da Tela de Abertura
     const splashScreen = document.getElementById('splash-screen');
@@ -64,6 +66,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
     Chart.register(ChartDataLabels);
     Chart.defaults.font.family = "'Poppins', sans-serif";
+
+    const runOfflineOptimization = async () => {
+        const essentialUrls = ['./', './index.html', './app.js', './manifest.json', './icons/icon-192x192.png'];
+        const cache = await caches.open('agrovetor-manual-offline-v1');
+        let completed = 0;
+        for (const url of essentialUrls) {
+            try {
+                await cache.add(url);
+                completed += 1;
+            } catch (error) {
+                console.warn('[offline-opt] falha ao aquecer cache:', url, error?.message || error);
+            }
+        }
+        const payload = {
+            timestamp: new Date().toISOString(),
+            companyId: window.App?.state?.currentUser?.companyId || null,
+            usersCount: window.App?.state?.users?.length || 0,
+            farmsCount: window.App?.state?.fazendas?.length || 0
+        };
+        try {
+            const db = await openDB('agrovetor-offline-storage', 8);
+            await db.put('data_cache', {
+                id: `offline-opt-${Date.now()}`,
+                collection: 'offline-opt',
+                data: payload,
+                updatedAt: payload.timestamp,
+                syncStatus: 'synced'
+            });
+        } catch (error) {
+            console.warn('[offline-opt] não foi possível gravar resumo no IndexedDB:', error);
+        }
+        return {
+            completed,
+            total: essentialUrls.length,
+            approxSizeKb: Math.round((essentialUrls.length * 150))
+        };
+    };
+
+    const runShapefileWorker = (arrayBuffer) => new Promise((resolve, reject) => {
+        const worker = new Worker('./js/workers/shpWorker.js');
+        worker.onmessage = (event) => {
+            worker.terminate();
+            if (event.data?.ok) {
+                resolve(event.data.geojson);
+            } else {
+                reject(new Error(event.data?.error || 'Falha ao processar mapa no worker.'));
+            }
+        };
+        worker.onerror = (error) => {
+            worker.terminate();
+            reject(error);
+        };
+        worker.postMessage({ type: 'PARSE_SHP_BUFFER', payload: arrayBuffer });
+    });
 
     // Módulo para gerenciar o banco de dados local (IndexedDB)
     const OfflineDB = {
@@ -3820,6 +3876,27 @@ document.addEventListener('DOMContentLoaded', () => {
             async renderSyncHistory() {
                 const listEl = document.getElementById('syncHistoryList');
                 if (!listEl) return;
+
+                const syncSection = document.getElementById('syncHistory');
+                if (syncSection && !document.getElementById('offlineOptimizeBtn') && App.state.currentUser?.role === 'admin') {
+                    const optimizeBtn = document.createElement('button');
+                    optimizeBtn.id = 'offlineOptimizeBtn';
+                    optimizeBtn.className = 'save';
+                    optimizeBtn.style.marginBottom = '12px';
+                    optimizeBtn.innerHTML = '<i class="fas fa-download"></i> Otimizar Offline';
+                    optimizeBtn.addEventListener('click', async () => {
+                        try {
+                            App.ui.setLoading(true, 'Pré-aquecendo cache offline...');
+                            const result = await runOfflineOptimization();
+                            App.ui.showAlert(`Offline otimizado: ${result.completed}/${result.total} recursos (~${result.approxSizeKb}KB).`, 'success');
+                        } catch (error) {
+                            App.ui.showAlert('Falha ao otimizar modo offline.', 'error');
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    });
+                    syncSection.insertBefore(optimizeBtn, listEl);
+                }
 
                 listEl.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
 
@@ -12561,13 +12638,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     console.log("Processando e desenhando os talhões no mapa...");
                     // Valida o shapefile antes de salvar no cache
-                    let geojson = await shp(buffer);
+                    let geojson = await runShapefileWorker(buffer);
 
                     // Se o parsing foi bem sucedido, salva no cache
                     await OfflineDB.set('shapefile-cache', buffer, 'shapefile-zip');
 
-                    // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
-                    this._reprojectGeoJSON(geojson);
+                    // Reprojeção executada no worker para evitar travamento da UI thread.
 
 
                     // ETAPA DE NORMALIZAÇÃO:
@@ -12617,14 +12693,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         let geojson;
                         try {
-                            geojson = await shp(buffer);
+                            geojson = await runShapefileWorker(buffer);
                         } catch (parseError) {
                             console.error("Erro ao analisar o shapefile (shpjs):", parseError);
                             throw new Error("O arquivo de mapa offline está corrompido ou inválido.");
                         }
 
-                        // REPROJEÇÃO: Converte as coordenadas da projeção de origem para WGS84
-                        this._reprojectGeoJSON(geojson);
+                        // Reprojeção executada no worker para evitar travamento da UI thread.
 
                         // ETAPA DE NORMALIZAÇÃO (CACHE OFFLINE): Garante a consistência dos dados carregados do cache.
                         let featureIdCounter = 0;
@@ -12916,7 +12991,8 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             startOfflineMapDownload(feature) {
-                const ZOOM_LEVELS = [14, 15, 16, 17];
+                const ZOOM_LEVELS = [14, 15, 16]; // Limite de zoom offline para evitar pacotes gigantes
+                const MAX_TILES_PER_PACK = 6000;
                 const infoBox = App.elements.monitoramentoAereo.infoBox;
                 const progressContainer = infoBox.querySelector('.download-progress-container');
                 const progressText = infoBox.querySelector('.download-progress-text');
@@ -12944,6 +13020,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 });
+
+                if (totalTilesToDownload > MAX_TILES_PER_PACK) {
+                    App.ui.showAlert(`Pacote muito grande (${totalTilesToDownload} tiles). Reduza a área/zoom para no máximo ${MAX_TILES_PER_PACK}.`, 'warning', 7000);
+                    return;
+                }
 
                 infoBox.querySelector('.btn-download-map').style.display = 'none';
                 progressContainer.style.display = 'block';
@@ -16856,6 +16937,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             const registration = await navigator.serviceWorker.register('./service-worker.js');
                             console.log('ServiceWorker registration successful with scope: ', registration.scope);
 
+                            if (navigator.storage?.persist) {
+                                try {
+                                    const persisted = await navigator.storage.persist();
+                                    console.log(`[PWA] Storage persistence: ${persisted ? 'granted' : 'not granted'}`);
+                                } catch (persistError) {
+                                    console.warn('[PWA] Falha ao solicitar persistência de storage:', persistError);
+                                }
+                            }
+
                             // Listen for controller change to reload page on update
                             let refreshing;
                             navigator.serviceWorker.addEventListener('controllerchange', function() {
@@ -16926,5 +17016,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Inicia a aplicação
     App.init();
+    appDiagnostics.finishBoot();
     window.App = App; // Expor para testes e depuração
 });
