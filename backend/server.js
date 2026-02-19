@@ -45,6 +45,7 @@ const { generateCigarrinhaPdf, generateCigarrinhaAmostragemPdf } = require('./re
 const { generateMonitoramentoPdf, generateArmadilhasPdf, generateArmadilhasAtivasPdf } = require('./reports/monitoramentoReport');
 const { generateColheitaPdf, generateColheitaMensalPdf } = require('./reports/colheitaReport');
 const { generateOsPdf } = require('./reports/osReport');
+const { generateOrdemServicoOficialPdf } = require('./reports/ordemServicoReport');
 const { generateRiskViewPdf, getRiskViewData } = require('./reports/riskViewReport');
 const { getClimateStats } = require('./reports/climaDashboard');
 const { generateFleetPdf, getFleetData } = require('./reports/fleetReport');
@@ -1610,7 +1611,7 @@ try {
     });
 
     app.post('/api/os', authMiddleware, async (req, res) => {
-        const { companyId, farmId, farmName, selectedPlots, totalArea, serviceType, responsible, observations, createdBy } = req.body;
+        const { companyId, farmId, farmName, selectedPlots, selectedPlotItems, produtos, totalArea, serviceType, tipoServicoId, operacaoId, operacaoNome, safraCiclo, responsibleMatricula, responsible, observations, createdBy, generatedBy } = req.body;
 
         if (!companyId || !farmId || !selectedPlots) {
             return res.status(400).json({ message: 'Dados incompletos para criar a O.S.' });
@@ -1642,10 +1643,17 @@ try {
                     farmName,
                     selectedPlots,
                     serviceType: serviceType || '',
+                    tipoServicoId: tipoServicoId || '',
+                    operacaoId: operacaoId || '',
+                    operacaoNome: operacaoNome || '',
+                    safraCiclo: safraCiclo || '',
+                    responsibleMatricula: responsibleMatricula || '',
                     responsible: responsible || '',
+                    selectedPlotItems: Array.isArray(selectedPlotItems) ? selectedPlotItems : [],
+                    produtos: Array.isArray(produtos) ? produtos : [],
                     totalArea,
                     observations: observations || '',
-                    createdBy: createdBy || 'Sistema',
+                    createdBy: createdBy || generatedBy || 'Sistema',
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     status: 'Created',
                     sequentialId: sequentialId
@@ -1654,6 +1662,29 @@ try {
                 transaction.set(osRef, osData);
                 return osRef.id;
             });
+
+
+            const opId = operacaoId || '';
+            const safraKey = safraCiclo || '';
+            if (opId && safraKey && Array.isArray(selectedPlotItems)) {
+                const batch = db.batch();
+                selectedPlotItems.forEach((item) => {
+                    const key = `${safraKey}_${farmId}_${item.talhaoId}_${opId}`;
+                    const ref = db.collection('historico_aplicacoes').doc(key);
+                    batch.set(ref, {
+                        companyId,
+                        safra_ciclo: safraKey,
+                        fazenda_id: farmId,
+                        talhao_id: item.talhaoId,
+                        operacao_id: opId,
+                        qtd_aplicacoes: admin.firestore.FieldValue.increment(1),
+                        ultima_os_id: newId,
+                        ultima_data: admin.firestore.FieldValue.serverTimestamp(),
+                        updated_at: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                });
+                await batch.commit();
+            }
 
             res.status(200).json({ message: 'Ordem de Serviço criada com sucesso.', id: newId });
 
@@ -1664,6 +1695,44 @@ try {
     });
 
     app.get('/reports/os/pdf', authMiddleware, (req, res) => generateOsPdf(req, res, db));
+
+    app.get('/api/os/:id', authMiddleware, async (req, res) => {
+        const snap = await db.collection('serviceOrders').doc(req.params.id).get();
+        if (!snap.exists) return res.status(404).json({ message: 'O.S. não encontrada' });
+        res.status(200).json({ id: snap.id, ...snap.data() });
+    });
+
+    app.get('/api/os/:id/pdf', authMiddleware, async (req, res) => generateOrdemServicoOficialPdf(req, res, db));
+
+    app.get('/api/os/:id/mapa', authMiddleware, async (req, res) => {
+        try {
+            const snap = await db.collection('serviceOrders').doc(req.params.id).get();
+            if (!snap.exists) return res.status(404).json({ message: 'O.S. não encontrada' });
+            const data = snap.data();
+            if (!data.mapaUrl) return res.status(404).json({ message: 'Mapa não associado à O.S.' });
+            return res.redirect(data.mapaUrl);
+        } catch (error) {
+            console.error('Erro ao buscar mapa da O.S.', error);
+            return res.status(500).json({ message: 'Erro ao obter mapa da O.S.' });
+        }
+    });
+
+    app.patch('/api/os/:id/finalize', authMiddleware, async (req, res) => {
+        await db.collection('serviceOrders').doc(req.params.id).set({
+            status: 'FINALIZADA',
+            finalizado_em: admin.firestore.FieldValue.serverTimestamp(),
+            finalizado_por: req.user?.username || req.user?.email || 'sistema'
+        }, { merge: true });
+        res.status(200).json({ message: 'O.S. finalizada.' });
+    });
+
+    app.patch('/api/os/:id', authMiddleware, async (req, res) => {
+        const payload = req.body || {};
+        payload.edited_at = admin.firestore.FieldValue.serverTimestamp();
+        payload.edited_by = req.user?.username || req.user?.email || 'sistema';
+        await db.collection('serviceOrders').doc(req.params.id).set(payload, { merge: true });
+        res.status(200).json({ message: 'O.S. atualizada.' });
+    });
 
     app.get('/api/dashboard/clima', authMiddleware, async (req, res) => {
         try {
