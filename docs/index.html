@@ -2645,13 +2645,30 @@
                         </div>
 
                         <div class="form-col" style="margin-bottom: 10px;">
-                            <label for="osServiceType">Tipo de Serviço:</label>
-                            <input type="text" id="osServiceType" placeholder="Ex: Colheita, Plantio">
+                            <label for="osSafraCiclo">Safra/Ciclo:</label>
+                            <input type="text" id="osSafraCiclo" placeholder="Ex: 2026/1">
                         </div>
 
                         <div class="form-col" style="margin-bottom: 10px;">
-                            <label for="osResponsible">Responsável:</label>
-                            <input type="text" id="osResponsible" placeholder="Nome do responsável">
+                            <label for="osServiceType">Tipo de Serviço:</label>
+                            <select id="osServiceType"></select>
+                        </div>
+
+                        <div class="form-col" style="margin-bottom: 10px;">
+                            <label for="osOperation">Operação:</label>
+                            <select id="osOperation"></select>
+                            <small id="osOperationValidation" style="display:block; margin-top: 6px; color: var(--color-warning);"></small>
+                        </div>
+
+                        <div class="form-row" style="margin-bottom: 10px;">
+                            <div class="form-col">
+                                <label for="osResponsibleMatricula">Matrícula Responsável:</label>
+                                <input type="number" id="osResponsibleMatricula" placeholder="Digite a matrícula">
+                            </div>
+                            <div class="form-col">
+                                <label for="osResponsible">Nome do Responsável:</label>
+                                <input type="text" id="osResponsible" placeholder="Nome automático" readonly>
+                            </div>
                         </div>
 
                         <div class="form-col" style="margin-bottom: 15px;">
@@ -2671,6 +2688,12 @@
 
                         <div id="osPlotsList" class="talhao-selection-list" style="flex-grow: 1; max-height: none; overflow-y: auto; background: var(--color-bg);">
                             <p style="text-align: center; color: var(--color-text-light); padding: 20px;">Selecione uma fazenda para carregar os talhões.</p>
+                        </div>
+
+                        
+                        <div class="card" style="margin-top: 10px; border-left-color: var(--color-success);">
+                            <h4 style="margin-bottom: 10px;"><i class="fas fa-flask"></i> Requisição de Produtos</h4>
+                            <div id="osProductsTable" class="table-responsive"></div>
                         </div>
 
                         <button id="btnGenerateOS" class="save" style="margin-top: 15px; width: 100%; max-width: none;">
@@ -3777,6 +3800,58 @@
                 <div id="personnelList" class="table-responsive"></div>
             </section>
             
+            <section id="adminTiposServico" class="tab-content card" aria-label="Tipo de Serviço" tabindex="0" hidden>
+                <h2><i class="fas fa-list"></i> Tipo de Serviço</h2>
+                <div class="form-row">
+                    <div class="form-col"><input type="hidden" id="tipoServicoId"><label>Descrição</label><input type="text" id="tipoServicoDescricao"></div>
+                    <div class="form-col"><label>Ativo</label><select id="tipoServicoAtivo"><option value="true">Sim</option><option value="false">Não</option></select></div>
+                </div>
+                <button id="btnSaveTipoServico" class="save"><i class="fas fa-save"></i> Salvar</button>
+                <div id="tiposServicoList" class="table-responsive" style="margin-top: 15px;"></div>
+            </section>
+
+            <section id="adminOperacoes" class="tab-content card" aria-label="Operações" tabindex="0" hidden>
+                <h2><i class="fas fa-cogs"></i> Operações</h2>
+                <div class="form-row">
+                    <div class="form-col"><input type="hidden" id="operacaoId"><label>Nome</label><input type="text" id="operacaoNome"></div>
+                    <div class="form-col"><label>Máx. Aplicações</label><input type="number" id="operacaoMaxAplicacoes" min="1" value="1"></div>
+                    <div class="form-col"><label>Código Externo</label><input type="text" id="operacaoCodigoExterno"></div>
+                    <div class="form-col"><label>Ativo</label><select id="operacaoAtivo"><option value="true">Sim</option><option value="false">Não</option></select></div>
+                </div>
+                <button id="btnSaveOperacao" class="save"><i class="fas fa-save"></i> Salvar</button>
+                <div id="operacoesList" class="table-responsive" style="margin-top: 15px;"></div>
+            </section>
+
+            <section id="adminProdutos" class="tab-content card" aria-label="Produtos" tabindex="0" hidden>
+                <h2><i class="fas fa-vial"></i> Produtos</h2>
+                <div class="form-row">
+                    <div class="form-col"><input type="hidden" id="produtoId"><label>Nome</label><input type="text" id="produtoNome"></div>
+                    <div class="form-col"><label>Unidade</label><input type="text" id="produtoUnidade" placeholder="L, KG..."></div>
+                    <div class="form-col"><label>Código Externo</label><input type="text" id="produtoCodigoExterno"></div>
+                    <div class="form-col"><label>Ativo</label><select id="produtoAtivo"><option value="true">Sim</option><option value="false">Não</option></select></div>
+                </div>
+                <button id="btnSaveProduto" class="save"><i class="fas fa-save"></i> Salvar</button>
+                <div id="produtosList" class="table-responsive" style="margin-top: 15px;"></div>
+            </section>
+
+            <section id="adminOperacaoProdutos" class="tab-content card" aria-label="Produtos por Operação" tabindex="0" hidden>
+                <h2><i class="fas fa-link"></i> Produtos por Operação</h2>
+                <div class="form-row">
+                    <div class="form-col"><label>Operação</label><select id="opProdOperacao"></select></div>
+                    <div class="form-col"><label>Produto</label><select id="opProdProduto"></select></div>
+                    <div class="form-col"><label>Dosagem/ha</label><input type="number" step="0.001" id="opProdDosagem"></div>
+                    <div class="form-col"><label>Unidade</label><input type="text" id="opProdUnidade"></div>
+                    <div class="form-col"><label>Obrigatório</label><select id="opProdObrigatorio"><option value="true">Sim</option><option value="false">Não</option></select></div>
+                </div>
+                <button id="btnSaveOperacaoProduto" class="save"><i class="fas fa-save"></i> Salvar vínculo</button>
+                <div id="operacaoProdutosList" class="table-responsive" style="margin-top: 15px;"></div>
+            </section>
+
+            <section id="ordensServicoEscritorio" class="tab-content card" aria-label="Ordens de Serviço Escritório" tabindex="0" hidden>
+                <h2><i class="fas fa-briefcase"></i> Ordens de Serviço (Escritório)</h2>
+                <div id="osEscritorioList" class="table-responsive"></div>
+            </section>
+
             <section id="configuracoesEmpresa" class="tab-content card" aria-label="Configurações da Empresa" tabindex="0" hidden>
                 <h2><i class="fas fa-building"></i> Configurações da Empresa</h2>
                 <div class="card" style="border-left-color: var(--color-purple);">
