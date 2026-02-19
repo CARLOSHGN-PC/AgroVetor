@@ -464,8 +464,12 @@ try {
     app.post('/api/track/batch', authMiddleware, async (req, res) => {
         const locations = req.body;
 
-        if (!Array.isArray(locations) || locations.length === 0) {
-            return res.status(400).json({ message: 'O corpo da requisição deve ser um array de localizações não vazio.' });
+        if (!Array.isArray(locations)) {
+            return res.status(400).json({ message: 'Payload malformado: o corpo da requisição deve ser um array.' });
+        }
+
+        if (locations.length === 0) {
+            return res.status(200).json({ ok: true, message: 'batch vazio (nada a processar)' });
         }
 
         try {
@@ -473,26 +477,33 @@ try {
             let validLocations = 0;
 
             for (const loc of locations) {
-                const { userId, latitude, longitude, timestamp, companyId } = loc;
+                if (!loc || typeof loc !== 'object') {
+                    continue;
+                }
 
-                if (userId && latitude !== undefined && longitude !== undefined && timestamp && companyId) {
+                const { userId, latitude, longitude, timestamp, createdAt, companyId } = loc;
+                const parsedLat = Number.parseFloat(latitude);
+                const parsedLng = Number.parseFloat(longitude);
+                const parsedDate = new Date(timestamp || createdAt);
+
+                if (userId && companyId && Number.isFinite(parsedLat) && Number.isFinite(parsedLng) && Number.isFinite(parsedDate.getTime())) {
                     const docRef = db.collection('locationHistory').doc();
                     batch.set(docRef, {
-                        userId: userId,
-                        companyId: companyId,
-                        location: new admin.firestore.GeoPoint(parseFloat(latitude), parseFloat(longitude)),
-                        timestamp: new Date(timestamp)
+                        userId,
+                        companyId,
+                        location: new admin.firestore.GeoPoint(parsedLat, parsedLng),
+                        timestamp: parsedDate
                     });
                     validLocations++;
                 }
             }
 
             if (validLocations === 0) {
-                return res.status(400).json({ message: 'Nenhuma localização válida fornecida no lote.' });
+                return res.status(200).json({ ok: true, message: 'batch vazio (nada a processar)' });
             }
 
             await batch.commit();
-            res.status(200).send({ message: `${validLocations} localizações registradas com sucesso.` });
+            res.status(200).send({ ok: true, message: `${validLocations} localizações registradas com sucesso.` });
         } catch (error) {
             console.error("Erro ao registrar localizações em lote:", error);
             res.status(500).json({ message: 'Erro no servidor ao registrar localizações em lote.' });

@@ -179,6 +179,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const nowIso = () => new Date().toISOString();
     const getContourCacheKey = () => `company:${App.state.currentUser?.companyId || 'anon'}:default`;
 
+    const isPlainObject = (value) => Object.prototype.toString.call(value) === '[object Object]';
+    const sanitizeFirestoreData = (value) => {
+        if (Array.isArray(value)) {
+            return value
+                .map(item => sanitizeFirestoreData(item))
+                .filter(item => item !== undefined);
+        }
+
+        if (isPlainObject(value)) {
+            const sanitized = {};
+            Object.entries(value).forEach(([key, nestedValue]) => {
+                const cleanValue = sanitizeFirestoreData(nestedValue);
+                if (cleanValue !== undefined) {
+                    sanitized[key] = cleanValue;
+                }
+            });
+            return sanitized;
+        }
+
+        return value === undefined ? undefined : value;
+    };
+
     const validateGeoJsonContours = (geojson) => {
         if (!geojson || geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
             throw new Error('GeoJSON inválido: FeatureCollection/features ausentes.');
@@ -2614,13 +2636,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             async addDocument(collectionName, data) {
-                return await addDoc(collection(db, collectionName), { ...data, createdAt: serverTimestamp() });
+                const sanitizedData = sanitizeFirestoreData(data);
+                return await addDoc(collection(db, collectionName), { ...sanitizedData, createdAt: serverTimestamp() });
             },
             async setDocument(collectionName, docId, data) {
-                return await setDoc(doc(db, collectionName, docId), data, { merge: true });
+                return await setDoc(doc(db, collectionName, docId), sanitizeFirestoreData(data), { merge: true });
             },
             async updateDocument(collectionName, docId, data) {
-                return await updateDoc(doc(db, collectionName, docId), data);
+                return await updateDoc(doc(db, collectionName, docId), sanitizeFirestoreData(data));
             },
             async deleteDocument(collectionName, docId) {
                 return await deleteDoc(doc(db, collectionName, docId));
@@ -11734,6 +11757,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const validLocations = locationsToSync.filter((loc) => {
+                if (!loc || typeof loc !== 'object') return false;
+                const latitude = Number(loc.latitude);
+                const longitude = Number(loc.longitude);
+                const rawTimestamp = loc.timestamp || loc.createdAt;
+                const timestamp = new Date(rawTimestamp);
+                return Number.isFinite(latitude)
+                    && Number.isFinite(longitude)
+                    && Number.isFinite(timestamp.getTime())
+                    && Boolean(loc.userId)
+                    && Boolean(loc.companyId);
+            }).map((loc) => ({
+                ...loc,
+                latitude: Number(loc.latitude),
+                longitude: Number(loc.longitude),
+                timestamp: new Date(loc.timestamp || loc.createdAt).toISOString()
+            }));
+
+            if (validLocations.length === 0) {
+                console.debug('[GPS Sync] Nenhuma localização válida no lote offline; sincronização ignorada.');
+                return;
+            }
+
             try {
                 // The backend endpoint expects a direct array, not an object with a 'locations' property.
                 const token = await auth.currentUser.getIdToken();
@@ -11743,7 +11789,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify(locationsToSync),
+                    body: JSON.stringify(validLocations),
                 });
 
                 if (response.ok) {
@@ -11751,7 +11797,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const tx = db.transaction('gps-locations', 'readwrite');
                     await tx.store.clear();
                     await tx.done;
-                    console.log(`${locationsToSync.length} localizações GPS offline foram sincronizadas e limpas.`);
+                    console.log(`${validLocations.length} localizações GPS offline válidas foram sincronizadas e limpas.`);
                 } else {
                     // Log the error for better debugging
                     const errorText = await response.text();
@@ -15302,9 +15348,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 let total = 0;
                 App.state.osSelectedPlots.forEach(id => {
                     const t = farm.talhoes.find(plot => plot.id === id);
-                    if (t) total += t.area;
+                    if (!t) return;
+                    const area = Number.parseFloat(t.area);
+                    if (Number.isFinite(area)) {
+                        total += area;
+                    }
                 });
 
+                App.state.osTotalArea = Number.isFinite(total) ? total : 0;
                 App.elements.osManual.totalArea.textContent = `${total.toFixed(2)} ha`;
             },
 
@@ -15315,7 +15366,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!responsibleMatricula.value || responsibleName.value === 'Não encontrado') return App.ui.showAlert("Informe um responsável válido.", "warning");
                 if (!serviceType.value) return App.ui.showAlert("Selecione o tipo de serviço.", "warning");
                 if (!operation.value) return App.ui.showAlert("Selecione a operação.", "warning");
-                if (App.state.osSelectedPlots.size === 0) return App.ui.showAlert("Selecione pelo menos um talhão.", "warning");
+                if (App.state.osSelectedPlots.size === 0) return App.ui.showAlert("Selecione ao menos 1 talhão.", "warning");
 
                 // Check Max Applications
                 const op = App.state.operacoes.find(o => o.id === operation.value);
@@ -15368,17 +15419,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 const plots = [];
+                let totalAreaHa = 0;
                 App.state.osSelectedPlots.forEach(talhaoId => {
                     const talhao = farm.talhoes.find(t => t.id === talhaoId);
                     if(talhao) {
+                        const areaHa = Number.parseFloat(talhao.area);
+                        const safeAreaHa = Number.isFinite(areaHa) ? areaHa : 0;
+                        totalAreaHa += safeAreaHa;
                         plots.push({
                             talhao_id: talhao.name,
                             talhao_nome: talhao.name,
                             variedade: talhao.variedade,
-                            area_ha: talhao.area
+                            area_ha: safeAreaHa
                         });
                     }
                 });
+
+                const safeTotalAreaHa = Number.isFinite(totalAreaHa) ? totalAreaHa : 0;
+                App.state.osTotalArea = safeTotalAreaHa;
 
                 const osData = {
                     os_numero: Date.now(),
@@ -15397,7 +15455,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     operacao_id: operation.value,
                     operacao_nome: op.nome,
                     status: 'ABERTA',
-                    total_area_ha: App.state.osTotalArea,
+                    total_area_ha: safeTotalAreaHa,
                     observacoes: observations.value,
                     itens: plots,
                     produtos: products,
@@ -15406,7 +15464,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 try {
-                    const docRef = await App.data.addDocument('ordens_servico', osData);
+                    const docRef = await App.data.addDocument('ordens_servico', sanitizeFirestoreData(osData));
                     App.ui.showAlert('O.S. Gerada com Sucesso!', 'success');
 
                     const filename = `OS_${osData.os_numero}.pdf`;
@@ -18005,6 +18063,34 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         cadastrosAuxiliares: {
+            buildAuxData(payload = {}) {
+                return sanitizeFirestoreData({
+                    ...payload,
+                    ativo: payload.ativo ?? true,
+                    companyId: App.state.currentUser.companyId,
+                    createdAt: payload.createdAt || new Date().toISOString()
+                });
+            },
+
+            async persistAuxRecord(collectionName, data, id = null) {
+                const payload = sanitizeFirestoreData(data);
+                if (id) {
+                    await App.data.updateDocument(collectionName, id, payload);
+                    return id;
+                }
+
+                const offlineId = `offline_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+                if (!App.state.isOnline || App.state.authMode === 'offline') {
+                    await OfflineDB.add('offline-writes', { id: offlineId, collection: collectionName, data: payload });
+                    App.state[collectionName] = App.state[collectionName] || [];
+                    App.state[collectionName].push({ id: offlineId, ...payload });
+                    return offlineId;
+                }
+
+                const docRef = await App.data.addDocument(collectionName, payload);
+                return docRef.id;
+            },
+
             setup() {
                 const btnSaveTipo = document.getElementById('btnSaveTipoServico');
                 if (btnSaveTipo) btnSaveTipo.addEventListener('click', () => this.saveTipoServico());
@@ -18038,20 +18124,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async saveTipoServico() {
                 const desc = document.getElementById('tipoServicoDesc').value;
+                const tipoServicoId = document.getElementById('tipoServicoId').value;
                 const ativo = document.getElementById('tipoServicoAtivo').checked;
 
                 if (!desc) return App.ui.showAlert('Preencha a descrição.', 'warning');
 
-                const data = {
+                const data = this.buildAuxData({
                     descricao: desc,
-                    ativo: ativo,
-                    companyId: App.state.currentUser.companyId,
-                    createdAt: new Date().toISOString()
-                };
+                    ativo
+                });
 
-                await App.data.createDocument('tipos_servico', data);
+                await this.persistAuxRecord('tipos_servico', data, tipoServicoId || null);
                 App.ui.showAlert('Tipo de Serviço salvo!');
                 document.getElementById('tipoServicoDesc').value = '';
+                document.getElementById('tipoServicoId').value = '';
                 this.renderTiposServico();
             },
 
@@ -18069,6 +18155,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button class="btn-excluir" onclick="App.data.deleteDocument('tipos_servico', '${item.id}').then(() => App.cadastrosAuxiliares.renderTiposServico())">
                                 <i class="fas fa-trash"></i>
                             </button>
+                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.editTipoServico('${item.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.toggleAtivo('tipos_servico', '${item.id}', ${item.ativo !== false})">
+                                <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
+                            </button>
                         </td>
                     </tr>
                 `).join('');
@@ -18078,24 +18168,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async saveOperacao() {
                 const nome = document.getElementById('operacaoNome').value;
+                const operacaoId = document.getElementById('operacaoId').value;
                 const maxApp = document.getElementById('operacaoMaxApp').value;
                 const codigo = document.getElementById('operacaoCodigo').value;
                 const ativo = document.getElementById('operacaoAtivo').checked;
 
                 if (!nome) return App.ui.showAlert('Preencha o nome.', 'warning');
 
-                const data = {
+                const data = this.buildAuxData({
                     nome,
                     max_aplicacoes: parseInt(maxApp) || 1,
                     codigo_externo: codigo,
-                    ativo,
-                    companyId: App.state.currentUser.companyId,
-                    createdAt: new Date().toISOString()
-                };
+                    ativo
+                });
 
-                await App.data.createDocument('operacoes', data);
+                await this.persistAuxRecord('operacoes', data, operacaoId || null);
                 App.ui.showAlert('Operação salva!');
                 document.getElementById('operacaoNome').value = '';
+                document.getElementById('operacaoId').value = '';
                 this.renderOperacoes();
                 this.populateDropdowns();
             },
@@ -18115,6 +18205,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button class="btn-excluir" onclick="App.data.deleteDocument('operacoes', '${item.id}').then(() => App.cadastrosAuxiliares.renderOperacoes())">
                                 <i class="fas fa-trash"></i>
                             </button>
+                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.editOperacao('${item.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.toggleAtivo('operacoes', '${item.id}', ${item.ativo !== false})">
+                                <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
+                            </button>
                         </td>
                     </tr>
                 `).join('');
@@ -18124,24 +18218,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async saveProduto() {
                 const nome = document.getElementById('produtoNome').value;
+                const produtoId = document.getElementById('produtoId')?.value || '';
                 const unidade = document.getElementById('produtoUnidade').value;
                 const codigo = document.getElementById('produtoCodigo').value;
                 const ativo = document.getElementById('produtoAtivo').checked;
 
                 if (!nome) return App.ui.showAlert('Preencha o nome.', 'warning');
 
-                const data = {
+                const data = this.buildAuxData({
                     nome,
                     unidade,
                     codigo_externo: codigo,
-                    ativo,
-                    companyId: App.state.currentUser.companyId,
-                    createdAt: new Date().toISOString()
-                };
+                    ativo
+                });
 
-                await App.data.createDocument('produtos', data);
+                await this.persistAuxRecord('produtos', data, produtoId || null);
                 App.ui.showAlert('Produto salvo!');
                 document.getElementById('produtoNome').value = '';
+                const produtoIdField = document.getElementById('produtoId');
+                if (produtoIdField) produtoIdField.value = '';
                 this.renderProdutos();
                 this.populateDropdowns();
             },
@@ -18161,6 +18256,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button class="btn-excluir" onclick="App.data.deleteDocument('produtos', '${item.id}').then(() => App.cadastrosAuxiliares.renderProdutos())">
                                 <i class="fas fa-trash"></i>
                             </button>
+                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.editProduto('${item.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.toggleAtivo('produtos', '${item.id}', ${item.ativo !== false})">
+                                <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
+                            </button>
                         </td>
                     </tr>
                 `).join('');
@@ -18169,6 +18268,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async saveOpProd() {
+                const opProdId = document.getElementById('opProdId').value;
                 const operacaoId = document.getElementById('opProdOperacao').value;
                 const produtoId = document.getElementById('opProdProduto').value;
                 const dosagem = document.getElementById('opProdDosagem').value;
@@ -18176,17 +18276,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (!operacaoId || !produtoId || !dosagem) return App.ui.showAlert('Preencha todos os campos.', 'warning');
 
-                const data = {
+                const data = this.buildAuxData({
                     operacao_id: operacaoId,
                     produto_id: produtoId,
                     dosagem_por_ha: parseFloat(dosagem),
                     obrigatorio,
-                    companyId: App.state.currentUser.companyId,
-                    createdAt: new Date().toISOString()
-                };
+                    ativo: true
+                });
 
-                await App.data.createDocument('operacao_produtos', data);
+                await this.persistAuxRecord('operacao_produtos', data, opProdId || null);
                 App.ui.showAlert('Vínculo criado!');
+                document.getElementById('opProdId').value = '';
                 this.renderOpProd();
             },
 
@@ -18210,11 +18310,63 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button class="btn-excluir" onclick="App.data.deleteDocument('operacao_produtos', '${item.id}').then(() => App.cadastrosAuxiliares.renderOpProd())">
                                 <i class="fas fa-trash"></i>
                             </button>
+                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.editOpProd('${item.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.toggleAtivo('operacao_produtos', '${item.id}', ${item.ativo !== false})">
+                                <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
+                            </button>
                         </td>
                     </tr>
                 `}).join('');
                 html += '</tbody></table>';
                 list.innerHTML = html;
+            },
+
+            editTipoServico(id) {
+                const item = (App.state.tipos_servico || []).find(x => x.id === id);
+                if (!item) return;
+                document.getElementById('tipoServicoId').value = item.id;
+                document.getElementById('tipoServicoDesc').value = item.descricao || '';
+                document.getElementById('tipoServicoAtivo').checked = item.ativo !== false;
+            },
+
+            editOperacao(id) {
+                const item = (App.state.operacoes || []).find(x => x.id === id);
+                if (!item) return;
+                document.getElementById('operacaoId').value = item.id;
+                document.getElementById('operacaoNome').value = item.nome || '';
+                document.getElementById('operacaoMaxApp').value = item.max_aplicacoes || 1;
+                document.getElementById('operacaoCodigo').value = item.codigo_externo || '';
+                document.getElementById('operacaoAtivo').checked = item.ativo !== false;
+            },
+
+            editProduto(id) {
+                const item = (App.state.produtos || []).find(x => x.id === id);
+                if (!item) return;
+                const idField = document.getElementById('produtoId');
+                if (idField) idField.value = item.id;
+                document.getElementById('produtoNome').value = item.nome || '';
+                document.getElementById('produtoUnidade').value = item.unidade || '';
+                document.getElementById('produtoCodigo').value = item.codigo_externo || '';
+                document.getElementById('produtoAtivo').checked = item.ativo !== false;
+            },
+
+            editOpProd(id) {
+                const item = (App.state.operacao_produtos || []).find(x => x.id === id);
+                if (!item) return;
+                document.getElementById('opProdId').value = item.id;
+                document.getElementById('opProdOperacao').value = item.operacao_id || '';
+                document.getElementById('opProdProduto').value = item.produto_id || '';
+                document.getElementById('opProdDosagem').value = Number.isFinite(item.dosagem_por_ha) ? item.dosagem_por_ha : 0;
+                document.getElementById('opProdObrigatorio').checked = item.obrigatorio !== false;
+            },
+
+            async toggleAtivo(collectionName, id, currentState) {
+                try {
+                    await App.data.updateDocument(collectionName, id, { ativo: !currentState });
+                } catch (error) {
+                    console.error(error);
+                    App.ui.showAlert('Erro ao alterar status.', 'error');
+                }
             }
         },
 
