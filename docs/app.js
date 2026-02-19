@@ -557,7 +557,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Ordem de Serviço', icon: 'fas fa-file-contract',
                     submenu: [
                         { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
-                        { label: 'Ordens de Serviço (Escritório)', icon: 'fas fa-briefcase', target: 'ordensServicoEscritorio', permission: 'ordemServicoEscritorio' },
                     ]
                 },
                 {
@@ -613,10 +612,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         { label: 'Frente de Plantio', icon: 'fas fa-tractor', target: 'frenteDePlantio', permission: 'frenteDePlantio' },
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
-                        { label: 'Tipo de Serviço', icon: 'fas fa-list', target: 'adminTiposServico', permission: 'adminCadastrosOS' },
-                        { label: 'Operações', icon: 'fas fa-cogs', target: 'adminOperacoes', permission: 'adminCadastrosOS' },
-                        { label: 'Produtos', icon: 'fas fa-vial', target: 'adminProdutos', permission: 'adminCadastrosOS' },
-                        { label: 'Produtos por Operação', icon: 'fas fa-link', target: 'adminOperacaoProdutos', permission: 'adminCadastrosOS' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
                         { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoes' },
                         { label: 'Histórico de Sincronização', icon: 'fas fa-history', target: 'syncHistory', permission: 'syncHistory' },
@@ -632,9 +627,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, ordemServicoEscritorio: true, adminCadastrosOS: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, ordemServicoEscritorio: true, adminCadastrosOS: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, ordemServicoEscritorio: true, registroAplicacao: true, controleKM: true },
+                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true },
                 colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, controleKM: true },
                 user: { dashboard: true }
             }
@@ -668,12 +663,6 @@ document.addEventListener('DOMContentLoaded', () => {
             planos: [],
             fazendas: [],
             personnel: [],
-            tipos_servico: [],
-            operacoes: [],
-            produtos: [],
-            operacao_produtos: [],
-            historico_aplicacoes: [],
-            serviceOrders: [],
             frentesDePlantio: [],
             apontamentosPlantio: [],
             qualidadePlantio: [],
@@ -754,12 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
             osManual: {
                 farmSelect: document.getElementById('osFarmSelect'),
                 serviceType: document.getElementById('osServiceType'),
-                operation: document.getElementById('osOperation'),
-                safraCiclo: document.getElementById('osSafraCiclo'),
-                responsibleMatricula: document.getElementById('osResponsibleMatricula'),
                 responsible: document.getElementById('osResponsible'),
-                operationValidation: document.getElementById('osOperationValidation'),
-                productsTable: document.getElementById('osProductsTable'),
                 observations: document.getElementById('osObservations'),
                 totalArea: document.getElementById('osTotalArea'),
                 plotsList: document.getElementById('osPlotsList'),
@@ -2532,7 +2516,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
                 // Core Collections loaded on startup
-                const coreCollections = ['users', 'fazendas', 'personnel', 'frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'historico_aplicacoes', 'serviceOrders'];
+                const coreCollections = ['users', 'fazendas', 'personnel', 'frentesDePlantio'];
                 coreCollections.forEach(col => this.subscribeTo(col));
 
                 if (isSuperAdmin) {
@@ -2831,22 +2815,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.renderPersonnelList();
                         }
                         break;
-                    case 'tipos_servico':
-                    case 'operacoes':
-                    case 'produtos':
-                    case 'operacao_produtos':
-                        App.osManual.populateServiceTypeSelect();
-                        App.osManual.populateOperationSelect();
-                        App.osManual.renderProductsPreview();
-                        App.adminOS.renderAll();
-                        App.adminOS.populateOpProdSelects();
-                        break;
-                    case 'serviceOrders':
-                        if (activeTab === 'ordensServicoEscritorio') App.osOffice.render();
-                        break;
-                    case 'historico_aplicacoes':
-                        App.osManual.validateOperationLimit();
-                        break;
                     case 'frentesDePlantio':
                         if (activeTab === 'frenteDePlantio') {
                             this.renderFrenteDePlantioList();
@@ -2927,9 +2895,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('updateQualidadeReportIndicators', () => this.updateQualidadeReportIndicators());
                 renderWithCatch('renderUsersList', () => this.renderUsersList());
                 renderWithCatch('renderPersonnelList', () => this.renderPersonnelList());
-                renderWithCatch('adminOS.renderAll', () => App.adminOS.renderAll());
-                renderWithCatch('adminOS.populateOpProdSelects', () => App.adminOS.populateOpProdSelects());
-                renderWithCatch('osOffice.render', () => App.osOffice.render());
                 renderWithCatch('renderFrenteDePlantioList', () => this.renderFrenteDePlantioList());
                 renderWithCatch('populateFrenteDePlantioSelect', () => this.populateFrenteDePlantioSelect());
                 renderWithCatch('populatePlantioFrotaSelect', () => this.populatePlantioFrotaSelect());
@@ -3429,13 +3394,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'ordemServicoManual') {
                     App.osManual.init();
-                }
-
-                if (['adminTiposServico', 'adminOperacoes', 'adminProdutos', 'adminOperacaoProdutos'].includes(id)) {
-                    App.adminOS.init();
-                }
-                if (id === 'ordensServicoEscritorio') {
-                    App.osOffice.init();
                 }
                 if (id === 'registroAplicacao') {
                     App.regApp.init();
@@ -14819,54 +14777,18 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         osManual: {
-            _listenersBound: false,
-            _responsavelDebounce: null,
             init() {
                 this.populateFarmSelect();
-                this.populateServiceTypeSelect();
-                this.populateOperationSelect();
                 this.setupEventListeners();
                 this.initMap();
-                this.renderProductsPreview();
-            },
-
-            populateServiceTypeSelect() {
-                const el = App.elements.osManual.serviceType;
-                if (!el) return;
-                const ativos = (App.state.tipos_servico || []).filter(i => i.ativo !== false);
-                el.innerHTML = '<option value="">Selecione</option>';
-                ativos.sort((a,b)=>String(a.descricao||'').localeCompare(String(b.descricao||''))).forEach(item => {
-                    el.innerHTML += `<option value="${item.id}">${item.descricao}</option>`;
-                });
-            },
-
-            populateOperationSelect() {
-                const el = App.elements.osManual.operation;
-                if (!el) return;
-                const ativos = (App.state.operacoes || []).filter(i => i.ativo !== false);
-                el.innerHTML = '<option value="">Selecione</option>';
-                ativos.sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''))).forEach(item => {
-                    el.innerHTML += `<option value="${item.id}">${item.nome}</option>`;
-                });
             },
 
             setupEventListeners() {
                 const els = App.elements.osManual;
-                if (!els.farmSelect || this._listenersBound) return;
-                this._listenersBound = true;
+                if (!els.farmSelect) return;
 
-                els.farmSelect.addEventListener('change', () => {
-                    this.handleFarmChange();
-                    this.validateOperationLimit();
-                    this.renderProductsPreview();
-                });
-                els.operation?.addEventListener('change', () => {
-                    this.validateOperationLimit();
-                    this.renderProductsPreview();
-                });
-                els.safraCiclo?.addEventListener('input', () => this.validateOperationLimit());
+                els.farmSelect.addEventListener('change', () => this.handleFarmChange());
                 els.btnGenerate.addEventListener('click', () => this.generateOS());
-                els.responsibleMatricula?.addEventListener('input', () => this.lookupResponsibleByMatricula());
 
                 const selectAllBtn = document.getElementById('osSelectAllPlotsBtn');
                 if (selectAllBtn) {
@@ -15226,7 +15148,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const farmId = App.elements.osManual.farmSelect.value;
                 if (!farmId) {
                     App.elements.osManual.totalArea.textContent = '0.00 ha';
-                    this.renderProductsPreview();
                     return;
                 }
 
@@ -15240,149 +15161,100 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 App.elements.osManual.totalArea.textContent = `${total.toFixed(2)} ha`;
-                this.validateOperationLimit();
-                this.renderProductsPreview();
-            },
-
-            lookupResponsibleByMatricula() {
-                clearTimeout(this._responsavelDebounce);
-                this._responsavelDebounce = setTimeout(() => {
-                    const matricula = String(App.elements.osManual.responsibleMatricula?.value || '').trim();
-                    const found = App.state.personnel.find(p => String(p.matricula || '').trim() === matricula);
-                    App.elements.osManual.responsible.value = found?.nome || '';
-                }, 250);
-            },
-
-            validateOperationLimit() {
-                const els = App.elements.osManual;
-                if (!els.operationValidation) return true;
-                els.operationValidation.textContent = '';
-                const opId = els.operation?.value;
-                const safra = String(els.safraCiclo?.value || '').trim();
-                const farmId = els.farmSelect?.value;
-                if (!opId || !safra || !farmId || App.state.osSelectedPlots.size === 0) return true;
-
-                const op = (App.state.operacoes || []).find(o => o.id === opId);
-                const max = Number(op?.max_aplicacoes || 0);
-                if (!max) return true;
-
-                const blocked = [];
-                App.state.osSelectedPlots.forEach(talhaoId => {
-                    const key = `${safra}_${farmId}_${talhaoId}_${opId}`;
-                    const hist = (App.state.historico_aplicacoes || []).find(h => h.id === key);
-                    const qtd = Number(hist?.qtd_aplicacoes || 0);
-                    if (qtd >= max) blocked.push(`${talhaoId} (máx ${max})`);
-                });
-
-                if (blocked.length > 0) {
-                    els.operationValidation.textContent = `Bloqueado para talhões: ${blocked.join(', ')}`;
-                    return false;
-                }
-                return true;
-            },
-
-            renderProductsPreview() {
-                const container = App.elements.osManual.productsTable;
-                if (!container) return;
-                const opId = App.elements.osManual.operation?.value;
-                if (!opId) {
-                    container.innerHTML = '<p>Selecione uma operação para calcular produtos.</p>';
-                    return;
-                }
-                const vinculos = (App.state.operacao_produtos || []).filter(v => v.operacao_id === opId && v.ativo !== false);
-                if (vinculos.length === 0) {
-                    container.innerHTML = '<p>Nenhum produto vinculado para esta operação.</p>';
-                    return;
-                }
-                const totalArea = parseFloat((App.elements.osManual.totalArea.textContent || '0').replace(',', '.')) || 0;
-                const rows = vinculos.map(v => {
-                    const produto = (App.state.produtos || []).find(p => p.id === v.produto_id);
-                    const dosagem = Number(v.dosagem_por_ha || 0);
-                    const total = dosagem * totalArea;
-                    return `<tr><td>${produto?.nome || v.produto_id}</td><td>${v.unidade || produto?.unidade || ''}</td><td>${dosagem.toFixed(3)}</td><td>${total.toFixed(3)}</td></tr>`;
-                }).join('');
-                container.innerHTML = `<table><thead><tr><th>Produto</th><th>Und.</th><th>Qtde/HA</th><th>Qtde Total</th></tr></thead><tbody>${rows}</tbody></table>`;
             },
 
             async generateOS() {
-                const { farmSelect, serviceType, operation, responsible, responsibleMatricula, observations, safraCiclo } = App.elements.osManual;
+                const { farmSelect, serviceType, responsible, observations } = App.elements.osManual;
 
-                if (!farmSelect.value) return App.ui.showAlert("Selecione uma fazenda.", "error");
-                if (!serviceType.value) return App.ui.showAlert("Selecione um tipo de serviço.", "error");
-                if (!operation.value) return App.ui.showAlert("Selecione uma operação.", "error");
-                if (!safraCiclo.value) return App.ui.showAlert("Informe a safra/ciclo.", "error");
-                if (!responsible.value) return App.ui.showAlert("Matrícula não encontrada em Cadastro de Pessoas.", "error");
-                if (App.state.osSelectedPlots.size === 0) return App.ui.showAlert("Selecione pelo menos um talhão.", "error");
-                if (!this.validateOperationLimit()) return App.ui.showAlert("Operação bloqueada para um ou mais talhões.", "error");
+                if (!farmSelect.value) {
+                    App.ui.showAlert("Selecione uma fazenda.", "error");
+                    return;
+                }
+                if (App.state.osSelectedPlots.size === 0) {
+                    App.ui.showAlert("Selecione pelo menos um talhão.", "error");
+                    return;
+                }
 
                 const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
                 const selectedPlotsData = [];
-                const selectedPlotItems = [];
                 let totalArea = 0;
 
                 App.state.osSelectedPlots.forEach(id => {
                     const t = farm.talhoes.find(plot => plot.id === id);
                     if (t) {
+                        // Backend expects simple strings for map highlighting logic
                         selectedPlotsData.push(t.name);
-                        selectedPlotItems.push({ talhaoId: t.id, talhaoNome: t.name, area: Number(t.area || 0), variedade: t.variedade || '' });
-                        totalArea += Number(t.area || 0);
+                        totalArea += t.area;
                     }
-                });
-
-                const vinculos = (App.state.operacao_produtos || []).filter(v => v.operacao_id === operation.value && v.ativo !== false);
-                const produtos = vinculos.map(v => {
-                    const produto = (App.state.produtos || []).find(p => p.id === v.produto_id);
-                    return {
-                        produto_id: v.produto_id,
-                        produto_nome: produto?.nome || '',
-                        unidade: v.unidade || produto?.unidade || '',
-                        dosagem_por_ha: Number(v.dosagem_por_ha || 0),
-                        qtde_total: Number(v.dosagem_por_ha || 0) * totalArea,
-                        obrigatorio: v.obrigatorio === true,
-                    };
                 });
 
                 const osData = {
                     companyId: App.state.currentUser.companyId,
                     generatedBy: App.state.currentUser.username,
-                    farmId: farm.id,
+                    farmId: farm.id, // Required by backend
                     farmName: farm.name,
                     farmCode: farm.code,
-                    safraCiclo: safraCiclo.value,
-                    tipoServicoId: serviceType.value,
-                    serviceType: (App.state.tipos_servico || []).find(t => t.id === serviceType.value)?.descricao || '',
-                    operacaoId: operation.value,
-                    operacaoNome: (App.state.operacoes || []).find(o => o.id === operation.value)?.nome || '',
-                    responsibleMatricula: responsibleMatricula.value,
+                    serviceType: serviceType.value,
                     responsible: responsible.value,
                     observations: observations.value,
-                    selectedPlots: selectedPlotsData,
-                    selectedPlotItems,
-                    produtos,
-                    totalArea,
-                    createdAt: new Date().toISOString()
+                    selectedPlots: selectedPlotsData, // Backend expects 'selectedPlots' as array of strings
+                    totalArea: totalArea,
+                    createdAt: new Date().toISOString() // Send as ISO string for backend consistency
                 };
 
                 App.ui.setLoading(true, "A gerar Ordem de Serviço...");
+
                 try {
                     const token = await auth.currentUser.getIdToken();
+                    // 1. Save to Firestore
                     const saveResponse = await fetch(`${App.config.backendUrl}/api/os`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(osData)
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(osData)
                     });
+
                     if (!saveResponse.ok) throw new Error("Falha ao salvar a O.S.");
                     const savedOS = await saveResponse.json();
 
-                    const pdfResponse = await fetch(`${App.config.backendUrl}/api/os/${savedOS.id}/pdf`, { headers: { 'Authorization': `Bearer ${token}` } });
+                    // 2. Generate PDF
+                    const reportParams = new URLSearchParams({
+                        osId: savedOS.id,
+                        companyId: App.state.currentUser.companyId,
+                    });
+
+                    const pdfUrl = `${App.config.backendUrl}/reports/os/pdf?${reportParams.toString()}`;
+
+                    // Trigger download with Authentication header
+                    const pdfResponse = await fetch(pdfUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
                     if (!pdfResponse.ok) throw new Error("Falha ao gerar o PDF.");
+
                     const blob = await pdfResponse.blob();
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
-                    a.style.display = 'none'; a.href = url; a.download = `OS_${farm.code}_${new Date().getTime()}.pdf`;
-                    document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url);
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `OS_${farm.code}_${new Date().getTime()}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
 
                     App.ui.showAlert("Ordem de Serviço gerada com sucesso!", "success");
-                    farmSelect.value = ''; serviceType.value = ''; operation.value=''; responsible.value = ''; responsibleMatricula.value=''; observations.value = ''; safraCiclo.value='';
-                    this.handleFarmChange();
+
+                    // Reset do formulário completo
+                    farmSelect.value = '';
+                    serviceType.value = '';
+                    responsible.value = '';
+                    observations.value = '';
+                    this.handleFarmChange(); // Isso vai limpar a lista e o mapa
+
                 } catch (error) {
                     console.error("Erro ao gerar OS:", error);
                     App.ui.showAlert(`Erro ao gerar O.S.: ${error.message}`, "error");
@@ -15416,82 +15288,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.state.osMap) {
                     setTimeout(() => App.state.osMap.resize(), 400); // Wait for CSS transition
                 }
-            }
-        },
-
-
-        adminOS: {
-            init() {
-                this.renderAll();
-                this.bindEvents();
-                this.populateOpProdSelects();
-            },
-            _bound: false,
-            bindEvents() {
-                if (this._bound) return;
-                this._bound = true;
-                document.getElementById('btnSaveTipoServico')?.addEventListener('click', () => this.saveTipoServico());
-                document.getElementById('btnSaveOperacao')?.addEventListener('click', () => this.saveOperacao());
-                document.getElementById('btnSaveProduto')?.addEventListener('click', () => this.saveProduto());
-                document.getElementById('btnSaveOperacaoProduto')?.addEventListener('click', () => this.saveOperacaoProduto());
-            },
-            async saveTipoServico() {
-                const id = document.getElementById('tipoServicoId').value;
-                const payload = { descricao: document.getElementById('tipoServicoDescricao').value, ativo: document.getElementById('tipoServicoAtivo').value === 'true', companyId: App.state.currentUser.companyId, updated_at: new Date().toISOString() };
-                if (!payload.descricao) return App.ui.showAlert('Descrição obrigatória', 'error');
-                if (id) await App.data.updateDocument('tipos_servico', id, payload); else await App.data.addDocument('tipos_servico', { ...payload, created_at: new Date().toISOString() });
-                document.getElementById('tipoServicoId').value=''; document.getElementById('tipoServicoDescricao').value='';
-            },
-            async saveOperacao() {
-                const id = document.getElementById('operacaoId').value;
-                const payload = { nome: document.getElementById('operacaoNome').value, max_aplicacoes: Number(document.getElementById('operacaoMaxAplicacoes').value || 1), codigo_externo: document.getElementById('operacaoCodigoExterno').value || '', ativo: document.getElementById('operacaoAtivo').value === 'true', companyId: App.state.currentUser.companyId, updated_at: new Date().toISOString() };
-                if (!payload.nome) return App.ui.showAlert('Nome obrigatório', 'error');
-                if (id) await App.data.updateDocument('operacoes', id, payload); else await App.data.addDocument('operacoes', { ...payload, created_at: new Date().toISOString() });
-                document.getElementById('operacaoId').value=''; document.getElementById('operacaoNome').value='';
-            },
-            async saveProduto() {
-                const id = document.getElementById('produtoId').value;
-                const payload = { nome: document.getElementById('produtoNome').value, unidade: document.getElementById('produtoUnidade').value, codigo_externo: document.getElementById('produtoCodigoExterno').value || '', ativo: document.getElementById('produtoAtivo').value === 'true', companyId: App.state.currentUser.companyId, updated_at: new Date().toISOString() };
-                if (!payload.nome) return App.ui.showAlert('Nome obrigatório', 'error');
-                if (id) await App.data.updateDocument('produtos', id, payload); else await App.data.addDocument('produtos', { ...payload, created_at: new Date().toISOString() });
-                document.getElementById('produtoId').value=''; document.getElementById('produtoNome').value='';
-            },
-            async saveOperacaoProduto() {
-                const payload = { operacao_id: document.getElementById('opProdOperacao').value, produto_id: document.getElementById('opProdProduto').value, dosagem_por_ha: Number(document.getElementById('opProdDosagem').value || 0), unidade: document.getElementById('opProdUnidade').value || '', obrigatorio: document.getElementById('opProdObrigatorio').value === 'true', ativo: true, companyId: App.state.currentUser.companyId, updated_at: new Date().toISOString() };
-                if (!payload.operacao_id || !payload.produto_id) return App.ui.showAlert('Operação e produto são obrigatórios', 'error');
-                await App.data.addDocument('operacao_produtos', { ...payload, created_at: new Date().toISOString() });
-            },
-            populateOpProdSelects() {
-                const opSel = document.getElementById('opProdOperacao');
-                const prodSel = document.getElementById('opProdProduto');
-                if (opSel) opSel.innerHTML = '<option value="">Selecione</option>' + (App.state.operacoes || []).filter(o => o.ativo !== false).map(o => `<option value="${o.id}">${o.nome}</option>`).join('');
-                if (prodSel) prodSel.innerHTML = '<option value="">Selecione</option>' + (App.state.produtos || []).filter(p => p.ativo !== false).map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
-            },
-            renderAll() {
-                const table = (headers, rows) => `<table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows || '<tr><td colspan="10">Sem dados</td></tr>'}</tbody></table>`;
-                document.getElementById('tiposServicoList').innerHTML = table(['Descrição','Ativo'], (App.state.tipos_servico||[]).map(i => `<tr><td>${i.descricao||''}</td><td>${i.ativo===false?'Não':'Sim'}</td></tr>`).join(''));
-                document.getElementById('operacoesList').innerHTML = table(['Nome','Máx Aplicações','Ativo'], (App.state.operacoes||[]).map(i => `<tr><td>${i.nome||''}</td><td>${i.max_aplicacoes||''}</td><td>${i.ativo===false?'Não':'Sim'}</td></tr>`).join(''));
-                document.getElementById('produtosList').innerHTML = table(['Nome','Und.','Ativo'], (App.state.produtos||[]).map(i => `<tr><td>${i.nome||''}</td><td>${i.unidade||''}</td><td>${i.ativo===false?'Não':'Sim'}</td></tr>`).join(''));
-                document.getElementById('operacaoProdutosList').innerHTML = table(['Operação','Produto','Dosagem/ha'], (App.state.operacao_produtos||[]).map(i => `<tr><td>${(App.state.operacoes||[]).find(o=>o.id===i.operacao_id)?.nome||i.operacao_id}</td><td>${(App.state.produtos||[]).find(p=>p.id===i.produto_id)?.nome||i.produto_id}</td><td>${i.dosagem_por_ha||0}</td></tr>`).join(''));
-            }
-        },
-
-        osOffice: {
-            init() { this.render(); },
-            async finalize(id) {
-                const token = await auth.currentUser.getIdToken();
-                await fetch(`${App.config.backendUrl}/api/os/${id}/finalize`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` } });
-            },
-            async downloadPdf(id) {
-                const token = await auth.currentUser.getIdToken();
-                const resp = await fetch(`${App.config.backendUrl}/api/os/${id}/pdf`, { headers: { 'Authorization': `Bearer ${token}` } });
-                const blob = await resp.blob(); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`OS_${id}.pdf`; a.click(); URL.revokeObjectURL(url);
-            },
-            render() {
-                const target = document.getElementById('osEscritorioList');
-                if (!target) return;
-                const rows = (App.state.serviceOrders||[]).sort((a,b)=> String(b.createdAt?.seconds||'').localeCompare(String(a.createdAt?.seconds||''))).map(os => `<tr><td>${os.sequentialId||os.id}</td><td>${os.farmName||''}</td><td>${os.responsible||''}</td><td>${os.operacaoNome||''}</td><td>${os.status||''}</td><td><button onclick="App.osOffice.downloadPdf('${os.id}')">PDF</button> <button onclick="App.osOffice.finalize('${os.id}')">Finalizar</button></td></tr>`).join('');
-                target.innerHTML = `<table><thead><tr><th>Nº OS</th><th>Fazenda</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows || '<tr><td colspan="6">Sem ordens</td></tr>'}</tbody></table>`;
             }
         },
 
