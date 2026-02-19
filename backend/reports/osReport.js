@@ -3,21 +3,31 @@ const { getShapefileData, findTalhaoForTrap, findShapefileProp } = require('../u
 const admin = require('firebase-admin');
 
 const generateOsPdf = async (req, res, db) => {
-    const doc = setupDoc();
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=ordem_servico.pdf`);
-    doc.pipe(res);
-
     try {
         const { osId, companyId, generatedBy } = req.query;
 
-        if (!osId) throw new Error('ID da Ordem de Serviço não fornecido.');
-        if (!companyId) throw new Error('ID da empresa não fornecido.');
+        if (!osId) {
+            return res.status(400).json({ message: 'ID da Ordem de Serviço não fornecido.' });
+        }
 
-        // Note: Collection is now 'ordens_servico' based on frontend App.js update
+        if (!companyId) {
+            return res.status(400).json({ message: 'ID da empresa não fornecido.' });
+        }
+
         const osDoc = await db.collection('ordens_servico').doc(osId).get();
-        if (!osDoc.exists) throw new Error('Ordem de Serviço não encontrada.');
+        if (!osDoc.exists) {
+            return res.status(404).json({ message: 'OS não encontrada' });
+        }
+
         const osData = osDoc.data();
+        if (osData.companyId !== companyId) {
+            return res.status(404).json({ message: 'OS não encontrada' });
+        }
+
+        const doc = setupDoc();
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="OS_${osId}.pdf"`);
+        doc.pipe(res);
 
         // Fetch additional data if needed (e.g., Farm details, Person details)
         // Frontend sends fazenda_id and fazenda_nome, so we might not need to fetch, but we need the code.
@@ -358,9 +368,7 @@ const generateOsPdf = async (req, res, db) => {
     } catch (error) {
         console.error("Erro ao gerar PDF da O.S.:", error);
         if (!res.headersSent) {
-            res.status(500).send(`Erro ao gerar relatório: ${error.message}`);
-        } else {
-            doc.end();
+            res.status(500).json({ message: `Erro ao gerar relatório: ${error.message}` });
         }
     }
 };

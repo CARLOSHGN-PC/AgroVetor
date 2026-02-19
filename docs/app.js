@@ -15468,7 +15468,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.showAlert('O.S. Gerada com Sucesso!', 'success');
 
                     const filename = `OS_${osData.os_numero}.pdf`;
-                    App.reports._fetchAndDownloadReportByUrl(`${App.config.backendUrl}/api/reports/os/${docRef.id}/pdf`, {}, filename);
+                    const endpointUrl = `${App.config.backendUrl}/api/reports/os/pdf`;
+                    App.reports._fetchAndDownloadReportByUrl(endpointUrl, { osId: docRef.id }, filename);
 
                     this.resetForm();
                 } catch (e) {
@@ -17301,9 +17302,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.error("Aborted report generation due to missing companyId.");
                         return;
                     }
+                    const queryParams = new URLSearchParams(cleanFilters);
+                    queryParams.set('_cacheBust', Date.now().toString());
 
-                    const params = new URLSearchParams(cleanFilters);
-                    const apiUrl = `${endpointUrl}?${params.toString()}&_cacheBust=${Date.now()}`;
+                    const baseUrl = endpointUrl.split('?')[0];
+                    const apiUrl = `${baseUrl}?${queryParams.toString()}`;
 
                     App.ui.setLoading(true, "A gerar relatório no servidor...");
 
@@ -18049,12 +18052,8 @@ document.addEventListener('DOMContentLoaded', () => {
             async downloadPDF(osId, osNumero) {
                 try {
                     const filename = `OS_${osNumero}.pdf`;
-                    const reportParams = new URLSearchParams({
-                        osId: osId,
-                        companyId: App.state.currentUser.companyId,
-                    });
-                    const url = `${App.config.backendUrl}/reports/os/pdf?${reportParams.toString()}`;
-                    await App.reports._fetchAndDownloadReportByUrl(url, {}, filename);
+                    const endpointUrl = `${App.config.backendUrl}/api/reports/os/pdf`;
+                    await App.reports._fetchAndDownloadReportByUrl(endpointUrl, { osId }, filename);
                 } catch (e) {
                     console.error(e);
                     App.ui.showAlert('Erro ao baixar PDF.', 'error');
