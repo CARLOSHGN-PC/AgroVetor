@@ -89,7 +89,15 @@ const authMiddleware = async (req, res, next) => {
             if (userSnapshot.exists) {
                 const userData = userSnapshot.data();
 
-                if (userData.role !== 'super-admin' && userData.companyId !== requestCompanyId) {
+                const belongsToPrimaryCompany = userData.companyId === requestCompanyId;
+                const belongsToAnyCompany = Array.isArray(userData.companies) && userData.companies.includes(requestCompanyId);
+                const hasCompanyRoles = Array.isArray(userData.companyRoles) && userData.companyRoles.some((entry) => {
+                    if (!entry || typeof entry !== 'object') return false;
+                    const normalizedRole = String(entry.role || '').toLowerCase();
+                    return entry.companyId === requestCompanyId && ['admin', 'supervisor', 'escritorio'].includes(normalizedRole);
+                });
+
+                if (userData.role !== 'super-admin' && !belongsToPrimaryCompany && !belongsToAnyCompany && !hasCompanyRoles) {
                     return res.status(403).json({ message: 'Acesso negado: você não tem permissão para acessar os dados desta empresa.' });
                 }
 
@@ -1674,7 +1682,13 @@ try {
         }
     });
 
-    app.get('/reports/os/pdf', authMiddleware, (req, res) => generateOsPdf(req, res, db));
+    const handleOsPdf = (req, res) => generateOsPdf(req, res, db);
+    app.get('/api/reports/os/pdf', authMiddleware, handleOsPdf);
+    app.get('/api/reports/os/:osId/pdf', authMiddleware, (req, res) => {
+        req.query.osId = req.params.osId;
+        return handleOsPdf(req, res);
+    });
+    app.get('/reports/os/pdf', authMiddleware, handleOsPdf);
 
     app.get('/api/dashboard/clima', authMiddleware, async (req, res) => {
         try {
