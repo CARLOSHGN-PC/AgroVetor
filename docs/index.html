@@ -2645,13 +2645,31 @@
                         </div>
 
                         <div class="form-col" style="margin-bottom: 10px;">
-                            <label for="osServiceType">Tipo de Serviço:</label>
-                            <input type="text" id="osServiceType" placeholder="Ex: Colheita, Plantio">
+                            <label for="osServiceType" class="required">Tipo de Serviço:</label>
+                            <select id="osServiceType"></select>
                         </div>
 
                         <div class="form-col" style="margin-bottom: 10px;">
-                            <label for="osResponsible">Responsável:</label>
-                            <input type="text" id="osResponsible" placeholder="Nome do responsável">
+                            <label for="osOperation" class="required">Operação:</label>
+                            <select id="osOperation"></select>
+                        </div>
+
+                        <div class="form-col" style="margin-bottom: 10px;">
+                            <label for="osResponsible" class="required">Matrícula Responsável:</label>
+                            <input type="text" id="osResponsible" placeholder="Digite a matrícula">
+                            <input type="text" id="osResponsibleName" placeholder="Nome do responsável" readonly style="margin-top: 8px; background: #f3f4f6;">
+                            <small id="osResponsibleFeedback" style="display:block; margin-top: 6px; color: var(--color-text-light);"></small>
+                        </div>
+
+                        <div class="form-row" style="margin-bottom: 10px;">
+                            <div class="form-col">
+                                <label for="osSafra" class="required">Safra</label>
+                                <input type="text" id="osSafra" placeholder="Ex.: 2026/0">
+                            </div>
+                            <div class="form-col">
+                                <label for="osCiclo" class="required">Ciclo</label>
+                                <input type="text" id="osCiclo" placeholder="Ex.: 1">
+                            </div>
                         </div>
 
                         <div class="form-col" style="margin-bottom: 15px;">
@@ -2671,6 +2689,12 @@
 
                         <div id="osPlotsList" class="talhao-selection-list" style="flex-grow: 1; max-height: none; overflow-y: auto; background: var(--color-bg);">
                             <p style="text-align: center; color: var(--color-text-light); padding: 20px;">Selecione uma fazenda para carregar os talhões.</p>
+                        </div>
+
+                        <div class="card" style="margin: 15px 0 0 0; border-left-color: var(--color-info); padding: 10px;">
+                            <h4 style="margin: 0 0 8px 0;">Requisição de Produtos</h4>
+                            <div id="osApplicationAlert" style="font-size: 12px; margin-bottom: 8px;"></div>
+                            <div id="osProductsTableWrap" style="max-height: 180px; overflow:auto;"></div>
                         </div>
 
                         <button id="btnGenerateOS" class="save" style="margin-top: 15px; width: 100%; max-width: none;">
@@ -2696,6 +2720,42 @@
                     </div>
 
                 </div>
+            </section>
+
+            <section id="ordemServicoEscritorio" class="tab-content card" aria-label="Ordens de Serviço Escritório" tabindex="0" hidden>
+                <h2 style="color: var(--color-info);"><i class="fas fa-list"></i> Ordens de Serviço (Escritório)</h2>
+                <div class="form-row">
+                    <div class="form-col"><input type="date" id="osOfficeFilterDate"></div>
+                    <div class="form-col"><select id="osOfficeFilterStatus"><option value="">Status (todos)</option><option value="ABERTA">ABERTA</option><option value="FINALIZADA">FINALIZADA</option></select></div>
+                    <div class="form-col"><input type="text" id="osOfficeFilterUser" placeholder="Usuário"></div>
+                    <div class="form-col"><button id="btnRefreshOfficeOS" class="btn-secondary"><i class="fas fa-sync"></i> Atualizar</button></div>
+                </div>
+                <div id="osOfficeList"></div>
+            </section>
+
+            <section id="ordemServicoCadastros" class="tab-content card" aria-label="Cadastros O.S" tabindex="0" hidden>
+                <h2 style="color: var(--color-info);"><i class="fas fa-database"></i> Cadastros O.S</h2>
+                <div class="form-row">
+                    <div class="form-col"><input type="text" id="osCadTipoServico" placeholder="Tipo de serviço"></div>
+                    <div class="form-col"><button id="btnAddTipoServico" class="save">Adicionar Tipo</button></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col"><input type="text" id="osCadOperacaoNome" placeholder="Operação"></div>
+                    <div class="form-col"><input type="number" id="osCadOperacaoMax" placeholder="Máx aplicações" value="2" min="1"></div>
+                    <div class="form-col"><button id="btnAddOperacao" class="save">Adicionar Operação</button></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col"><input type="text" id="osCadProdutoNome" placeholder="Produto"></div>
+                    <div class="form-col"><input type="text" id="osCadProdutoUnidade" placeholder="Und (L, KG)"></div>
+                    <div class="form-col"><button id="btnAddProduto" class="save">Adicionar Produto</button></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col"><select id="osCadMapOperacao"></select></div>
+                    <div class="form-col"><select id="osCadMapProduto"></select></div>
+                    <div class="form-col"><input type="number" id="osCadMapDosagem" step="0.001" min="0" placeholder="Dosagem/ha"></div>
+                    <div class="form-col"><button id="btnAddOperacaoProduto" class="save">Vincular</button></div>
+                </div>
+                <div id="osCadastrosList"></div>
             </section>
 
             <section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>
