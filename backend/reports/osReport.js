@@ -2,20 +2,30 @@ const { setupDoc, getLogoBase64, generatePdfHeader, generatePdfFooter, drawTable
 const { getShapefileData, findTalhaoForTrap, findShapefileProp } = require('../utils/geoUtils');
 const admin = require('firebase-admin');
 
+const findOsDocument = async (db, osId) => {
+    const collections = ['serviceOrders', 'ordens_servico'];
+
+    for (const collectionName of collections) {
+        const osDoc = await db.collection(collectionName).doc(osId).get();
+        if (osDoc.exists) {
+            return osDoc;
+        }
+    }
+
+    return null;
+};
+
 const generateOsPdf = async (req, res, db) => {
     try {
-        const { osId, companyId, generatedBy } = req.query;
+        const osId = req.query.osId || req.params.osId;
+        const { companyId, generatedBy } = req.query;
 
-        if (!osId) {
-            return res.status(400).json({ message: 'ID da Ordem de Serviço não fornecido.' });
+        if (!osId || !companyId) {
+            return res.status(400).json({ message: 'osId e companyId são obrigatórios' });
         }
 
-        if (!companyId) {
-            return res.status(400).json({ message: 'ID da empresa não fornecido.' });
-        }
-
-        const osDoc = await db.collection('ordens_servico').doc(osId).get();
-        if (!osDoc.exists) {
+        const osDoc = await findOsDocument(db, osId);
+        if (!osDoc) {
             return res.status(404).json({ message: 'OS não encontrada' });
         }
 
