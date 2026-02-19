@@ -557,6 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Ordem de Serviço', icon: 'fas fa-file-contract',
                     submenu: [
                         { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
+                        { label: 'O.S. Escritório', icon: 'fas fa-list', target: 'ordemServicoEscritorio', permission: 'ordemServico' },
                     ]
                 },
                 {
@@ -610,6 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Administrativo', icon: 'fas fa-cogs',
                     submenu: [
                         { label: 'Frente de Plantio', icon: 'fas fa-tractor', target: 'frenteDePlantio', permission: 'frenteDePlantio' },
+                        { label: 'Cadastros Auxiliares', icon: 'fas fa-database', target: 'cadastrosAuxiliares', permission: 'configuracoes' },
                         { label: 'Cadastros', icon: 'fas fa-book', target: 'cadastros', permission: 'configuracoes' },
                         { label: 'Cadastrar Pessoas', icon: 'fas fa-id-card', target: 'cadastrarPessoas', permission: 'cadastrarPessoas' },
                         { label: 'Gerir Utilizadores', icon: 'fas fa-users-cog', target: 'gerenciarUsuarios', permission: 'gerenciarUsuarios' },
@@ -671,6 +673,11 @@ document.addEventListener('DOMContentLoaded', () => {
             charts: {},
             harvestPlans: [],
             activeHarvestPlan: null,
+            tipos_servico: [],
+            operacoes: [],
+            produtos: [],
+            operacao_produtos: [],
+            ordens_servico: [],
             inactivityTimer: null,
             inactivityWarningTimer: null,
             unsubscribeListeners: [],
@@ -743,7 +750,9 @@ document.addEventListener('DOMContentLoaded', () => {
             osManual: {
                 farmSelect: document.getElementById('osFarmSelect'),
                 serviceType: document.getElementById('osServiceType'),
-                responsible: document.getElementById('osResponsible'),
+                operation: document.getElementById('osOperation'),
+                responsibleMatricula: document.getElementById('osResponsibleMatricula'),
+                responsibleName: document.getElementById('osResponsibleName'),
                 observations: document.getElementById('osObservations'),
                 totalArea: document.getElementById('osTotalArea'),
                 plotsList: document.getElementById('osPlotsList'),
@@ -2516,7 +2525,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
                 // Core Collections loaded on startup
-                const coreCollections = ['users', 'fazendas', 'personnel', 'frentesDePlantio'];
+                const coreCollections = ['users', 'fazendas', 'personnel', 'frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico'];
                 coreCollections.forEach(col => this.subscribeTo(col));
 
                 if (isSuperAdmin) {
@@ -3429,11 +3438,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha', 'relatorioQualidadePlantio'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
+                if (id === 'ordemServicoEscritorio' && App.osEscritorio) App.osEscritorio.renderList();
                 if (['lancamentoBroca', 'lancamentoPerda', 'lancamentoCigarrinha', 'apontamentoPlantio', 'qualidadePlantio'].includes(id)) this.setDefaultDatesForEntryForms();
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
                 this.closeAllMenus();
                 perfLogger.end(`showTab:${id}`);
+            },
+
+            switchAuxTab(tabId) {
+                document.querySelectorAll('.aux-tab-content').forEach(el => el.style.display = 'none');
+                const target = document.getElementById(`aux-tab-${tabId}`);
+                if (target) target.style.display = 'block';
+
+                document.querySelectorAll('#cadastrosAuxiliares .qualidade-tab').forEach(btn => btn.classList.remove('active'));
+                const clickedBtn = document.querySelector(`#cadastrosAuxiliares .qualidade-tab[onclick*="'${tabId}'"]`);
+                if(clickedBtn) clickedBtn.classList.add('active');
+
+                if (App.cadastrosAuxiliares) {
+                    if (tabId === 'tipos') App.cadastrosAuxiliares.renderTiposServico();
+                    if (tabId === 'operacoes') App.cadastrosAuxiliares.renderOperacoes();
+                    if (tabId === 'produtos') App.cadastrosAuxiliares.renderProdutos();
+                    if (tabId === 'op_prod') {
+                        App.cadastrosAuxiliares.renderOpProd();
+                        App.cadastrosAuxiliares.populateDropdowns();
+                    }
+                }
             },
 
             // ALTERAÇÃO PONTO 4: Nova função para atualizar o sino de notificação
@@ -7332,6 +7362,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+
+                if (App.cadastrosAuxiliares) App.cadastrosAuxiliares.setup();
+                if (App.osEscritorio) App.osEscritorio.setup();
             }
         },
 
@@ -14779,8 +14812,23 @@ document.addEventListener('DOMContentLoaded', () => {
         osManual: {
             init() {
                 this.populateFarmSelect();
+                this.populateDropdowns();
                 this.setupEventListeners();
                 this.initMap();
+            },
+
+            populateDropdowns() {
+                const typeSelect = App.elements.osManual.serviceType;
+                const opSelect = App.elements.osManual.operation;
+
+                if (typeSelect) {
+                    typeSelect.innerHTML = '<option value="">Selecione...</option>' +
+                        (App.state.tipos_servico || []).filter(x => x.ativo).map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
+                }
+                if (opSelect) {
+                    opSelect.innerHTML = '<option value="">Selecione...</option>' +
+                        (App.state.operacoes || []).filter(x => x.ativo).map(op => `<option value="${op.id}">${op.nome}</option>`).join('');
+                }
             },
 
             setupEventListeners() {
@@ -14788,13 +14836,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!els.farmSelect) return;
 
                 els.farmSelect.addEventListener('change', () => this.handleFarmChange());
+
+                if (els.responsibleMatricula) {
+                    els.responsibleMatricula.addEventListener('input', App.debounce((e) => this.lookupResponsible(e.target.value), 500));
+                }
+
+                if (els.operation) {
+                    els.operation.addEventListener('change', () => this.handleOperationChange());
+                }
+
                 els.btnGenerate.addEventListener('click', () => this.generateOS());
 
                 const selectAllBtn = document.getElementById('osSelectAllPlotsBtn');
                 if (selectAllBtn) {
                     selectAllBtn.addEventListener('click', (e) => {
                         e.preventDefault();
-                        const plotCheckboxes = Array.from(App.elements.osManual.plotsList.querySelectorAll('input[type="checkbox"]'));
+                        const plotCheckboxes = Array.from(els.plotsList.querySelectorAll('input[type="checkbox"]'));
                         if (plotCheckboxes.length === 0) return;
 
                         const allChecked = plotCheckboxes.every(cb => cb.checked);
@@ -14810,20 +14867,110 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (els.btnCenterMap) {
-                    els.btnCenterMap.addEventListener('click', () => this.zoomToFarm(App.elements.osManual.farmSelect.options[App.elements.osManual.farmSelect.selectedIndex].text.split(' - ')[0]));
+                    els.btnCenterMap.addEventListener('click', () => {
+                        const farmCode = els.farmSelect.options[els.farmSelect.selectedIndex]?.text?.split(' - ')[0];
+                        if(farmCode) this.zoomToFarm(farmCode);
+                    });
                 }
+
                 const btnToggleOSPanel = document.getElementById('btnToggleOSPanel');
-                if (btnToggleOSPanel) {
-                    btnToggleOSPanel.addEventListener('click', () => this.toggleMapSize());
-                }
+                if (btnToggleOSPanel) btnToggleOSPanel.addEventListener('click', () => this.toggleMapSize());
                 const btnRecolherMapa = document.getElementById('btn-recolher-mapa-os');
-                if (btnRecolherMapa) {
-                    btnRecolherMapa.addEventListener('click', () => this.toggleMapSize());
-                }
+                if (btnRecolherMapa) btnRecolherMapa.addEventListener('click', () => this.toggleMapSize());
                 const btnMobileToggleMap = document.getElementById('btnMobileToggleMap');
-                if (btnMobileToggleMap) {
-                    btnMobileToggleMap.addEventListener('click', () => this.toggleMapSize());
+                if (btnMobileToggleMap) btnMobileToggleMap.addEventListener('click', () => this.toggleMapSize());
+            },
+
+            lookupResponsible(matricula) {
+                const nameInput = App.elements.osManual.responsibleName;
+                if (!matricula) {
+                    nameInput.value = '';
+                    return;
                 }
+                const person = App.state.personnel.find(p => String(p.matricula) === String(matricula));
+                if (person) {
+                    nameInput.value = person.name;
+                } else {
+                    nameInput.value = 'Não encontrado';
+                }
+            },
+
+            handleOperationChange() {
+                const opId = App.elements.osManual.operation.value;
+                const section = document.getElementById('osProductSection');
+                const list = document.getElementById('osProductsList');
+
+                if (!opId) {
+                    section.style.display = 'none';
+                    return;
+                }
+
+                const links = (App.state.operacao_produtos || []).filter(l => l.operacao_id === opId);
+
+                if (links.length === 0) {
+                    list.innerHTML = '<p>Sem produtos vinculados.</p>';
+                    section.style.display = 'block';
+                    this.updateProductCalculations();
+                    return;
+                }
+
+                let html = '';
+                links.forEach(link => {
+                    const prod = App.state.produtos.find(p => p.id === link.produto_id);
+                    if (!prod) return;
+
+                    const checked = link.obrigatorio ? 'checked disabled' : 'checked';
+
+                    html += `
+                        <div class="product-item" style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+                            <input type="checkbox" class="os-prod-cb" data-id="${prod.id}" data-name="${prod.nome}" data-unit="${prod.unidade}" ${checked}>
+                            <span style="flex: 1;">${prod.nome} (${prod.unidade})</span>
+                            <input type="number" class="os-prod-dosage" value="${link.dosagem_por_ha}" step="0.001" style="width: 80px;">
+                            <span>/ha</span>
+                        </div>
+                    `;
+                });
+
+                list.innerHTML = html;
+                section.style.display = 'block';
+
+                list.querySelectorAll('.os-prod-cb, .os-prod-dosage').forEach(el => {
+                    el.addEventListener('change', () => this.updateProductCalculations());
+                    if (el.tagName === 'INPUT' && el.type === 'number') {
+                         el.addEventListener('input', () => this.updateProductCalculations());
+                    }
+                });
+
+                this.updateProductCalculations();
+            },
+
+            updateProductCalculations() {
+                const totalArea = App.state.osTotalArea || 0;
+                const preview = document.getElementById('osProductsPreview');
+                const list = document.getElementById('osProductsList');
+
+                if (!list || !preview) return;
+
+                let html = '<table style="width:100%; font-size: 13px;"><thead><tr><th>Produto</th><th>Dosagem</th><th>Total</th></tr></thead><tbody>';
+
+                const items = list.querySelectorAll('.product-item');
+                let hasProducts = false;
+
+                items.forEach(item => {
+                    const cb = item.querySelector('.os-prod-cb');
+                    if (cb.checked) {
+                        hasProducts = true;
+                        const prodName = cb.dataset.name;
+                        const dosage = parseFloat(item.querySelector('.os-prod-dosage').value) || 0;
+                        const total = (dosage * totalArea).toFixed(3);
+                        const unit = cb.dataset.unit;
+
+                        html += `<tr><td>${prodName}</td><td>${dosage}</td><td>${total} ${unit}</td></tr>`;
+                    }
+                });
+
+                html += '</tbody></table>';
+                preview.innerHTML = hasProducts ? html : '';
             },
 
             initMap() {
@@ -15011,6 +15158,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 App.state.osSelectedPlots.clear(); // Limpa o estado dos dados
                 this.updateTotalArea();
+                this.updateProductCalculations();
 
                 if (farm) {
                     this.renderPlotsList(farm.talhoes);
@@ -15021,7 +15169,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (App.state.osMap) {
                         const map = App.state.osMap;
                         if (map.getLayer('os-talhoes-layer')) {
-                            map.setFilter('os-talhoes-layer', null); // Reset filter or hide all
+                            map.setFilter('os-talhoes-layer', null);
                             map.setFilter('os-talhoes-border-layer', null);
                             map.setFilter('os-talhoes-labels', null);
                         }
@@ -15064,10 +15212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             filterMap(farmCode) {
                 const map = App.state.osMap;
                 if (!map || !map.getLayer('os-talhoes-layer')) return;
-
-                // Filter by 'AGV_FUNDO' property which stores the farm code
                 const filter = ['==', ['get', 'AGV_FUNDO'], String(farmCode)];
-
                 map.setFilter('os-talhoes-layer', filter);
                 map.setFilter('os-talhoes-border-layer', filter);
                 map.setFilter('os-talhoes-labels', filter);
@@ -15090,7 +15235,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const talhaoName = feature.properties.AGV_TALHAO;
                 const farmCode = feature.properties.AGV_FUNDO;
 
-                // Find the plot in the current farm's list to get its internal ID and area
                 const farm = App.state.fazendas.find(f => f.code == farmCode);
                 if (!farm) return;
 
@@ -15102,20 +15246,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!isSelected) {
                     App.state.osSelectedPlots.add(talhao.id);
                     if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: true });
-
-                    // Update list checkbox
                     const checkbox = document.getElementById(`os-plot-${talhao.id}`);
                     if (checkbox) checkbox.checked = true;
                 } else {
                     App.state.osSelectedPlots.delete(talhao.id);
                     if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
-
-                    // Update list checkbox
                     const checkbox = document.getElementById(`os-plot-${talhao.id}`);
                     if (checkbox) checkbox.checked = false;
                 }
 
                 this.updateTotalArea();
+                this.updateProductCalculations();
             },
 
             togglePlotSelectionFromList(talhao, isChecked) {
@@ -15127,7 +15268,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.osSelectedPlots.delete(talhao.id);
                 }
 
-                // Sync with map if initialized
                 if (map && map.getLayer('os-talhoes-layer')) {
                     const farmCode = App.state.fazendas.find(f => f.id === App.elements.osManual.farmSelect.value)?.code;
                     if (farmCode && App.state.geoJsonData && App.state.geoJsonData.features) {
@@ -15142,17 +15282,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 this.updateTotalArea();
+                this.updateProductCalculations();
             },
 
             updateTotalArea() {
                 const farmId = App.elements.osManual.farmSelect.value;
                 if (!farmId) {
                     App.elements.osManual.totalArea.textContent = '0.00 ha';
+                    App.state.osTotalArea = 0;
                     return;
                 }
 
                 const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm) return;
+                if (!farm) {
+                    App.state.osTotalArea = 0;
+                    return;
+                }
 
                 let total = 0;
                 App.state.osSelectedPlots.forEach(id => {
@@ -15164,130 +15309,150 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async generateOS() {
-                const { farmSelect, serviceType, responsible, observations } = App.elements.osManual;
+                const { farmSelect, serviceType, operation, responsibleMatricula, responsibleName, observations } = App.elements.osManual;
 
-                if (!farmSelect.value) {
-                    App.ui.showAlert("Selecione uma fazenda.", "error");
-                    return;
-                }
-                if (App.state.osSelectedPlots.size === 0) {
-                    App.ui.showAlert("Selecione pelo menos um talhão.", "error");
-                    return;
-                }
+                if (!farmSelect.value) return App.ui.showAlert("Selecione uma fazenda.", "warning");
+                if (!responsibleMatricula.value || responsibleName.value === 'Não encontrado') return App.ui.showAlert("Informe um responsável válido.", "warning");
+                if (!serviceType.value) return App.ui.showAlert("Selecione o tipo de serviço.", "warning");
+                if (!operation.value) return App.ui.showAlert("Selecione a operação.", "warning");
+                if (App.state.osSelectedPlots.size === 0) return App.ui.showAlert("Selecione pelo menos um talhão.", "warning");
 
+                // Check Max Applications
+                const op = App.state.operacoes.find(o => o.id === operation.value);
+                const maxApp = op ? (op.max_aplicacoes || 99) : 99;
+
+                const blockedPlots = [];
+                const warnings = [];
                 const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
-                const selectedPlotsData = [];
-                let totalArea = 0;
 
-                App.state.osSelectedPlots.forEach(id => {
-                    const t = farm.talhoes.find(plot => plot.id === id);
-                    if (t) {
-                        // Backend expects simple strings for map highlighting logic
-                        selectedPlotsData.push(t.name);
-                        totalArea += t.area;
+                App.state.osSelectedPlots.forEach(talhaoId => {
+                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
+                    if(!talhao) return;
+
+                    const count = (App.state.ordens_servico || []).filter(os =>
+                        os.operacao_id === operation.value &&
+                        os.fazenda_id === farmSelect.value &&
+                        os.status !== 'CANCELADA' &&
+                        os.itens.some(item => item.talhao_id === talhao.name) // assuming name match, better if ID
+                    ).length;
+
+                    if (count >= maxApp) {
+                        blockedPlots.push(talhao.name);
+                    } else if (count > 0) {
+                        warnings.push(`${talhao.name} (${count}ª ap.)`);
+                    }
+                });
+
+                if (blockedPlots.length > 0) {
+                    return App.ui.showAlert(`Bloqueio: Limite de aplicações excedido para: ${blockedPlots.join(', ')}`, 'error');
+                }
+
+                if (warnings.length > 0) {
+                    const confirm = await App.ui.confirmCustom(`Alertas de re-aplicação: ${warnings.join(', ')}. Continuar?`);
+                    if (!confirm) return;
+                }
+
+                // Prepare Data
+                const products = [];
+                document.querySelectorAll('#osProductsList .product-item').forEach(item => {
+                    const cb = item.querySelector('.os-prod-cb');
+                    if (cb.checked) {
+                        products.push({
+                            produto_id: cb.dataset.id,
+                            produto_nome: cb.dataset.name,
+                            unidade: cb.dataset.unit,
+                            dosagem_por_ha: parseFloat(item.querySelector('.os-prod-dosage').value),
+                            qtde_total: parseFloat(item.querySelector('.os-prod-dosage').value) * App.state.osTotalArea
+                        });
+                    }
+                });
+
+                const plots = [];
+                App.state.osSelectedPlots.forEach(talhaoId => {
+                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
+                    if(talhao) {
+                        plots.push({
+                            talhao_id: talhao.name,
+                            talhao_nome: talhao.name,
+                            variedade: talhao.variedade,
+                            area_ha: talhao.area
+                        });
                     }
                 });
 
                 const osData = {
+                    os_numero: Date.now(),
+                    data: new Date().toISOString().split('T')[0],
+                    safra: App.state.globalConfigs?.safra || '24/25',
+                    ciclo: App.state.globalConfigs?.ciclo || '1',
+                    fazenda_id: farm.id,
+                    fazenda_nome: farm.name,
+                    responsavel_matricula: responsibleMatricula.value,
+                    responsavel_nome: responsibleName.value,
+                    usuario_abertura_id: App.state.currentUser.uid,
+                    usuario_abertura_nome: App.state.currentUser.username || App.state.currentUser.email,
                     companyId: App.state.currentUser.companyId,
-                    generatedBy: App.state.currentUser.username,
-                    farmId: farm.id, // Required by backend
-                    farmName: farm.name,
-                    farmCode: farm.code,
-                    serviceType: serviceType.value,
-                    responsible: responsible.value,
-                    observations: observations.value,
-                    selectedPlots: selectedPlotsData, // Backend expects 'selectedPlots' as array of strings
-                    totalArea: totalArea,
-                    createdAt: new Date().toISOString() // Send as ISO string for backend consistency
+                    tipo_servico_id: serviceType.value,
+                    tipo_servico_desc: App.state.tipos_servico.find(t => t.id === serviceType.value)?.descricao,
+                    operacao_id: operation.value,
+                    operacao_nome: op.nome,
+                    status: 'ABERTA',
+                    total_area_ha: App.state.osTotalArea,
+                    observacoes: observations.value,
+                    itens: plots,
+                    produtos: products,
+                    created_at: new Date().toISOString(),
+                    companyId: App.state.currentUser.companyId
                 };
 
-                App.ui.setLoading(true, "A gerar Ordem de Serviço...");
-
                 try {
-                    const token = await auth.currentUser.getIdToken();
-                    // 1. Save to Firestore
-                    const saveResponse = await fetch(`${App.config.backendUrl}/api/os`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify(osData)
-                    });
+                    const docRef = await App.data.addDocument('ordens_servico', osData);
+                    App.ui.showAlert('O.S. Gerada com Sucesso!', 'success');
 
-                    if (!saveResponse.ok) throw new Error("Falha ao salvar a O.S.");
-                    const savedOS = await saveResponse.json();
+                    const filename = `OS_${osData.os_numero}.pdf`;
+                    App.reports._fetchAndDownloadReportByUrl(`${App.config.backendUrl}/api/reports/os/${docRef.id}/pdf`, {}, filename);
 
-                    // 2. Generate PDF
-                    const reportParams = new URLSearchParams({
-                        osId: savedOS.id,
-                        companyId: App.state.currentUser.companyId,
-                    });
+                    this.resetForm();
+                } catch (e) {
+                    console.error(e);
+                    App.ui.showAlert(`Erro: ${e.message}`, 'error');
+                }
+            },
 
-                    const pdfUrl = `${App.config.backendUrl}/reports/os/pdf?${reportParams.toString()}`;
+            resetForm() {
+                const els = App.elements.osManual;
+                els.responsibleMatricula.value = '';
+                els.responsibleName.value = '';
+                els.observations.value = '';
+                els.operation.value = '';
+                els.serviceType.value = '';
+                els.farmSelect.value = '';
 
-                    // Trigger download with Authentication header
-                    const pdfResponse = await fetch(pdfUrl, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
+                document.getElementById('osProductSection').style.display = 'none';
+                document.getElementById('osProductsList').innerHTML = '';
+                document.getElementById('osProductsPreview').innerHTML = '';
 
-                    if (!pdfResponse.ok) throw new Error("Falha ao gerar o PDF.");
+                App.state.osSelectedPlots.clear();
+                this.updateTotalArea();
 
-                    const blob = await pdfResponse.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = url;
-                    a.download = `OS_${farm.code}_${new Date().getTime()}.pdf`;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
+                els.plotsList.innerHTML = '<p style="color: #888; text-align: center;">Selecione uma fazenda para carregar os talhões.</p>';
 
-                    App.ui.showAlert("Ordem de Serviço gerada com sucesso!", "success");
-
-                    // Reset do formulário completo
-                    farmSelect.value = '';
-                    serviceType.value = '';
-                    responsible.value = '';
-                    observations.value = '';
-                    this.handleFarmChange(); // Isso vai limpar a lista e o mapa
-
-                } catch (error) {
-                    console.error("Erro ao gerar OS:", error);
-                    App.ui.showAlert(`Erro ao gerar O.S.: ${error.message}`, "error");
-                } finally {
-                    App.ui.setLoading(false);
+                if (App.state.osMap) {
+                    const map = App.state.osMap;
+                    if (map.getLayer('os-talhoes-layer')) {
+                        map.setFilter('os-talhoes-layer', null);
+                        map.setFilter('os-talhoes-border-layer', null);
+                        map.setFilter('os-talhoes-labels', null);
+                    }
                 }
             },
 
             toggleMapSize() {
-                const container = document.getElementById('ordemServicoManual');
-                const btnToggle = document.getElementById('btnToggleOSPanel');
-                const btnRecolher = document.getElementById('btn-recolher-mapa-os');
-
-                container.classList.toggle('map-expanded');
-                const isExpanded = container.classList.contains('map-expanded');
-
-                if (btnToggle) {
-                    btnToggle.innerHTML = isExpanded ? '<i class="fas fa-compress-arrows-alt"></i>' : '<i class="fas fa-expand-arrows-alt"></i>';
-                    btnToggle.title = isExpanded ? 'Recolher Mapa' : 'Expandir Mapa';
-                }
-
-                if (btnRecolher) {
-                    // Mostra o botão de recolher apenas em telas pequenas E quando o mapa ESTÁ expandido
-                    if (window.innerWidth <= 768 && isExpanded) {
-                        btnRecolher.style.display = 'flex';
-                    } else {
-                        btnRecolher.style.display = 'none';
-                    }
-                }
-
-                if (App.state.osMap) {
-                    setTimeout(() => App.state.osMap.resize(), 400); // Wait for CSS transition
-                }
+                const section = document.getElementById('ordemServicoManual');
+                section.classList.toggle('map-expanded');
+                setTimeout(() => {
+                    if (App.state.osMap) App.state.osMap.resize();
+                }, 500);
             }
         },
 
@@ -17752,6 +17917,306 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._fetchAndDownloadReport('risk-view/csv', filters, 'relatorio_de_risco.csv');
             },
         },
+
+        osEscritorio: {
+            setup() {
+                const btnFilter = document.getElementById('btnFilterOS');
+                if (btnFilter) btnFilter.addEventListener('click', () => this.renderList());
+            },
+
+            renderList() {
+                const listContainer = document.getElementById('osOfficeList');
+                if (!listContainer) return;
+
+                const start = document.getElementById('osOfficeStart').value;
+                const end = document.getElementById('osOfficeEnd').value;
+                const status = document.getElementById('osOfficeStatus').value;
+
+                let data = App.state.ordens_servico || [];
+
+                if (start) data = data.filter(d => d.data >= start);
+                if (end) data = data.filter(d => d.data <= end);
+                if (status) data = data.filter(d => d.status === status);
+
+                data.sort((a, b) => b.os_numero - a.os_numero);
+
+                if (data.length === 0) {
+                    listContainer.innerHTML = '<p style="padding: 20px; text-align: center;">Nenhuma O.S. encontrada.</p>';
+                    return;
+                }
+
+                let html = '<table style="width:100%"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
+
+                html += data.map(os => `
+                    <tr>
+                        <td>${new Date(os.data + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                        <td>${os.os_numero}</td>
+                        <td>${os.responsavel_nome}</td>
+                        <td>${os.operacao_nome}</td>
+                        <td><span class="plano-status ${os.status === 'FINALIZADA' ? 'concluido' : 'pendente'}">${os.status}</span></td>
+                        <td>
+                            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                                <button class="btn-secondary" style="padding: 6px;" title="Baixar PDF" onclick="App.osEscritorio.downloadPDF('${os.id}', '${os.os_numero}')"><i class="fas fa-file-pdf"></i></button>
+                                ${os.status !== 'FINALIZADA' ?
+                                    `<button class="save" style="padding: 6px; background: var(--color-success);" title="Finalizar" onclick="App.osEscritorio.finalizeOS('${os.id}')"><i class="fas fa-check"></i></button>`
+                                    : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+
+                html += '</tbody></table>';
+                listContainer.innerHTML = html;
+            },
+
+            async finalizeOS(osId) {
+                if (!await App.ui.confirmCustom('Deseja realmente finalizar esta O.S.?')) return;
+
+                try {
+                    await App.data.updateDocument('ordens_servico', osId, {
+                        status: 'FINALIZADA',
+                        finalizado_em: new Date().toISOString()
+                    });
+                    App.ui.showAlert('O.S. Finalizada!', 'success');
+                    // Manually update state for immediate feedback if listener is slow
+                    const os = App.state.ordens_servico.find(o => o.id === osId);
+                    if(os) os.status = 'FINALIZADA';
+                    this.renderList();
+                } catch (e) {
+                    console.error(e);
+                    App.ui.showAlert('Erro ao finalizar.', 'error');
+                }
+            },
+
+            async downloadPDF(osId, osNumero) {
+                try {
+                    const filename = `OS_${osNumero}.pdf`;
+                    const reportParams = new URLSearchParams({
+                        osId: osId,
+                        companyId: App.state.currentUser.companyId,
+                    });
+                    const url = `${App.config.backendUrl}/reports/os/pdf?${reportParams.toString()}`;
+                    await App.reports._fetchAndDownloadReportByUrl(url, {}, filename);
+                } catch (e) {
+                    console.error(e);
+                    App.ui.showAlert('Erro ao baixar PDF.', 'error');
+                }
+            }
+        },
+
+        cadastrosAuxiliares: {
+            setup() {
+                const btnSaveTipo = document.getElementById('btnSaveTipoServico');
+                if (btnSaveTipo) btnSaveTipo.addEventListener('click', () => this.saveTipoServico());
+
+                const btnSaveOp = document.getElementById('btnSaveOperacao');
+                if (btnSaveOp) btnSaveOp.addEventListener('click', () => this.saveOperacao());
+
+                const btnSaveProd = document.getElementById('btnSaveProduto');
+                if (btnSaveProd) btnSaveProd.addEventListener('click', () => this.saveProduto());
+
+                const btnSaveOpProd = document.getElementById('btnSaveOpProd');
+                if (btnSaveOpProd) btnSaveOpProd.addEventListener('click', () => this.saveOpProd());
+
+                // Populate Dropdowns in Op x Prod
+                this.populateDropdowns();
+            },
+
+            populateDropdowns() {
+                const opSelect = document.getElementById('opProdOperacao');
+                const prodSelect = document.getElementById('opProdProduto');
+
+                if(opSelect) {
+                    opSelect.innerHTML = '<option value="">Selecione...</option>' +
+                        (App.state.operacoes || []).filter(x => x.ativo).map(op => `<option value="${op.id}">${op.nome}</option>`).join('');
+                }
+                if(prodSelect) {
+                    prodSelect.innerHTML = '<option value="">Selecione...</option>' +
+                        (App.state.produtos || []).filter(x => x.ativo).map(p => `<option value="${p.id}">${p.nome} (${p.unidade})</option>`).join('');
+                }
+            },
+
+            async saveTipoServico() {
+                const desc = document.getElementById('tipoServicoDesc').value;
+                const ativo = document.getElementById('tipoServicoAtivo').checked;
+
+                if (!desc) return App.ui.showAlert('Preencha a descrição.', 'warning');
+
+                const data = {
+                    descricao: desc,
+                    ativo: ativo,
+                    companyId: App.state.currentUser.companyId,
+                    createdAt: new Date().toISOString()
+                };
+
+                await App.data.createDocument('tipos_servico', data);
+                App.ui.showAlert('Tipo de Serviço salvo!');
+                document.getElementById('tipoServicoDesc').value = '';
+                this.renderTiposServico();
+            },
+
+            renderTiposServico() {
+                const list = document.getElementById('listaTiposServico');
+                if(!list) return;
+                const items = App.state.tipos_servico || [];
+
+                let html = '<table style="width:100%"><thead><tr><th>Descrição</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>';
+                html += items.map(item => `
+                    <tr>
+                        <td>${item.descricao}</td>
+                        <td>${item.ativo ? 'Sim' : 'Não'}</td>
+                        <td>
+                            <button class="btn-excluir" onclick="App.data.deleteDocument('tipos_servico', '${item.id}').then(() => App.cadastrosAuxiliares.renderTiposServico())">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+                html += '</tbody></table>';
+                list.innerHTML = html;
+            },
+
+            async saveOperacao() {
+                const nome = document.getElementById('operacaoNome').value;
+                const maxApp = document.getElementById('operacaoMaxApp').value;
+                const codigo = document.getElementById('operacaoCodigo').value;
+                const ativo = document.getElementById('operacaoAtivo').checked;
+
+                if (!nome) return App.ui.showAlert('Preencha o nome.', 'warning');
+
+                const data = {
+                    nome,
+                    max_aplicacoes: parseInt(maxApp) || 1,
+                    codigo_externo: codigo,
+                    ativo,
+                    companyId: App.state.currentUser.companyId,
+                    createdAt: new Date().toISOString()
+                };
+
+                await App.data.createDocument('operacoes', data);
+                App.ui.showAlert('Operação salva!');
+                document.getElementById('operacaoNome').value = '';
+                this.renderOperacoes();
+                this.populateDropdowns();
+            },
+
+            renderOperacoes() {
+                const list = document.getElementById('listaOperacoes');
+                if(!list) return;
+                const items = App.state.operacoes || [];
+
+                let html = '<table style="width:100%"><thead><tr><th>Nome</th><th>Max App</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>';
+                html += items.map(item => `
+                    <tr>
+                        <td>${item.nome}</td>
+                        <td>${item.max_aplicacoes}</td>
+                        <td>${item.ativo ? 'Sim' : 'Não'}</td>
+                        <td>
+                            <button class="btn-excluir" onclick="App.data.deleteDocument('operacoes', '${item.id}').then(() => App.cadastrosAuxiliares.renderOperacoes())">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+                html += '</tbody></table>';
+                list.innerHTML = html;
+            },
+
+            async saveProduto() {
+                const nome = document.getElementById('produtoNome').value;
+                const unidade = document.getElementById('produtoUnidade').value;
+                const codigo = document.getElementById('produtoCodigo').value;
+                const ativo = document.getElementById('produtoAtivo').checked;
+
+                if (!nome) return App.ui.showAlert('Preencha o nome.', 'warning');
+
+                const data = {
+                    nome,
+                    unidade,
+                    codigo_externo: codigo,
+                    ativo,
+                    companyId: App.state.currentUser.companyId,
+                    createdAt: new Date().toISOString()
+                };
+
+                await App.data.createDocument('produtos', data);
+                App.ui.showAlert('Produto salvo!');
+                document.getElementById('produtoNome').value = '';
+                this.renderProdutos();
+                this.populateDropdowns();
+            },
+
+            renderProdutos() {
+                const list = document.getElementById('listaProdutos');
+                if(!list) return;
+                const items = App.state.produtos || [];
+
+                let html = '<table style="width:100%"><thead><tr><th>Nome</th><th>Unidade</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>';
+                html += items.map(item => `
+                    <tr>
+                        <td>${item.nome}</td>
+                        <td>${item.unidade}</td>
+                        <td>${item.ativo ? 'Sim' : 'Não'}</td>
+                        <td>
+                            <button class="btn-excluir" onclick="App.data.deleteDocument('produtos', '${item.id}').then(() => App.cadastrosAuxiliares.renderProdutos())">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+                html += '</tbody></table>';
+                list.innerHTML = html;
+            },
+
+            async saveOpProd() {
+                const operacaoId = document.getElementById('opProdOperacao').value;
+                const produtoId = document.getElementById('opProdProduto').value;
+                const dosagem = document.getElementById('opProdDosagem').value;
+                const obrigatorio = document.getElementById('opProdObrigatorio').checked;
+
+                if (!operacaoId || !produtoId || !dosagem) return App.ui.showAlert('Preencha todos os campos.', 'warning');
+
+                const data = {
+                    operacao_id: operacaoId,
+                    produto_id: produtoId,
+                    dosagem_por_ha: parseFloat(dosagem),
+                    obrigatorio,
+                    companyId: App.state.currentUser.companyId,
+                    createdAt: new Date().toISOString()
+                };
+
+                await App.data.createDocument('operacao_produtos', data);
+                App.ui.showAlert('Vínculo criado!');
+                this.renderOpProd();
+            },
+
+            renderOpProd() {
+                const list = document.getElementById('listaOpProd');
+                if(!list) return;
+                const items = App.state.operacao_produtos || [];
+
+                let html = '<table style="width:100%"><thead><tr><th>Operação</th><th>Produto</th><th>Dosagem/HA</th><th>Ações</th></tr></thead><tbody>';
+                html += items.map(item => {
+                    const op = (App.state.operacoes || []).find(o => o.id === item.operacao_id)?.nome || 'N/A';
+                    const prod = (App.state.produtos || []).find(p => p.id === item.produto_id);
+                    const prodName = prod ? `${prod.nome} (${prod.unidade})` : 'N/A';
+
+                    return `
+                    <tr>
+                        <td>${op}</td>
+                        <td>${prodName}</td>
+                        <td>${item.dosagem_por_ha}</td>
+                        <td>
+                            <button class="btn-excluir" onclick="App.data.deleteDocument('operacao_produtos', '${item.id}').then(() => App.cadastrosAuxiliares.renderOpProd())">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `}).join('');
+                html += '</tbody></table>';
+                list.innerHTML = html;
+            }
+        },
 
         pwa: {
             registerServiceWorker() {
