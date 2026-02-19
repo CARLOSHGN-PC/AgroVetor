@@ -1610,19 +1610,19 @@ try {
     });
 
     app.post('/api/os', authMiddleware, async (req, res) => {
-        const payload = req.body || {};
-        const { companyId } = payload;
+        const { companyId, farmId, farmName, selectedPlots, totalArea, serviceType, responsible, observations, createdBy } = req.body;
 
-        if (!companyId || !payload.fazenda_id || !Array.isArray(payload.os_itens) || payload.os_itens.length === 0) {
+        if (!companyId || !farmId || !selectedPlots) {
             return res.status(400).json({ message: 'Dados incompletos para criar a O.S.' });
         }
 
         try {
-            const osRef = db.collection('ordens_servico').doc();
+            const osRef = db.collection('serviceOrders').doc();
             const counterRef = db.collection('osCounters').doc(companyId);
 
             const newId = await db.runTransaction(async (transaction) => {
                 const counterDoc = await transaction.get(counterRef);
+
                 const year = new Date().getFullYear();
                 let newCount;
 
@@ -1634,43 +1634,31 @@ try {
                     transaction.update(counterRef, { count: newCount });
                 }
 
-                const osNumero = `OS-${year}-${String(newCount).padStart(5, '0')}`;
-                const nowIso = new Date().toISOString();
+                const sequentialId = `OS-${year}-${String(newCount).padStart(3, '0')}`;
+
                 const osData = {
-                    ...payload,
-                    os_numero: osNumero,
-                    status: payload.status || 'ABERTA',
-                    created_at: payload.created_at || nowIso,
-                    updated_at: nowIso,
+                    companyId,
+                    farmId,
+                    farmName,
+                    selectedPlots,
+                    serviceType: serviceType || '',
+                    responsible: responsible || '',
+                    totalArea,
+                    observations: observations || '',
+                    createdBy: createdBy || 'Sistema',
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    status: 'Created',
+                    sequentialId: sequentialId
                 };
 
                 transaction.set(osRef, osData);
-
-                (payload.os_itens || []).forEach((item) => {
-                    const key = `${payload.safra || ''}_${payload.fazenda_id}_${item.talhao_id}_${payload.operacao_id}`;
-                    const histRef = db.collection('historico_aplicacoes').doc(key);
-                    transaction.set(histRef, {
-                        chave: key,
-                        companyId,
-                        safra: payload.safra || '',
-                        fazenda_id: payload.fazenda_id,
-                        talhao_id: item.talhao_id,
-                        operacao_id: payload.operacao_id,
-                        qtd_aplicacoes: admin.firestore.FieldValue.increment(1),
-                        ultima_os_id: osRef.id,
-                        ultima_data: nowIso,
-                        updated_at: nowIso,
-                    }, { merge: true });
-                });
-
                 return osRef.id;
             });
 
             res.status(200).json({ message: 'Ordem de Serviço criada com sucesso.', id: newId });
 
         } catch (error) {
-            console.error('Erro ao criar Ordem de Serviço com ID sequencial:', error);
+            console.error("Erro ao criar Ordem de Serviço com ID sequencial:", error);
             res.status(500).json({ message: 'Erro no servidor ao criar O.S. sequencial.' });
         }
     });
