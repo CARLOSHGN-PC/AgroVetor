@@ -14,51 +14,240 @@ const generateOsPdf = async (req, res, db) => {
         if (!osId) throw new Error('ID da Ordem de Serviço não fornecido.');
         if (!companyId) throw new Error('ID da empresa não fornecido.');
 
-        const osDoc = await db.collection('serviceOrders').doc(osId).get();
+        // Note: Collection is now 'ordens_servico' based on frontend App.js update
+        const osDoc = await db.collection('ordens_servico').doc(osId).get();
         if (!osDoc.exists) throw new Error('Ordem de Serviço não encontrada.');
         const osData = osDoc.data();
+
+        // Fetch additional data if needed (e.g., Farm details, Person details)
+        // Frontend sends fazenda_id and fazenda_nome, so we might not need to fetch, but we need the code.
+        const farmDocument = await db.collection('fazendas').doc(osData.fazenda_id || osData.farmId).get();
+        const farmData = farmDocument.exists ? farmDocument.data() : null;
+        const farmCode = farmData ? farmData.code : 'N/A';
+        const farmName = osData.fazenda_nome || osData.farmName || (farmData ? farmData.name : 'N/A');
 
         const geojsonData = await getShapefileData(db, companyId);
         const logoBase64 = await getLogoBase64(db, companyId);
 
-        await generatePdfHeader(doc, 'Ordem de Serviço', logoBase64);
+        // --- PAGE 1: Tables (Model Match) ---
+        await generatePdfHeader(doc, 'OS - Ordem de Serviço / AGRICOLA', logoBase64);
 
-        // Header Info
-        doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${osData.sequentialId || osId}`, { align: 'right' });
+        // Header Rows (Matching Model)
+        const headerY = doc.y;
+        doc.fontSize(9).font('Helvetica');
 
-        const farmDocument = await db.collection('fazendas').doc(osData.farmId).get();
-        const farmData = farmDocument.exists ? farmDocument.data() : null;
-        const farmCode = farmData ? farmData.code : null;
+        // Row 1: Date and OS Number (Right aligned in header usually, but model has them in specific places)
+        // Adjusting based on standard header or custom drawing.
+        // generatePdfHeader handles the main title. We add specific fields below.
 
-        doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${farmCode || ''} - ${osData.farmName}`, { align: 'left' });
-        doc.moveDown(0.5);
+        const topY = doc.y - 15; // Move up a bit into the header space if needed, or just start below
 
-        const infoY = doc.y;
-        doc.fontSize(10).font('Helvetica');
-        doc.text(`Tipo de Serviço: ${osData.serviceType || 'N/A'}`, 30, infoY);
-        doc.text(`Responsável: ${osData.responsible || 'N/A'}`, 300, infoY);
-        doc.moveDown(1.5);
+        // Custom Header Fields Box
+        doc.rect(30, doc.y, 535, 65).stroke();
 
-        if (osData.observations) {
-            doc.text(`Observações: ${osData.observations}`);
-            doc.moveDown(1.5);
+        const row1Y = doc.y + 5;
+        // Col 1: Matrícula Encarregado / Nome
+        doc.font('Helvetica-Bold').text('Matrícula Encarregado:', 35, row1Y);
+        doc.font('Helvetica').text(osData.responsavel_matricula || osData.responsibleMatricula || 'N/A', 140, row1Y);
+
+        doc.font('Helvetica-Bold').text('Nome:', 250, row1Y);
+        doc.font('Helvetica').text(osData.responsavel_nome || osData.responsible || 'N/A', 290, row1Y);
+
+        // Right side info (Data, OS, Etapa, Safra/Ciclo) - simulating the top header row of the image
+
+        const row2Y = row1Y + 15;
+        doc.font('Helvetica-Bold').text('Usuário Abertura:', 35, row2Y);
+        doc.font('Helvetica').text(osData.usuario_abertura_nome || osData.generatedBy || generatedBy || 'N/A', 140, row2Y);
+
+        const row3Y = row2Y + 15;
+        doc.font('Helvetica-Bold').text('Produtor:', 35, row3Y);
+        doc.font('Helvetica').text(`${farmCode}   ${farmName}`, 140, row3Y);
+
+        // Extra info often found in header:
+        // Data, OS, Etapa, Safra/Ciclo, Página
+        doc.font('Helvetica-Bold').text('Data:', 400, row1Y);
+        // Prioritize manually selected date
+        let dateStr = 'N/A';
+        if (osData.data) {
+            const [y, m, d] = osData.data.split('-'); // YYYY-MM-DD
+            dateStr = `${d}/${m}/${y}`;
+        } else if (osData.createdAt) {
+            dateStr = new Date(osData.createdAt).toLocaleDateString('pt-BR');
+        } else {
+            dateStr = new Date().toLocaleDateString('pt-BR');
         }
 
-        const pageMargin = 30;
-        const contentStartY = doc.y;
-        const availableHeight = doc.page.height - contentStartY - pageMargin;
+        doc.font('Helvetica').text(dateStr, 430, row1Y);
 
-        // Map (Left)
-        const mapWidth = doc.page.width * 0.65;
-        const mapHeight = availableHeight;
-        const mapX = pageMargin;
-        const mapY = contentStartY;
+        doc.font('Helvetica-Bold').text('OS:', 490, row1Y);
+        doc.font('Helvetica').text(osData.os_numero || osData.sequentialId || osId, 515, row1Y);
 
-        // List (Right)
-        const listX = mapX + mapWidth + 15;
-        const listWidth = doc.page.width - listX - pageMargin;
+        doc.font('Helvetica-Bold').text('Etapa:', 400, row2Y);
+        doc.font('Helvetica').text(osData.tipo_servico_desc || osData.serviceType || 'N/A', 440, row2Y);
 
+        doc.font('Helvetica-Bold').text('Safra/Ciclo:', 400, row3Y);
+        const safra = osData.safra || '';
+        const ciclo = osData.ciclo || '';
+        const safraCiclo = (safra && ciclo) ? `${safra} - ${ciclo}` : (osData.safraCiclo || 'N/A');
+        doc.font('Helvetica').text(safraCiclo, 460, row3Y);
+
+        doc.moveDown(4);
+
+        // --- Main Table ---
+        // Columns: Propriedade | Fundo Agr. | Talhão | Variedade | Area | Area Rateio | Operação | Quantidade
+
+        const mainTableHeaders = [
+            'Propriedade', 'Fundo Agr.', 'Talhão', 'Variedade', 'Área', 'Área Rateio', 'Operação', 'Quantidade'
+        ];
+
+        // Prepare table data
+        const tableRows = [];
+        let totalArea = 0;
+
+        const items = osData.itens || osData.items || [];
+        // If items is empty but selectedPlots exists (legacy), convert.
+        if (items.length === 0 && osData.selectedPlots) {
+             // Fetch plot details from farmData if available
+             if (farmData && farmData.talhoes) {
+                 osData.selectedPlots.forEach(plotName => {
+                     const t = farmData.talhoes.find(pt => String(pt.name) === String(plotName));
+                     if (t) {
+                         items.push({
+                             talhao_nome: t.name,
+                             variedade: t.variedade || '',
+                             area_ha: t.area,
+                         });
+                     }
+                 });
+             }
+        }
+
+        items.forEach(item => {
+            tableRows.push([
+                farmCode, // Propriedade
+                farmName, // Fundo Agr.
+                item.talhao_nome || item.talhao || 'N/A', // Talhão
+                item.variedade || '', // Variedade
+                formatNumber(item.area_ha || 0), // Área
+                formatNumber(item.area_ha || 0), // Área Rateio (assuming same for now)
+                osData.operacao_nome || osData.operationName || osData.tipo_servico_desc || '', // Operação
+                formatNumber(item.quantidade || 0) // Quantidade
+            ]);
+            totalArea += (item.area_ha || 0);
+        });
+
+        // Add Total Row
+        tableRows.push([
+            '', '', '', 'Total', formatNumber(totalArea), formatNumber(totalArea), '', ''
+        ]);
+
+        const startY = doc.y;
+
+        // Draw Main Table
+        // Need custom column widths to match image
+        // Prop(10%), Fundo(25%), Talhao(10%), Var(10%), Area(10%), Rateio(10%), Oper(15%), Qtde(10%)
+        const tableWidth = 535;
+        const colWidths = [
+            tableWidth * 0.08,
+            tableWidth * 0.22,
+            tableWidth * 0.08,
+            tableWidth * 0.12,
+            tableWidth * 0.10,
+            tableWidth * 0.10,
+            tableWidth * 0.20,
+            tableWidth * 0.10
+        ];
+
+        drawTable(doc, mainTableHeaders, tableRows, {
+            startY: startY,
+            colWidths: colWidths,
+            fontSize: 8,
+            headerColor: '#FFFFFF', // Image has white header background with lines? Or transparent. Standard is grey usually.
+            textColor: '#000000'
+        });
+
+        doc.moveDown(1);
+
+        // --- Observations Box ---
+        if (osData.observacoes || osData.observations) {
+            doc.font('Helvetica-Bold').text('Obs.:', { continued: true });
+            doc.font('Helvetica').text(` ${osData.observacoes || osData.observations}`);
+            doc.rect(30, doc.y - 10, 535, 40).stroke(); // Box around obs
+            doc.moveDown(3);
+        } else {
+             doc.font('Helvetica-Bold').text('Obs.:');
+             doc.rect(30, doc.y, 535, 40).stroke();
+             doc.moveDown(3);
+        }
+
+        // --- Product Requisition Table ---
+        // Title
+        doc.font('Helvetica-Bold').fontSize(10).text('REQUISIÇÃO DE PRODUTOS', { align: 'center' });
+        doc.moveDown(0.5);
+
+        // Columns: Oper. | Produto | Descrição | Und. | Qtde HA | Qtde Total
+        const prodHeaders = ['Oper.', 'Produto', 'Descrição', 'Und.', 'Qtde HA', 'Qtde Total'];
+
+        const prodRows = [];
+        const products = osData.produtos || osData.products || [];
+
+        let totalProdQty = 0;
+
+        products.forEach(prod => {
+            const dosage = prod.dosagem_por_ha || prod.dosage || 0;
+            const qtyTotal = prod.qtde_total || prod.quantity || (dosage * totalArea);
+            prodRows.push([
+                osData.operacao_nome || osData.operationId || 'N/A', // Oper. (Using name as ID is internal)
+                prod.codigo_externo || prod.produto_id || prod.id || 'N/A', // Produto (Code/ID)
+                prod.produto_nome || prod.name || '', // Descrição
+                prod.unidade || prod.unit || '', // Und.
+                formatNumber(dosage), // Qtde HA
+                formatNumber(qtyTotal) // Qtde Total
+            ]);
+            totalProdQty += qtyTotal;
+        });
+
+        // Total Row for Products
+        prodRows.push([
+            '', '', '', '', 'Total:', formatNumber(totalProdQty)
+        ]);
+
+        const prodColWidths = [
+            tableWidth * 0.15,
+            tableWidth * 0.10,
+            tableWidth * 0.35,
+            tableWidth * 0.10,
+            tableWidth * 0.15,
+            tableWidth * 0.15
+        ];
+
+        drawTable(doc, prodHeaders, prodRows, {
+            colWidths: prodColWidths,
+            fontSize: 8
+        });
+
+        // --- Footer Signatures ---
+        const footerY = doc.page.height - 100;
+        doc.moveTo(30, footerY).lineTo(250, footerY).stroke();
+        doc.moveTo(315, footerY).lineTo(565, footerY).stroke();
+
+        doc.fontSize(9).font('Helvetica-Bold');
+        doc.text('TÉCNICO RESPONSÁVEL', 30, footerY + 5, { width: 220, align: 'center' });
+        doc.text('PRODUTOR', 315, footerY + 5, { width: 250, align: 'center' });
+
+
+        // --- PAGE 2: Map (Preserved & Attached) ---
         if (geojsonData) {
+            doc.addPage();
+            await generatePdfHeader(doc, 'Mapa da O.S.', logoBase64);
+            doc.fontSize(12).text(`Mapa de Aplicação - O.S. ${osData.os_numero || osData.sequentialId || osId}`, { align: 'center' });
+            doc.moveDown();
+
+            const mapWidth = 535;
+            const mapHeight = 600;
+            const mapX = 30;
+            const mapY = doc.y;
+
             const farmFeatures = geojsonData.features.filter(f => {
                 if (!f.properties) return false;
                 const propKeys = Object.keys(f.properties);
@@ -89,7 +278,17 @@ const generateOsPdf = async (req, res, db) => {
 
                 farmFeatures.forEach(feature => {
                     const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A';
-                    const isSelected = osData.selectedPlots.some(p => String(p).toUpperCase() === String(talhaoNome).toUpperCase());
+
+                    // Logic to check if selected. Legacy uses array of strings, new might use object.
+                    // Support both.
+                    let isSelected = false;
+                    const items = osData.itens || osData.items;
+                    if (Array.isArray(osData.selectedPlots)) {
+                        isSelected = osData.selectedPlots.some(p => String(p).toUpperCase() === String(talhaoNome).toUpperCase());
+                    } else if (items && Array.isArray(items)) {
+                        isSelected = items.some(item => String(item.talhao_nome).toUpperCase() === String(talhaoNome).toUpperCase());
+                    }
+
                     const fillColor = isSelected ? '#4caf50' : '#e0e0e0';
                     const strokeColor = isSelected ? '#2e7d32' : '#9e9e9e';
 
@@ -151,48 +350,9 @@ const generateOsPdf = async (req, res, db) => {
             } else {
                 doc.text('Geometria da fazenda não encontrada no shapefile.', mapX, mapY);
             }
-        } else {
-            doc.text('Shapefile não disponível.', mapX, mapY);
         }
 
-        // Draw List
-        let currentListY = contentStartY;
-        doc.fontSize(10).font('Helvetica-Bold').text('Talhões Selecionados', listX, currentListY);
-        currentListY += 15;
-
-        const headers = ['Talhão', 'Área (ha)'];
-        const colWidths = [listWidth * 0.6, listWidth * 0.4];
-
-        doc.fontSize(9);
-        doc.rect(listX, currentListY, listWidth, 15).fillAndStroke('#eee', '#ccc');
-        doc.fillColor('black');
-        doc.text(headers[0], listX + 5, currentListY + 3);
-        doc.text(headers[1], listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
-        currentListY += 15;
-
-        let totalSelectedArea = 0;
-        if (farmData && farmData.talhoes) {
-            for (const plotName of osData.selectedPlots) {
-                const talhao = farmData.talhoes.find(t => String(t.name).toUpperCase() === String(plotName).toUpperCase());
-                const area = talhao ? talhao.area : 0;
-                totalSelectedArea += area;
-
-                if (currentListY > doc.page.height - 50) {
-                     // In a real scenario we'd handle pagination, but here we just clip/stop as per original logic's constraint
-                }
-
-                doc.font('Helvetica').text(plotName, listX + 5, currentListY + 3);
-                doc.text(formatNumber(area), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
-                doc.moveTo(listX, currentListY + 15).lineTo(listX + listWidth, currentListY + 15).strokeColor('#eee').stroke();
-                currentListY += 15;
-            }
-        }
-
-        currentListY += 5;
-        doc.font('Helvetica-Bold').text('TOTAL', listX + 5, currentListY + 3);
-        doc.text(formatNumber(totalSelectedArea), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
-
-        generatePdfFooter(doc, generatedBy || osData.createdBy);
+        generatePdfFooter(doc, osData.usuario_abertura_nome || osData.generatedBy || generatedBy || 'Sistema');
         doc.end();
 
     } catch (error) {
