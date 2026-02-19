@@ -2646,12 +2646,22 @@
 
                         <div class="form-col" style="margin-bottom: 10px;">
                             <label for="osServiceType">Tipo de Serviço:</label>
-                            <input type="text" id="osServiceType" placeholder="Ex: Colheita, Plantio">
+                            <select id="osServiceType"><option value="">Selecione...</option></select>
                         </div>
 
                         <div class="form-col" style="margin-bottom: 10px;">
-                            <label for="osResponsible">Responsável:</label>
-                            <input type="text" id="osResponsible" placeholder="Nome do responsável">
+                            <label for="osResponsibleRegistration">Matrícula do Responsável:</label>
+                            <input type="text" id="osResponsibleRegistration" placeholder="Digite a matrícula">
+                        </div>
+
+                        <div class="form-col" style="margin-bottom: 10px;">
+                            <label for="osResponsible">Nome do Responsável:</label>
+                            <input type="text" id="osResponsible" placeholder="Nome do responsável" readonly>
+                        </div>
+
+                        <div class="form-col" style="margin-bottom: 10px;">
+                            <label for="osOperation">Operação:</label>
+                            <select id="osOperation"><option value="">Selecione...</option></select>
                         </div>
 
                         <div class="form-col" style="margin-bottom: 15px;">
@@ -2676,7 +2686,25 @@
                         <button id="btnGenerateOS" class="save" style="margin-top: 15px; width: 100%; max-width: none;">
                             <i class="fas fa-file-pdf"></i> Gerar O.S.
                         </button>
+                        
+
+                        <div class="card" style="margin-top: 15px; border-left-color: var(--color-warning);">
+                            <h4 style="margin-top:0;"><i class="fas fa-exclamation-triangle"></i> Validação de Aplicações</h4>
+                            <div id="osApplicationWarnings" style="font-size: 14px; color: var(--color-text-light);">Selecione uma operação e talhões para validar aplicações anteriores.</div>
                         </div>
+
+                        <div class="card" style="margin-top: 15px; border-left-color: var(--color-success);">
+                            <h4 style="margin-top:0;"><i class="fas fa-box-open"></i> Requisição de Produtos</h4>
+                            <div class="table-responsive">
+                                <table class="harvestPlanTable">
+                                    <thead><tr><th>Produto</th><th>Dosagem/ha</th><th>Unidade</th><th>Obrigatório</th><th>Qtd. Total</th></tr></thead>
+                                    <tbody id="osProductsTableBody">
+                                        <tr><td colspan="5" style="text-align:center;">Selecione uma operação para carregar os produtos.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+</div>
                     </div>
 
                     <!-- Mapa -->
@@ -2698,7 +2726,26 @@
                 </div>
             </section>
 
-            <section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>
+            
+            <section id="ordensServicoEscritorio" class="tab-content card" aria-label="Ordens de Serviço" tabindex="0" hidden>
+                <h2><i class="fas fa-list-check"></i> Ordens de Serviço (Escritório)</h2>
+                <div class="form-row">
+                    <div class="form-col"><label>Data:</label><input type="date" id="osOfficeFilterDate"></div>
+                    <div class="form-col"><label>Status:</label><select id="osOfficeFilterStatus"><option value="">Todos</option><option value="Created">Aberta</option><option value="FINALIZADA">FINALIZADA</option></select></div>
+                    <div class="form-col"><label>Usuário:</label><input type="text" id="osOfficeFilterUser" placeholder="Abertura"></div>
+                    <div class="form-col"><label>Operação:</label><input type="text" id="osOfficeFilterOperation"></div>
+                    <div class="form-col"><label>Fazenda:</label><input type="text" id="osOfficeFilterFarm"></div>
+                </div>
+                <button id="btnFilterOsOffice" class="save" style="max-width:250px;"><i class="fas fa-filter"></i> Filtrar</button>
+                <div id="osOfficeList" class="table-responsive" style="margin-top:20px;"></div>
+            </section>
+
+            <section id="adminTiposServico" class="tab-content card" hidden><h2><i class="fas fa-list"></i> Tipo de Serviço</h2><input type="hidden" id="tipoServicoId"><div class="form-row"><div class="form-col"><label>Descrição</label><input id="tipoServicoDescricao" type="text"></div><div class="form-col"><label>Ativo</label><input id="tipoServicoAtivo" type="checkbox" checked style="width:auto;"></div></div><button id="btnSaveTipoServico" class="save" style="max-width:250px;">Salvar</button><div id="tiposServicoList" class="table-responsive" style="margin-top:20px;"></div></section>
+            <section id="adminOperacoes" class="tab-content card" hidden><h2><i class="fas fa-cogs"></i> Operações</h2><input type="hidden" id="operacaoId"><div class="form-row"><div class="form-col"><label>Nome</label><input id="operacaoNome" type="text"></div><div class="form-col"><label>Máx. aplicações</label><input id="operacaoMaxAplicacoes" type="number" min="1" value="1"></div><div class="form-col"><label>Cód. externo</label><input id="operacaoCodigoExterno" type="text"></div><div class="form-col"><label>Ativo</label><input id="operacaoAtivo" type="checkbox" checked style="width:auto;"></div></div><button id="btnSaveOperacao" class="save" style="max-width:250px;">Salvar</button><div id="operacoesList" class="table-responsive" style="margin-top:20px;"></div></section>
+            <section id="adminProdutos" class="tab-content card" hidden><h2><i class="fas fa-boxes"></i> Produtos</h2><input type="hidden" id="produtoId"><div class="form-row"><div class="form-col"><label>Nome</label><input id="produtoNome" type="text"></div><div class="form-col"><label>Unidade</label><input id="produtoUnidade" type="text" placeholder="L, KG..."></div><div class="form-col"><label>Cód. externo</label><input id="produtoCodigoExterno" type="text"></div><div class="form-col"><label>Ativo</label><input id="produtoAtivo" type="checkbox" checked style="width:auto;"></div></div><button id="btnSaveProduto" class="save" style="max-width:250px;">Salvar</button><div id="produtosList" class="table-responsive" style="margin-top:20px;"></div></section>
+            <section id="adminOperacaoProdutos" class="tab-content card" hidden><h2><i class="fas fa-link"></i> Produtos por Operação</h2><input type="hidden" id="operacaoProdutoId"><div class="form-row"><div class="form-col"><label>Operação</label><select id="opProdOperacao"></select></div><div class="form-col"><label>Produto</label><select id="opProdProduto"></select></div><div class="form-col"><label>Dosagem/ha</label><input id="opProdDosagem" type="number" step="0.01"></div><div class="form-col"><label>Unidade</label><input id="opProdUnidade" type="text"></div><div class="form-col"><label>Obrigatório</label><input id="opProdObrigatorio" type="checkbox" checked style="width:auto;"></div><div class="form-col"><label>Ativo</label><input id="opProdAtivo" type="checkbox" checked style="width:auto;"></div></div><button id="btnSaveOperacaoProduto" class="save" style="max-width:250px;">Salvar</button><div id="opProdutosList" class="table-responsive" style="margin-top:20px;"></div></section>
+
+<section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>
                 <div class="card-header-actions">
                     <h2 style="color: var(--color-success); margin: 0;"><i class="fas fa-stream"></i> Planejamento de Colheita</h2>
                     <div class="button-group">
@@ -4176,7 +4223,25 @@
                             <button id="btnSaveRegApp" class="save" style="margin-top: 15px; width: 100%; max-width: none;">
                                 <i class="fas fa-save"></i> Salvar Registro
                             </button>
+                        
+
+                        <div class="card" style="margin-top: 15px; border-left-color: var(--color-warning);">
+                            <h4 style="margin-top:0;"><i class="fas fa-exclamation-triangle"></i> Validação de Aplicações</h4>
+                            <div id="osApplicationWarnings" style="font-size: 14px; color: var(--color-text-light);">Selecione uma operação e talhões para validar aplicações anteriores.</div>
                         </div>
+
+                        <div class="card" style="margin-top: 15px; border-left-color: var(--color-success);">
+                            <h4 style="margin-top:0;"><i class="fas fa-box-open"></i> Requisição de Produtos</h4>
+                            <div class="table-responsive">
+                                <table class="harvestPlanTable">
+                                    <thead><tr><th>Produto</th><th>Dosagem/ha</th><th>Unidade</th><th>Obrigatório</th><th>Qtd. Total</th></tr></thead>
+                                    <tbody id="osProductsTableBody">
+                                        <tr><td colspan="5" style="text-align:center;">Selecione uma operação para carregar os produtos.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+</div>
                     </div>
 
                     <!-- Mapa -->
