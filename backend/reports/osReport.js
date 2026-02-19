@@ -14,10 +14,7 @@ const generateOsPdf = async (req, res, db) => {
         if (!osId) throw new Error('ID da Ordem de Serviço não fornecido.');
         if (!companyId) throw new Error('ID da empresa não fornecido.');
 
-        let osDoc = await db.collection('ordens_servico').doc(osId).get();
-        if (!osDoc.exists) {
-            osDoc = await db.collection('serviceOrders').doc(osId).get();
-        }
+        const osDoc = await db.collection('serviceOrders').doc(osId).get();
         if (!osDoc.exists) throw new Error('Ordem de Serviço não encontrada.');
         const osData = osDoc.data();
 
@@ -27,27 +24,23 @@ const generateOsPdf = async (req, res, db) => {
         await generatePdfHeader(doc, 'Ordem de Serviço', logoBase64);
 
         // Header Info
-        doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${osData.os_numero || osData.sequentialId || osId}`, { align: 'right' });
+        doc.fontSize(12).font('Helvetica-Bold').text(`O.S. Nº: ${osData.sequentialId || osId}`, { align: 'right' });
 
-        const farmDocument = await db.collection('fazendas').doc(osData.fazenda_id || osData.farmId).get();
+        const farmDocument = await db.collection('fazendas').doc(osData.farmId).get();
         const farmData = farmDocument.exists ? farmDocument.data() : null;
         const farmCode = farmData ? farmData.code : null;
 
-        doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${farmCode || ''} - ${osData.fazenda_nome || osData.farmName || ''}`, { align: 'left' });
+        doc.fontSize(12).font('Helvetica-Bold').text(`Fazenda: ${farmCode || ''} - ${osData.farmName}`, { align: 'left' });
         doc.moveDown(0.5);
 
         const infoY = doc.y;
         doc.fontSize(10).font('Helvetica');
-        doc.text(`Tipo de Serviço: ${osData.tipo_servico_desc || osData.serviceType || 'N/A'}`, 30, infoY);
-        doc.text(`Operação: ${osData.operacao_nome || 'N/A'}`, 220, infoY);
-        doc.text(`Matrícula: ${osData.responsavel_matricula || '-'}`, 380, infoY);
-        doc.moveDown(0.8);
-        doc.text(`Responsável: ${osData.responsavel_nome || osData.responsible || 'N/A'}`, 30, doc.y);
-        doc.text(`Safra/Ciclo: ${osData.safra || '-'} / ${osData.ciclo || '-'}`, 300, doc.y);
+        doc.text(`Tipo de Serviço: ${osData.serviceType || 'N/A'}`, 30, infoY);
+        doc.text(`Responsável: ${osData.responsible || 'N/A'}`, 300, infoY);
         doc.moveDown(1.5);
 
-        if (osData.observacoes || osData.observations) {
-            doc.text(`Observações: ${osData.observacoes || osData.observations}`);
+        if (osData.observations) {
+            doc.text(`Observações: ${osData.observations}`);
             doc.moveDown(1.5);
         }
 
@@ -96,8 +89,7 @@ const generateOsPdf = async (req, res, db) => {
 
                 farmFeatures.forEach(feature => {
                     const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || 'N/A';
-                    const selectedNames = (osData.os_itens || []).map(i => i.talhao_nome).concat(osData.selectedPlots || []);
-                    const isSelected = selectedNames.some(p => String(p).toUpperCase() === String(talhaoNome).toUpperCase());
+                    const isSelected = osData.selectedPlots.some(p => String(p).toUpperCase() === String(talhaoNome).toUpperCase());
                     const fillColor = isSelected ? '#4caf50' : '#e0e0e0';
                     const strokeColor = isSelected ? '#2e7d32' : '#9e9e9e';
 
@@ -180,7 +172,7 @@ const generateOsPdf = async (req, res, db) => {
 
         let totalSelectedArea = 0;
         if (farmData && farmData.talhoes) {
-            for (const plotName of ((osData.os_itens||[]).map(i=>i.talhao_nome).concat(osData.selectedPlots||[]))) {
+            for (const plotName of osData.selectedPlots) {
                 const talhao = farmData.talhoes.find(t => String(t.name).toUpperCase() === String(plotName).toUpperCase());
                 const area = talhao ? talhao.area : 0;
                 totalSelectedArea += area;
@@ -200,21 +192,7 @@ const generateOsPdf = async (req, res, db) => {
         doc.font('Helvetica-Bold').text('TOTAL', listX + 5, currentListY + 3);
         doc.text(formatNumber(totalSelectedArea), listX + colWidths[0], currentListY + 3, { align: 'right', width: colWidths[1] - 5 });
 
-        doc.addPage();
-        doc.fontSize(12).font('Helvetica-Bold').text('REQUISIÇÃO DE PRODUTOS');
-        doc.moveDown(0.5);
-        const produtos = osData.os_produtos || [];
-        if (!produtos.length) {
-            doc.fontSize(10).font('Helvetica').text('Nenhum produto vinculado à O.S.');
-        } else {
-            doc.fontSize(10).font('Helvetica-Bold').text('Oper.   Produto   Und.   Qtde HA   Qtde Total');
-            doc.moveDown(0.3);
-            produtos.forEach((p) => {
-                doc.font('Helvetica').text(`${osData.operacao_nome || '-'}   ${p.produto_nome || '-'}   ${p.unidade || '-'}   ${formatNumber(p.dosagem_por_ha || 0)}   ${formatNumber(p.qtde_total || 0)}`);
-            });
-        }
-
-        generatePdfFooter(doc, generatedBy || osData.usuario_abertura_nome || osData.createdBy);
+        generatePdfFooter(doc, generatedBy || osData.createdBy);
         doc.end();
 
     } catch (error) {

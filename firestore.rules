@@ -72,30 +72,6 @@ service cloud.firestore {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
     }
-    match /ordens_servico/{docId} {
-      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
-      allow create: if canAccessCompanyData(request.resource.data.companyId);
-    }
-    match /tipos_servico/{docId} {
-      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
-      allow create: if canAccessCompanyData(request.resource.data.companyId);
-    }
-    match /operacoes/{docId} {
-      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
-      allow create: if canAccessCompanyData(request.resource.data.companyId);
-    }
-    match /produtos/{docId} {
-      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
-      allow create: if canAccessCompanyData(request.resource.data.companyId);
-    }
-    match /operacao_produtos/{docId} {
-      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
-      allow create: if canAccessCompanyData(request.resource.data.companyId);
-    }
-    match /historico_aplicacoes/{docId} {
-      allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
-      allow create: if canAccessCompanyData(request.resource.data.companyId);
-    }
     match /instalacaoOrdensDeServico/{docId} {
       allow read, update, delete: if canAccessCompanyData(resource.data.companyId);
       allow create: if canAccessCompanyData(request.resource.data.companyId);
