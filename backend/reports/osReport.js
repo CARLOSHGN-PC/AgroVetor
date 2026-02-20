@@ -49,374 +49,338 @@ const generateOsPdf = async (req, res, db) => {
 
         const geojsonData = await getShapefileData(db, companyId);
 
+        // --- HEADER ---
+        const drawHeader = (doc) => {
+             const startY = 28;
+             const pageMargin = 28;
+             const pageWidth = doc.page.width;
+             const contentWidth = pageWidth - (pageMargin * 2);
+             let y = startY;
+
+             // Header Style: Clean Grid
+             doc.lineWidth(0.5).strokeColor('#333333');
+             doc.font('Helvetica-Bold').fontSize(8); // Smaller font for header too
+             const padding = 4;
+             const rowH = 14;
+
+             // Helper to draw cell
+             const drawCell = (x, y, w, h, text, align='left', font='Helvetica-Bold') => {
+                 doc.rect(x, y, w, h).stroke();
+                 if (text) {
+                     doc.font(font).text(text, x + padding, y + padding - 1, { width: w - (padding*2), align: align, ellipsis: true });
+                 }
+             };
+
+             // Row 1
+             drawCell(pageMargin, y, contentWidth * 0.5, rowH, companyName);
+
+             let dateStr = '';
+             if (osData.data) {
+                 const parts = osData.data.split('-');
+                 if(parts.length === 3) dateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                 else dateStr = osData.data;
+             } else if (osData.createdAt) {
+                 dateStr = new Date(osData.createdAt.toDate ? osData.createdAt.toDate() : osData.createdAt).toLocaleDateString('pt-BR');
+             }
+             drawCell(pageMargin + contentWidth * 0.5, y, contentWidth * 0.25, rowH, `Data: ${dateStr}`);
+             drawCell(pageMargin + contentWidth * 0.75, y, contentWidth * 0.25, rowH, `OS: ${osData.os_numero || osData.sequentialId || osId}`);
+             y += rowH;
+
+             // Row 2
+             doc.font('Helvetica-Bold').fontSize(11).text('OS - Ordem de Serviço', pageMargin + padding, y + 2);
+             doc.rect(pageMargin, y, contentWidth * 0.5, rowH * 2).stroke(); // Title Box (2 rows height)
+             doc.fontSize(8).text('AGRICOLA', pageMargin + padding, y + 14);
+
+             drawCell(pageMargin + contentWidth * 0.5, y, contentWidth * 0.5, rowH, `Etapa: ${osData.tipo_servico_desc || osData.serviceType || ''}`);
+             y += rowH;
+
+             // Row 3
+             const safra = osData.safra || '';
+             const ciclo = osData.ciclo || '';
+             const safraCiclo = (safra || ciclo) ? `${safra}/${ciclo}` : (osData.safraCiclo || '');
+
+             // Title continued (left side handled by rect above)
+             drawCell(pageMargin + contentWidth * 0.5, y, contentWidth * 0.35, rowH, `Safra/Ciclo: ${safraCiclo}`);
+             drawCell(pageMargin + contentWidth * 0.85, y, contentWidth * 0.15, rowH, `Pág:`); // Footer handles number
+             y += rowH;
+
+             // Row 4
+             drawCell(pageMargin, y, contentWidth * 0.30, rowH, `Matrícula: ${osData.responsavel_matricula || ''}`);
+             drawCell(pageMargin + contentWidth * 0.30, y, contentWidth * 0.70, rowH, `Nome: ${osData.responsavel_nome || ''}`);
+             y += rowH;
+
+             // Row 5
+             drawCell(pageMargin, y, contentWidth, rowH, `Usuário Abertura: ${osData.usuario_abertura_nome || osData.generatedBy || generatedBy || 'Sistema'}`);
+             y += rowH;
+
+             // Row 6
+             drawCell(pageMargin, y, contentWidth, rowH, `Produtor: ${farmCode} - ${farmName}`);
+             y += rowH;
+
+             return y;
+        };
+
+        let currentY = drawHeader(doc);
+        doc.moveDown(0.5);
+        currentY += 8;
+
+        // --- MAIN TABLE (Talhões) ---
         const pageMargin = 28;
         const pageWidth = doc.page.width;
         const contentWidth = pageWidth - (pageMargin * 2);
-        const baseLineWidth = 0.7;
-        const headerRowH = 18;
-        const cellPadding = 3;
 
-        const drawCell = (x, y, w, h, text, options = {}) => {
-            const align = options.align || 'left';
-            const font = options.font || 'Helvetica';
-            const fontSize = options.fontSize || 8;
-            doc.lineWidth(baseLineWidth).rect(x, y, w, h).stroke();
-            if (text !== undefined && text !== null && text !== '') {
-                doc.font(font).fontSize(fontSize).text(String(text), x + cellPadding, y + 4, {
-                    width: w - (cellPadding * 2),
-                    align,
-                    ellipsis: true,
-                    lineBreak: false
-                });
-            }
+        const tableWidth = contentWidth * 0.65;
+        const sideBoxWidth = contentWidth * 0.35;
+        const sideBoxX = pageMargin + tableWidth;
+
+        // Adjusted Column Widths for better fit
+        // Reduced 'Operação' and 'Quantidade' slightly to give more to 'Fundo Agr.'
+        const headers = [
+            { text: 'Propriedade', width: tableWidth * 0.12, align: 'left' },
+            { text: 'Fundo Agr.', width: tableWidth * 0.28, align: 'left' }, // +3%
+            { text: 'Talhão', width: tableWidth * 0.10, align: 'center' },
+            { text: 'Variedade', width: tableWidth * 0.13, align: 'left' },
+            { text: 'Area', width: tableWidth * 0.10, align: 'right' },
+            { text: 'Area Rateio', width: tableWidth * 0.12, align: 'right' },
+            { text: 'Operação', width: tableWidth * 0.08, align: 'left' }, // -2%
+            { text: 'Qtde', width: tableWidth * 0.07, align: 'right' } // -1%
+        ];
+
+        const rowHeight = 14; // Reduced height for tighter packing but keep padding logic
+        const padding = 3;
+
+        const drawTableHeader = (y) => {
+             let x = pageMargin;
+             // Header Background
+             doc.fillColor('#f0f0f0').rect(x, y, tableWidth, rowHeight).fill();
+             doc.fillColor('black');
+
+             doc.lineWidth(0.3).strokeColor('#555555'); // Thinner lines
+             doc.rect(x, y, tableWidth, rowHeight).stroke(); // Outer border
+
+             x = pageMargin;
+             headers.forEach((col, i) => {
+                 // Vertical lines
+                 if (i > 0) doc.moveTo(x, y).lineTo(x, y + rowHeight).stroke();
+
+                 doc.font('Helvetica-Bold').fontSize(7); // Smaller bold font
+                 doc.text(col.text, x + padding, y + padding + 1, { width: col.width - (padding*2), align: col.align, ellipsis: true });
+                 x += col.width;
+             });
         };
 
-        const getDateLabel = () => {
-            if (osData.data) {
-                const parts = osData.data.split('-');
-                if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-                return osData.data;
-            }
-            if (osData.createdAt) {
-                return new Date(osData.createdAt.toDate ? osData.createdAt.toDate() : osData.createdAt).toLocaleDateString('pt-BR');
-            }
-            return '';
-        };
+        drawTableHeader(currentY);
 
-        const drawHeader = (pageNumber = 1) => {
-            let y = pageMargin;
-            const c1 = contentWidth * 0.50;
-            const c2 = contentWidth * 0.25;
-            const c3 = contentWidth * 0.25;
+        let obsBoxStartY = currentY;
+        // Obs Box Header
+        doc.lineWidth(0.3).strokeColor('#555555');
+        doc.rect(sideBoxX, currentY, sideBoxWidth, rowHeight).stroke();
+        doc.font('Helvetica-Bold').fontSize(7).text('Obs .:', sideBoxX + padding, currentY + padding + 1);
 
-            doc.strokeColor('#000000').fillColor('#000000');
-
-            drawCell(pageMargin, y, c1, headerRowH, companyName, { font: 'Helvetica-Bold', fontSize: 9 });
-            drawCell(pageMargin + c1, y, c2, headerRowH, `Data: ${getDateLabel()}`, { font: 'Helvetica-Bold', fontSize: 8 });
-            drawCell(pageMargin + c1 + c2, y, c3, headerRowH, `OS: ${osData.os_numero || osData.sequentialId || osId}`, { font: 'Helvetica-Bold', fontSize: 8 });
-            y += headerRowH;
-
-            drawCell(pageMargin, y, c1, headerRowH * 2, '');
-            doc.font('Helvetica-Bold').fontSize(11).text('OS - Ordem de Serviço', pageMargin + cellPadding, y + 2, { width: c1 - (cellPadding * 2) });
-            doc.font('Helvetica-Bold').fontSize(10).text('AGRICOLA', pageMargin + cellPadding, y + 14, { width: c1 - (cellPadding * 2) });
-
-            drawCell(pageMargin + c1, y, c2 + c3, headerRowH, `Etapa: ${osData.tipo_servico_desc || osData.serviceType || ''}`, { font: 'Helvetica-Bold', fontSize: 8 });
-            y += headerRowH;
-
-            const safraCiclo = (osData.safra || osData.ciclo) ? `${osData.safra || ''} / ${osData.ciclo || ''}` : (osData.safraCiclo || '');
-            drawCell(pageMargin + c1, y, (c2 + c3) * 0.68, headerRowH, `Safra/Ciclo: ${safraCiclo}`, { font: 'Helvetica-Bold', fontSize: 8 });
-            drawCell(pageMargin + c1 + ((c2 + c3) * 0.68), y, (c2 + c3) * 0.32, headerRowH, `Página: ${pageNumber}`, { font: 'Helvetica-Bold', fontSize: 8, align: 'right' });
-            y += headerRowH;
-
-            drawCell(pageMargin, y, contentWidth * 0.30, headerRowH, `Matrícula: ${osData.responsavel_matricula || ''}`, { font: 'Helvetica-Bold', fontSize: 8 });
-            drawCell(pageMargin + (contentWidth * 0.30), y, contentWidth * 0.70, headerRowH, `Nome: ${osData.responsavel_nome || ''}`, { font: 'Helvetica-Bold', fontSize: 8 });
-            y += headerRowH;
-
-            drawCell(pageMargin, y, contentWidth, headerRowH, `Usuário Abertura: ${osData.usuario_abertura_nome || osData.generatedBy || generatedBy || 'Sistema'}`, { font: 'Helvetica-Bold', fontSize: 8 });
-            y += headerRowH;
-
-            drawCell(pageMargin, y, contentWidth, headerRowH, `Produtor: ${farmCode} - ${farmName}`, { font: 'Helvetica-Bold', fontSize: 8 });
-            y += headerRowH;
-
-            return y + 8;
-        };
-
-        const addOsPage = (state) => {
-            doc.addPage({ size: 'A4', margin: pageMargin });
-            state.page += 1;
-            return drawHeader(state.page);
-        };
+        currentY += rowHeight;
+        doc.font('Helvetica').fontSize(7); // Content font size 7
 
         let items = osData.itens || osData.items || [];
         if (items.length === 0 && osData.selectedPlots && farmData && farmData.talhoes) {
-            osData.selectedPlots.forEach(plotName => {
-                const t = farmData.talhoes.find(pt => String(pt.name) === String(plotName));
-                if (t) {
-                    items.push({ talhao_nome: t.name, variedade: t.variedade || '', area_ha: t.area });
-                }
+             osData.selectedPlots.forEach(plotName => {
+                 const t = farmData.talhoes.find(pt => String(pt.name) === String(plotName));
+                 if (t) {
+                     items.push({ talhao_nome: t.name, variedade: t.variedade || '', area_ha: t.area });
+                 }
+             });
+        }
+
+        let totalArea = 0;
+        let totalRateio = 0;
+
+        // Obs Content
+        if (osData.observacoes || osData.observations) {
+            doc.font('Helvetica').fontSize(7);
+            doc.text(osData.observacoes || osData.observations, sideBoxX + padding, obsBoxStartY + rowHeight + padding, {
+                width: sideBoxWidth - (padding*2),
+                align: 'left'
             });
         }
 
-        const drawPlotsBlock = (startY, state) => {
-            const blockHeight = 380;
-            const titleH = 16;
-            const dataRowH = 16;
-            const totalRowH = 16;
-            const totalW = contentWidth;
-            const wLeft = totalW * 0.65;
-            const wRight = totalW - wLeft;
-            const wOpQtd = wRight * 0.40;
-            const wObs = wRight - wOpQtd;
+        const drawRow = (y, cols, isTotal=false) => {
+            let x = pageMargin;
 
-            const leftHeaders = [
-                { text: 'Propriedade', width: wLeft * 0.14, align: 'left' },
-                { text: 'Fundo Agr.', width: wLeft * 0.30, align: 'left' },
-                { text: 'Talhão', width: wLeft * 0.10, align: 'center' },
-                { text: 'Variedade', width: wLeft * 0.18, align: 'left' },
-                { text: 'Área', width: wLeft * 0.14, align: 'right' },
-                { text: 'Área Rateio', width: wLeft * 0.14, align: 'right' }
-            ];
-            const opHeaders = [
-                { text: 'Operação', width: wOpQtd * 0.66, align: 'left' },
-                { text: 'Quantidade', width: wOpQtd * 0.34, align: 'right' }
-            ];
+            if (isTotal) doc.font('Helvetica-Bold');
+            else doc.font('Helvetica');
 
-            const rowsPerPage = Math.floor((blockHeight - titleH - totalRowH) / dataRowH);
-            const totalArea = items.reduce((acc, item) => acc + (parseFloat(item.area_ha || 0) || 0), 0);
-            const totalRateio = items.reduce((acc, item) => acc + (parseFloat(item.area_rateio || item.area_ha || 0) || 0), 0);
-            const totalPagesForPlots = Math.max(1, Math.ceil(items.length / rowsPerPage));
+            // Draw Row Border
+            doc.rect(x, y, tableWidth, rowHeight).stroke();
 
-            const obsText = osData.observacoes || osData.observations || '';
+            x = pageMargin;
+            cols.forEach((col, i) => {
+                if (i > 0) doc.moveTo(x, y).lineTo(x, y + rowHeight).stroke();
 
-            for (let pageIdx = 0; pageIdx < totalPagesForPlots; pageIdx += 1) {
-                const y = pageIdx === 0 ? startY : addOsPage(state);
-                const x = pageMargin;
-                const leftX = x;
-                const rightX = x + wLeft;
-                const opX = rightX;
-                const obsX = rightX + wOpQtd;
-                const tableTop = y;
-                const dataStartY = tableTop + titleH;
-                const totalY = dataStartY + (rowsPerPage * dataRowH);
-                const blockBottom = totalY + totalRowH;
-
-                doc.lineWidth(baseLineWidth).strokeColor('#000000');
-                doc.rect(x, tableTop, totalW, blockHeight).stroke();
-                doc.moveTo(rightX, tableTop).lineTo(rightX, tableTop + blockHeight).stroke();
-                doc.moveTo(obsX, tableTop).lineTo(obsX, tableTop + blockHeight).stroke();
-                doc.moveTo(opX + opHeaders[0].width, tableTop).lineTo(opX + opHeaders[0].width, blockBottom).stroke();
-
-                doc.moveTo(leftX, dataStartY).lineTo(rightX + wOpQtd, dataStartY).stroke();
-                doc.moveTo(obsX, dataStartY).lineTo(x + totalW, dataStartY).stroke();
-
-                let cursorX = leftX;
-                leftHeaders.forEach((col, i) => {
-                    if (i > 0) doc.moveTo(cursorX, tableTop).lineTo(cursorX, blockBottom).stroke();
-                    doc.font('Helvetica-Bold').fontSize(7).text(col.text, cursorX + cellPadding, tableTop + 4, {
-                        width: col.width - (cellPadding * 2),
-                        align: col.align,
-                        lineBreak: false,
-                        ellipsis: true
-                    });
-                    cursorX += col.width;
-                });
-
-                let opCursorX = opX;
-                opHeaders.forEach((col, i) => {
-                    if (i > 0) doc.moveTo(opCursorX, tableTop).lineTo(opCursorX, dataStartY).stroke();
-                    doc.font('Helvetica-Bold').fontSize(7).text(col.text, opCursorX + cellPadding, tableTop + 4, {
-                        width: col.width - (cellPadding * 2),
-                        align: col.align,
-                        lineBreak: false,
-                        ellipsis: true
-                    });
-                    opCursorX += col.width;
-                });
-
-                doc.font('Helvetica-Bold').fontSize(8).text('Obs.:', obsX + cellPadding, tableTop + 4, {
-                    width: wObs - (cellPadding * 2),
-                    align: 'left',
-                    lineBreak: false
-                });
-
-                if (pageIdx === 0 && obsText) {
-                    doc.font('Helvetica').fontSize(7).text(obsText, obsX + cellPadding, dataStartY + cellPadding, {
-                        width: wObs - (cellPadding * 2),
-                        height: blockHeight - titleH - cellPadding,
-                        align: 'left'
-                    });
-                }
-
-                for (let row = 0; row < rowsPerPage; row += 1) {
-                    const rowTop = dataStartY + (row * dataRowH);
-                    const rowBottom = rowTop + dataRowH;
-                    doc.moveTo(leftX, rowBottom).lineTo(rightX + wOpQtd, rowBottom).stroke();
-
-                    const item = items[(pageIdx * rowsPerPage) + row];
-                    if (!item) continue;
-
-                    const area = parseFloat(item.area_ha || 0) || 0;
-                    const areaRateio = parseFloat(item.area_rateio || item.area_ha || 0) || 0;
-                    const rowValues = [
-                        farmCode,
-                        farmName,
-                        item.talhao_nome || item.talhao || '',
-                        item.variedade || '',
-                        formatNumber(area),
-                        formatNumber(areaRateio)
-                    ];
-
-                    cursorX = leftX;
-                    rowValues.forEach((value, i) => {
-                        doc.font('Helvetica').fontSize(7).text(String(value), cursorX + cellPadding, rowTop + 4, {
-                            width: leftHeaders[i].width - (cellPadding * 2),
-                            align: leftHeaders[i].align,
-                            lineBreak: false,
-                            ellipsis: true
-                        });
-                        cursorX += leftHeaders[i].width;
-                    });
-
-                    const opText = item.operacao_nome || osData.operacao_nome || osData.tipo_servico_desc || '';
-                    const qtyText = formatNumber(item.quantidade || 0);
-                    doc.font('Helvetica').fontSize(7).text(opText, opX + cellPadding, rowTop + 4, {
-                        width: opHeaders[0].width - (cellPadding * 2),
-                        align: 'left',
-                        lineBreak: false,
-                        ellipsis: true
-                    });
-                    doc.font('Helvetica').fontSize(7).text(qtyText, opX + opHeaders[0].width + cellPadding, rowTop + 4, {
-                        width: opHeaders[1].width - (cellPadding * 2),
-                        align: 'right',
-                        lineBreak: false,
+                if (col.text) {
+                    doc.text(col.text, x + padding, y + padding + 1, {
+                        width: headers[i].width - (padding*2),
+                        align: headers[i].align,
+                        height: rowHeight - (padding*2),
                         ellipsis: true
                     });
                 }
-
-                doc.moveTo(leftX, totalY + totalRowH).lineTo(rightX + wOpQtd, totalY + totalRowH).stroke();
-                if (pageIdx === totalPagesForPlots - 1) {
-                    const totalLabelX = leftX + leftHeaders[0].width + leftHeaders[1].width + leftHeaders[2].width;
-                    const totalLabelW = leftHeaders[3].width;
-                    doc.font('Helvetica-Bold').fontSize(8).text('Total', totalLabelX + cellPadding, totalY + 4, {
-                        width: totalLabelW - (cellPadding * 2),
-                        align: 'right',
-                        lineBreak: false
-                    });
-                    const areaX = totalLabelX + totalLabelW;
-                    doc.font('Helvetica-Bold').fontSize(8).text(formatNumber(totalArea), areaX + cellPadding, totalY + 4, {
-                        width: leftHeaders[4].width - (cellPadding * 2),
-                        align: 'right',
-                        lineBreak: false
-                    });
-                    doc.font('Helvetica-Bold').fontSize(8).text(formatNumber(totalRateio), areaX + leftHeaders[4].width + cellPadding, totalY + 4, {
-                        width: leftHeaders[5].width - (cellPadding * 2),
-                        align: 'right',
-                        lineBreak: false
-                    });
-                }
-
-                if (pageIdx === totalPagesForPlots - 1) {
-                    startY = blockBottom + 12;
-                }
-            }
-
-            return {
-                currentY: startY,
-                totalArea,
-                totalRateio
-            };
-        };
-
-        const drawProductsTable = (startY, totalArea, state) => {
-            const sectionTitleH = 16;
-            const rowH = 16;
-            const products = osData.produtos || osData.products || [];
-            const headers = [
-                { text: 'Oper.', width: contentWidth * 0.13, align: 'left' },
-                { text: 'Produto', width: contentWidth * 0.11, align: 'left' },
-                { text: 'Descrição', width: contentWidth * 0.38, align: 'left' },
-                { text: 'Und.', width: contentWidth * 0.10, align: 'center' },
-                { text: 'Qtde HA', width: contentWidth * 0.14, align: 'right' },
-                { text: 'Qtde Total', width: contentWidth * 0.14, align: 'right' }
-            ];
-
-            const drawProductsHeader = (y) => {
-                doc.lineWidth(baseLineWidth).rect(pageMargin, y, contentWidth, sectionTitleH).stroke();
-                doc.font('Helvetica-Bold').fontSize(9).text('REQUISIÇÃO DE PRODUTOS', pageMargin, y + 4, {
-                    width: contentWidth,
-                    align: 'center',
-                    lineBreak: false
-                });
-
-                const headerY = y + sectionTitleH;
-                doc.rect(pageMargin, headerY, contentWidth, rowH).stroke();
-                let x = pageMargin;
-                headers.forEach((col, idx) => {
-                    if (idx > 0) doc.moveTo(x, headerY).lineTo(x, headerY + rowH).stroke();
-                    doc.font('Helvetica-Bold').fontSize(7).text(col.text, x + cellPadding, headerY + 4, {
-                        width: col.width - (cellPadding * 2),
-                        align: col.align,
-                        lineBreak: false,
-                        ellipsis: true
-                    });
-                    x += col.width;
-                });
-                return headerY + rowH;
-            };
-
-            const drawProductRow = (y, values, bold = false) => {
-                doc.rect(pageMargin, y, contentWidth, rowH).stroke();
-                let x = pageMargin;
-                values.forEach((val, idx) => {
-                    if (idx > 0) doc.moveTo(x, y).lineTo(x, y + rowH).stroke();
-                    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(7).text(String(val || ''), x + cellPadding, y + 4, {
-                        width: headers[idx].width - (cellPadding * 2),
-                        align: headers[idx].align,
-                        lineBreak: false,
-                        ellipsis: true
-                    });
-                    x += headers[idx].width;
-                });
-            };
-
-            let y = startY;
-            if (y + sectionTitleH + (rowH * 3) > doc.page.height - 90) {
-                y = addOsPage(state);
-            }
-
-            y = drawProductsHeader(y);
-            let totalProdQty = 0;
-            const maxBottom = doc.page.height - 90;
-
-            products.forEach((prod) => {
-                if (y + rowH > maxBottom) {
-                    y = addOsPage(state);
-                    y = drawProductsHeader(y);
-                }
-                const dosage = parseFloat(prod.dosagem_por_ha || prod.dosage || 0) || 0;
-                const qtyTotal = parseFloat(prod.qtde_total || prod.quantity || (dosage * (totalArea || 0))) || 0;
-                totalProdQty += qtyTotal;
-                drawProductRow(y, [
-                    osData.operacao_nome || osData.operationId || '',
-                    prod.codigo_externo || prod.produto_id || '',
-                    prod.produto_nome || prod.name || '',
-                    prod.unidade || prod.unit || '',
-                    formatNumber(dosage),
-                    formatNumber(qtyTotal)
-                ]);
-                y += rowH;
+                x += headers[i].width;
             });
-
-            if (y + rowH > maxBottom) {
-                y = addOsPage(state);
-                y = drawProductsHeader(y);
-            }
-            drawProductRow(y, ['', '', '', '', 'Total .:', formatNumber(totalProdQty)], true);
-            return y + rowH + 30;
         };
 
-        const drawSignatures = (startY, state) => {
-            let y = startY;
-            if (y + 50 > doc.page.height - 28) {
-                y = addOsPage(state);
+        items.forEach(item => {
+            if (currentY > doc.page.height - 50) {
+                // Close Obs Box
+                doc.rect(sideBoxX, obsBoxStartY + rowHeight, sideBoxWidth, currentY - (obsBoxStartY + rowHeight)).stroke();
+
+                doc.addPage();
+                currentY = drawHeader(doc);
+                doc.moveDown(0.5);
+                currentY += 8;
+
+                drawTableHeader(currentY);
+                obsBoxStartY = currentY;
+                // Draw Obs Box Header again? Or just top line. Let's replicate header logic.
+                doc.rect(sideBoxX, currentY, sideBoxWidth, rowHeight).stroke();
+                // No text needed if continuation, or "Obs (cont.)"
+
+                currentY += rowHeight;
             }
 
-            const lineY = Math.min(y + 24, doc.page.height - 40);
-            const signWidth = 210;
-            doc.lineWidth(baseLineWidth);
-            doc.moveTo(pageMargin, lineY).lineTo(pageMargin + signWidth, lineY).stroke();
-            doc.font('Helvetica-Bold').fontSize(9).text('TÉCNICO RESPONSÁVEL', pageMargin, lineY + 6, { width: signWidth, align: 'center' });
+            const area = parseFloat(item.area_ha || 0);
+            totalArea += area;
+            totalRateio += area;
 
-            doc.moveTo(pageWidth - pageMargin - signWidth, lineY).lineTo(pageWidth - pageMargin, lineY).stroke();
-            doc.font('Helvetica-Bold').fontSize(9).text('PRODUTOR', pageWidth - pageMargin - signWidth, lineY + 6, { width: signWidth, align: 'center' });
+            const rowData = [
+                { text: farmCode },
+                { text: farmName },
+                { text: item.talhao_nome || item.talhao || '' },
+                { text: item.variedade || '' },
+                { text: formatNumber(area) },
+                { text: formatNumber(area) },
+                { text: osData.operacao_nome || osData.tipo_servico_desc || '' },
+                { text: formatNumber(item.quantidade || 0) }
+            ];
+            drawRow(currentY, rowData);
+            currentY += rowHeight;
+        });
+
+        // Total Row
+        const totalRow = [
+            { text: '' }, { text: '' }, { text: '' }, { text: 'Total', align: 'right' },
+            { text: formatNumber(totalArea) },
+            { text: formatNumber(totalRateio) },
+            { text: '' }, { text: '' }
+        ];
+        drawRow(currentY, totalRow, true);
+
+        // Final Close of Obs Box
+        // From start Y + header height to current Y + rowHeight (total row end)
+        // Wait, total row is part of table width, obs box is side.
+        // We close obs box at the same Y as total row bottom? Yes.
+        doc.rect(sideBoxX, obsBoxStartY + rowHeight, sideBoxWidth, (currentY + rowHeight) - (obsBoxStartY + rowHeight)).stroke();
+
+        currentY += rowHeight + 10;
+
+        // --- REQUISITION OF PRODUCTS ---
+        if (currentY + 80 > doc.page.height) {
+            doc.addPage();
+            currentY = drawHeader(doc) + 20;
+        }
+
+        // Title
+        doc.fillColor('#e0e0e0').rect(pageMargin, currentY, contentWidth, rowHeight).fill();
+        doc.fillColor('black');
+        doc.lineWidth(0.3).strokeColor('#555555').rect(pageMargin, currentY, contentWidth, rowHeight).stroke();
+        doc.font('Helvetica-Bold').fontSize(9).text('REQUISIÇÃO DE PRODUTOS', pageMargin, currentY + padding, { width: contentWidth, align: 'center' });
+        currentY += rowHeight;
+
+        const prodHeaders = [
+            { text: 'Oper.', width: contentWidth * 0.15, align: 'left' },
+            { text: 'Produto', width: contentWidth * 0.10, align: 'left' },
+            { text: 'Descrição', width: contentWidth * 0.35, align: 'left' },
+            { text: 'Und.', width: contentWidth * 0.10, align: 'center' },
+            { text: 'Qtde HA', width: contentWidth * 0.15, align: 'right' },
+            { text: 'Qtde Total', width: contentWidth * 0.15, align: 'right' }
+        ];
+
+        const drawProdRow = (y, cols, isHeader=false) => {
+             let x = pageMargin;
+             if (isHeader) {
+                 doc.fillColor('#f0f0f0').rect(x, y, contentWidth, rowHeight).fill();
+                 doc.fillColor('black');
+             }
+             doc.rect(x, y, contentWidth, rowHeight).stroke();
+
+             x = pageMargin;
+             cols.forEach((col, i) => {
+                 if (i > 0) doc.moveTo(x, y).lineTo(x, y + rowHeight).stroke();
+
+                 const colWidth = prodHeaders[i].width;
+                 const align = prodHeaders[i].align;
+
+                 if (col.text) {
+                     doc.text(col.text, x + padding, y + padding + 1, { width: colWidth - (padding*2), align: align, ellipsis: true });
+                 }
+                 x += colWidth;
+             });
         };
 
-        const pageState = { page: 1 };
-        let currentY = drawHeader(pageState.page);
+        doc.font('Helvetica-Bold').fontSize(7);
+        drawProdRow(currentY, prodHeaders, true);
+        currentY += rowHeight;
+        doc.font('Helvetica').fontSize(7);
 
-        const plotsResult = drawPlotsBlock(currentY, pageState);
-        currentY = drawProductsTable(plotsResult.currentY, plotsResult.totalArea, pageState);
-        drawSignatures(currentY, pageState);
+        const products = osData.produtos || osData.products || [];
+        let totalProdQty = 0;
+
+        products.forEach(prod => {
+             if (currentY > doc.page.height - 50) {
+                 doc.addPage();
+                 currentY = drawHeader(doc) + 20;
+                 doc.font('Helvetica-Bold');
+                 drawProdRow(currentY, prodHeaders, true);
+                 currentY += rowHeight;
+                 doc.font('Helvetica');
+             }
+
+             const dosage = prod.dosagem_por_ha || prod.dosage || 0;
+             const qtyTotal = prod.qtde_total || prod.quantity || (dosage * (totalArea || 0));
+             totalProdQty += qtyTotal;
+
+             const row = [
+                 { text: osData.operacao_nome || osData.operationId || '' },
+                 { text: prod.codigo_externo || prod.produto_id || '' },
+                 { text: prod.produto_nome || prod.name || '' },
+                 { text: prod.unidade || prod.unit || '' },
+                 { text: formatNumber(dosage) },
+                 { text: formatNumber(qtyTotal) }
+             ];
+             drawProdRow(currentY, row);
+             currentY += rowHeight;
+        });
+
+        doc.font('Helvetica-Bold');
+        const prodTotalRow = [
+            { text: '' }, { text: '' }, { text: '' }, { text: '' }, { text: 'Total .:', align: 'right' },
+            { text: formatNumber(totalProdQty) }
+        ];
+        drawProdRow(currentY, prodTotalRow);
+        currentY += 40;
+
+        // --- SIGNATURES ---
+        if (currentY + 60 > doc.page.height) {
+            doc.addPage();
+            currentY = doc.page.height - 100;
+        }
+
+        const signY = currentY;
+        doc.lineWidth(0.5).strokeColor('black'); // Reset line width
+        doc.moveTo(pageMargin, signY).lineTo(pageMargin + 200, signY).stroke();
+        doc.text('TÉCNICO RESPONSÁVEL', pageMargin, signY + 5, { width: 200, align: 'center' });
+
+        doc.moveTo(pageWidth - pageMargin - 200, signY).lineTo(pageWidth - pageMargin, signY).stroke();
+        doc.text('PRODUTOR', pageWidth - pageMargin - 200, signY + 5, { width: 200, align: 'center' });
+
 
         // --- MAP PAGE (Landscape) ---
         if (geojsonData) {
