@@ -30,6 +30,17 @@ const generateOsPdf = async (req, res, db) => {
              return res.status(404).json({ message: 'OS não encontrada' });
         }
 
+        // Fetch Company Name if possible
+        let companyName = 'AGROVETOR';
+        try {
+            const companyDoc = await db.collection('companies').doc(companyId).get();
+            if (companyDoc.exists && companyDoc.data().name) {
+                companyName = companyDoc.data().name.toUpperCase();
+            }
+        } catch (e) {
+            console.warn("Error fetching company name:", e);
+        }
+
         const doc = setupDoc({ margin: 28, size: 'A4', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="OS_${osId}.pdf"`);
@@ -42,272 +53,253 @@ const generateOsPdf = async (req, res, db) => {
         const farmName = osData.fazenda_nome || osData.farmName || (farmData ? farmData.name : 'N/A');
 
         const geojsonData = await getShapefileData(db, companyId);
-        const logoBase64 = await getLogoBase64(db, companyId);
 
-        // --- PAGE 1: HEADER + DATA + OBS + SIGNATURES ---
+        // Header Grid Layout Helper
+        const drawHeader = (doc) => {
+             const startY = 28;
+             const pageMargin = 28;
+             const pageWidth = doc.page.width;
+             const contentWidth = pageWidth - (pageMargin * 2);
+             let y = startY;
 
-        // 1. Header
-        // Logo
-        if (logoBase64) {
-            try {
-                doc.image(logoBase64, 28, 20, { width: 50 });
-            } catch (e) { console.warn("Logo error", e); }
-        }
+             doc.lineWidth(0.5).strokeColor('#000000');
+             doc.font('Helvetica-Bold').fontSize(9);
 
-        // Title
-        doc.font('Helvetica-Bold').fontSize(14).text('OS - Ordem de Serviço / AGRICOLA', 0, 35, { align: 'center' });
-        doc.moveDown(3);
+             // Row 1
+             const row1H = 15;
+             doc.rect(pageMargin, y, contentWidth * 0.5, row1H).stroke();
+             doc.text(companyName, pageMargin + 5, y + 4, { width: contentWidth * 0.5 - 10, ellipsis: true });
 
-        const startY = doc.y;
-        const pageWidth = doc.page.width;
+             doc.rect(pageMargin + contentWidth * 0.5, y, contentWidth * 0.25, row1H).stroke();
+             let dateStr = '';
+             if (osData.data) {
+                 const parts = osData.data.split('-');
+                 if(parts.length === 3) dateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                 else dateStr = osData.data;
+             } else if (osData.createdAt) {
+                 dateStr = new Date(osData.createdAt.toDate ? osData.createdAt.toDate() : osData.createdAt).toLocaleDateString('pt-BR');
+             }
+             doc.text(`Data ..:    ${dateStr}`, pageMargin + contentWidth * 0.5 + 5, y + 4);
+
+             doc.rect(pageMargin + contentWidth * 0.75, y, contentWidth * 0.25, row1H).stroke();
+             doc.text(`OS ..:    ${osData.os_numero || osData.sequentialId || osId}`, pageMargin + contentWidth * 0.75 + 5, y + 4);
+             y += row1H;
+
+             // Row 2
+             const row2H = 15;
+             doc.rect(pageMargin, y, contentWidth * 0.5, row2H).stroke();
+             doc.font('Helvetica-Bold').fontSize(12).text('OS - Ordem de Serviço', pageMargin + 5, y + 2);
+             doc.fontSize(9).text('AGRICOLA', pageMargin + 5, y + 14);
+
+             doc.rect(pageMargin + contentWidth * 0.5, y, contentWidth * 0.5, row2H).stroke();
+             doc.text(`Etapa ..:    ${osData.tipo_servico_desc || osData.serviceType || ''}`, pageMargin + contentWidth * 0.5 + 5, y + 4);
+             y += row2H;
+
+             // Row 3
+             const row3H = 15;
+             doc.rect(pageMargin, y, contentWidth * 0.5, row3H).stroke();
+             doc.text('AGRICOLA', pageMargin + 5, y + 4);
+
+             const safra = osData.safra || '';
+             const ciclo = osData.ciclo || '';
+             const safraCiclo = (safra || ciclo) ? `${safra}/${ciclo}` : (osData.safraCiclo || '');
+
+             doc.rect(pageMargin + contentWidth * 0.5, y, contentWidth * 0.35, row3H).stroke();
+             doc.text(`Safra/Ciclo ..:    ${safraCiclo}`, pageMargin + contentWidth * 0.5 + 5, y + 4);
+
+             doc.rect(pageMargin + contentWidth * 0.85, y, contentWidth * 0.15, row3H).stroke();
+             // Page number handled by footer logic (generatePdfFooter iterates all pages)
+             // We can leave blank or put placeholder.
+             // If we really want page number in HEADER, we need to know total pages which we don't know yet.
+             // Best practice: Leave blank or use footer exclusively.
+             // However, generatePdfFooter adds footer.
+             // Let's leave header blank here or just label.
+             doc.text(`Página ..:`, pageMargin + contentWidth * 0.85 + 5, y + 4);
+             y += row3H;
+
+             // Row 4
+             const row4H = 15;
+             doc.rect(pageMargin, y, contentWidth * 0.30, row4H).stroke();
+             doc.text(`Matrícula Encarregado:    ${osData.responsavel_matricula || ''}`, pageMargin + 5, y + 4);
+
+             doc.rect(pageMargin + contentWidth * 0.30, y, contentWidth * 0.70, row4H).stroke();
+             doc.text(`Nome..:    ${osData.responsavel_nome || ''}`, pageMargin + contentWidth * 0.30 + 5, y + 4);
+             y += row4H;
+
+             // Row 5
+             const row5H = 15;
+             doc.rect(pageMargin, y, contentWidth, row5H).stroke();
+             doc.text(`Usuário Abertura:    ${osData.usuario_abertura_nome || osData.generatedBy || generatedBy || 'Sistema'}`, pageMargin + 5, y + 4);
+             y += row5H;
+
+             // Row 6
+             const row6H = 15;
+             doc.rect(pageMargin, y, contentWidth, row6H).stroke();
+             doc.text(`Produtor :    ${farmCode}        ${farmName}`, pageMargin + 5, y + 4);
+             y += row6H;
+
+             return y;
+        };
+
+        let currentY = drawHeader(doc);
+        doc.moveDown(1);
+        currentY += 10;
+
+        // --- MAIN TABLE (Talhões) ---
         const pageMargin = 28;
+        const pageWidth = doc.page.width;
         const contentWidth = pageWidth - (pageMargin * 2);
 
-        // 2. Data Box
-        const boxY = doc.y;
-        const boxHeight = 70; // Adjusted for content
-        doc.rect(pageMargin, boxY, contentWidth, boxHeight).stroke();
+        const tableWidth = contentWidth * 0.65;
+        const sideBoxWidth = contentWidth * 0.35;
+        const sideBoxX = pageMargin + tableWidth;
 
-        const col1X = pageMargin + 5;
-        const col2X = pageMargin + 250;
-        const rowHeight = 14;
-        let currentY = boxY + 8;
+        const headers = [
+            { text: 'Propriedade', width: tableWidth * 0.12, align: 'left' },
+            { text: 'Fundo Agr.', width: tableWidth * 0.25, align: 'left' },
+            { text: 'Talhão', width: tableWidth * 0.10, align: 'center' },
+            { text: 'Variedade', width: tableWidth * 0.13, align: 'left' },
+            { text: 'Area', width: tableWidth * 0.10, align: 'right' },
+            { text: 'Area Rateio', width: tableWidth * 0.12, align: 'right' },
+            { text: 'Operação', width: tableWidth * 0.10, align: 'left' },
+            { text: 'Quantidade', width: tableWidth * 0.08, align: 'right' }
+        ];
 
-        doc.fontSize(9);
+        const headerHeight = 15;
 
-        // Row 1
-        doc.font('Helvetica-Bold').text('Matrícula Encarregado:', col1X, currentY);
-        doc.font('Helvetica').text(osData.responsavel_matricula || osData.responsibleMatricula || '', col1X + 110, currentY);
+        const drawTableHeader = (y) => {
+             let x = pageMargin;
+             doc.moveTo(x, y).lineTo(x + tableWidth, y).stroke();
+             headers.forEach((col, i) => {
+                 doc.moveTo(x, y).lineTo(x, y + headerHeight).stroke();
+                 doc.text(col.text, x + 2, y + 4, { width: col.width - 4, align: col.align, ellipsis: true });
+                 x += col.width;
+             });
+             doc.moveTo(x, y).lineTo(x, y + headerHeight).stroke();
+             doc.moveTo(pageMargin, y + headerHeight).lineTo(pageMargin + tableWidth, y + headerHeight).stroke();
+        };
 
-        doc.font('Helvetica-Bold').text('Nome:', col2X, currentY);
-        doc.font('Helvetica').text(osData.responsavel_nome || osData.responsible || '', col2X + 40, currentY);
+        doc.font('Helvetica-Bold').fontSize(8);
+        drawTableHeader(currentY);
 
-        // Date Logic
-        let dateStr = '';
-        if (osData.data) {
-             const parts = osData.data.split('-');
-             if(parts.length === 3) dateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
-             else dateStr = osData.data;
-        } else if (osData.createdAt) {
-             dateStr = new Date(osData.createdAt.toDate ? osData.createdAt.toDate() : osData.createdAt).toLocaleDateString('pt-BR');
+        // Obs Box Setup
+        let obsBoxStartY = currentY;
+        // Draw top line of obs box
+        doc.moveTo(sideBoxX, currentY).lineTo(sideBoxX + sideBoxWidth, currentY).stroke();
+
+        currentY += headerHeight;
+        doc.font('Helvetica').fontSize(8);
+
+        // Data Loop
+        let items = osData.itens || osData.items || [];
+        if (items.length === 0 && osData.selectedPlots && farmData && farmData.talhoes) {
+             osData.selectedPlots.forEach(plotName => {
+                 const t = farmData.talhoes.find(pt => String(pt.name) === String(plotName));
+                 if (t) {
+                     items.push({ talhao_nome: t.name, variedade: t.variedade || '', area_ha: t.area });
+                 }
+             });
         }
 
-        doc.font('Helvetica-Bold').text('Data:', col2X + 180, currentY); // Right aligned in box
-        doc.font('Helvetica').text(dateStr, col2X + 210, currentY);
+        let totalArea = 0;
+        let totalRateio = 0;
 
-        currentY += rowHeight;
-
-        // Row 2
-        doc.font('Helvetica-Bold').text('Usuário Abertura:', col1X, currentY);
-        doc.font('Helvetica').text(osData.usuario_abertura_nome || osData.generatedBy || generatedBy || 'Sistema', col1X + 110, currentY);
-
-        doc.font('Helvetica-Bold').text('OS:', col2X, currentY);
-        doc.font('Helvetica').text(osData.os_numero || osData.sequentialId || osId, col2X + 40, currentY);
-
-        doc.font('Helvetica-Bold').text('Etapa:', col2X + 180, currentY);
-        doc.font('Helvetica').text(osData.tipo_servico_desc || osData.serviceType || '', col2X + 215, currentY);
-
-        currentY += rowHeight;
-
-        // Row 3
-        doc.font('Helvetica-Bold').text('Produtor:', col1X, currentY);
-        doc.font('Helvetica').text(`${farmCode} - ${farmName}`, col1X + 110, currentY);
-
-        const safra = osData.safra || '';
-        const ciclo = osData.ciclo || '';
-        const safraCiclo = (safra || ciclo) ? `${safra}${safra && ciclo ? ' - ' : ''}${ciclo}` : (osData.safraCiclo || '');
-
-        doc.font('Helvetica-Bold').text('Safra/Ciclo:', col2X, currentY);
-        doc.font('Helvetica').text(safraCiclo, col2X + 60, currentY);
-
-        // 3. Observations Box (Page 1)
-        const obsY = boxY + boxHeight; // Directly below
-        const obsHeight = 350; // Large box as requested
-        doc.rect(pageMargin, obsY, contentWidth, obsHeight).stroke();
-
-        doc.font('Helvetica-Bold').text('Obs.:', pageMargin + 5, obsY + 5);
+        // Obs Text (First Page Only)
+        doc.text('Obs .:', sideBoxX + 5, obsBoxStartY + 20);
         if (osData.observacoes || osData.observations) {
-            doc.font('Helvetica').text(osData.observacoes || osData.observations, pageMargin + 5, obsY + 20, {
-                width: contentWidth - 10,
+            doc.text(osData.observacoes || osData.observations, sideBoxX + 5, obsBoxStartY + 35, {
+                width: sideBoxWidth - 10,
                 align: 'left'
             });
         }
 
-        // 4. Signatures (Page 1)
-        const footerSignY = doc.page.height - 100;
-
-        // Left Signature
-        doc.moveTo(pageMargin, footerSignY).lineTo(pageMargin + 200, footerSignY).stroke();
-        doc.text('TÉCNICO RESPONSÁVEL', pageMargin, footerSignY + 5, { width: 200, align: 'center' });
-
-        // Right Signature
-        doc.moveTo(pageWidth - pageMargin - 200, footerSignY).lineTo(pageWidth - pageMargin, footerSignY).stroke();
-        doc.text('PRODUTOR', pageWidth - pageMargin - 200, footerSignY + 5, { width: 200, align: 'center' });
-
-
-        // --- PAGE 2+: MAIN TABLE (Talhões) ---
-        doc.addPage(); // Force start on Page 2
-
-        // Define Columns
-        // Propriedade | Fundo Agr. | Talhão | Variedade | Area | Area Rateio | Operação | Quantidade
-        // Layout: Table takes ~70% width, Side Box takes ~30%
-        // Total Width = contentWidth (539 approx for A4 margin 28)
-
-        const tableWidth = contentWidth * 0.70;
-        const sideBoxWidth = contentWidth * 0.30;
-        const sideBoxX = pageMargin + tableWidth;
-
-        // Custom Table Drawer
-        const drawMainTable = () => {
-             const headers = [
-                { text: 'Propriedade', width: tableWidth * 0.12, align: 'left' },
-                { text: 'Fundo Agr.', width: tableWidth * 0.25, align: 'left' },
-                { text: 'Talhão', width: tableWidth * 0.10, align: 'center' },
-                { text: 'Variedade', width: tableWidth * 0.13, align: 'left' },
-                { text: 'Area', width: tableWidth * 0.10, align: 'right' },
-                { text: 'Area Rateio', width: tableWidth * 0.12, align: 'right' },
-                { text: 'Operação', width: tableWidth * 0.10, align: 'left' }, // Truncate
-                { text: 'Quantidade', width: tableWidth * 0.08, align: 'right' }
-            ];
-
-            // Calculate exact widths to sum to tableWidth
-            let currentX = pageMargin;
-
-            // Header
-            let y = 30; // Start Y for Table
-            const headerHeight = 15;
-
-            // Draw Header
-            doc.font('Helvetica-Bold').fontSize(8);
-
-            // Draw Headers Background or Lines? Model has simple text headers with line below
-            // "COM GRID (bordas externas e verticais)"
-
-            // Helper to draw row
-            const drawRow = (rowY, cols, isHeader=false) => {
-                let x = pageMargin;
-                // Draw horizontal line top
-                doc.moveTo(x, rowY).lineTo(x + tableWidth, rowY).stroke();
-
-                cols.forEach((col, i) => {
-                    // Vertical line left
-                    doc.moveTo(x, rowY).lineTo(x, rowY + headerHeight).stroke();
-
-                    if (col.text) {
-                        doc.text(col.text, x + 2, rowY + 4, {
-                            width: headers[i].width - 4,
-                            align: headers[i].align,
-                            height: headerHeight - 4,
-                            ellipsis: true
-                        });
-                    }
-                    x += headers[i].width;
-                });
-                // Vertical line right end
-                doc.moveTo(x, rowY).lineTo(x, rowY + headerHeight).stroke();
-                // Horizontal line bottom
-                doc.moveTo(pageMargin, rowY + headerHeight).lineTo(pageMargin + tableWidth, rowY + headerHeight).stroke();
-            };
-
-            drawRow(y, headers, true);
-            y += headerHeight;
-
-            doc.font('Helvetica').fontSize(8);
-
-            // Data
-            let items = osData.itens || osData.items || [];
-            if (items.length === 0 && osData.selectedPlots && farmData) {
-                 // Fallback legacy
-                 if (farmData.talhoes) {
-                     osData.selectedPlots.forEach(plotName => {
-                         const t = farmData.talhoes.find(pt => String(pt.name) === String(plotName));
-                         if (t) {
-                             items.push({
-                                 talhao_nome: t.name,
-                                 variedade: t.variedade || '',
-                                 area_ha: t.area,
-                             });
-                         }
-                     });
-                 }
-            }
-
-            let totalArea = 0;
-            let totalRateio = 0; // Assuming same for now
-
-            items.forEach(item => {
-                // Check Page Break
-                if (y > doc.page.height - 100) { // Leave space for footer
-                     // Close Side Box for this page
-                     doc.rect(sideBoxX, 30, sideBoxWidth, y - 30).stroke();
-                     doc.text('Obs .:', sideBoxX + 5, 35);
-
-                     doc.addPage();
-                     y = 30;
-                     drawRow(y, headers, true); // Header again
-                     y += headerHeight;
-                     doc.font('Helvetica').fontSize(8);
+        const drawRow = (y, cols) => {
+            let x = pageMargin;
+            cols.forEach((col, i) => {
+                doc.moveTo(x, y).lineTo(x, y + headerHeight).stroke();
+                if (col.text) {
+                    doc.text(col.text, x + 2, y + 4, {
+                        width: headers[i].width - 4,
+                        align: headers[i].align,
+                        height: headerHeight - 4,
+                        ellipsis: true
+                    });
                 }
-
-                const area = parseFloat(item.area_ha || 0);
-                const rateio = area; // Logic for rateio?
-                totalArea += area;
-                totalRateio += rateio;
-
-                const rowData = [
-                    { text: farmCode },
-                    { text: farmName },
-                    { text: item.talhao_nome || item.talhao || '' },
-                    { text: item.variedade || '' },
-                    { text: formatNumber(area) },
-                    { text: formatNumber(rateio) },
-                    { text: osData.operacao_nome || osData.tipo_servico_desc || '' },
-                    { text: formatNumber(item.quantidade || 0) }
-                ];
-
-                drawRow(y, rowData);
-                y += headerHeight;
+                x += headers[i].width;
             });
-
-            // Total Row
-            const totalRow = [
-                { text: '' }, { text: '' }, { text: '' }, { text: 'Total', align: 'right' },
-                { text: formatNumber(totalArea) },
-                { text: formatNumber(totalRateio) },
-                { text: '' }, { text: '' }
-            ];
-            // Merge cells visually? simpler to just draw empty
-            drawRow(y, totalRow);
-
-            // Draw Side Box (Obs)
-            // It goes from Top (30) to Current Y (y + headerHeight)
-            const boxBottomY = y + headerHeight;
-            doc.rect(sideBoxX, 30, sideBoxWidth, boxBottomY - 30).stroke();
-            doc.font('Helvetica-Bold').fontSize(9).text('Obs .:', sideBoxX + 5, 35);
-
-            return boxBottomY;
+            doc.moveTo(x, y).lineTo(x, y + headerHeight).stroke();
+            doc.moveTo(pageMargin, y + headerHeight).lineTo(pageMargin + tableWidth, y + headerHeight).stroke();
         };
 
-        const tableEndY = drawMainTable();
-        doc.moveDown(2);
-        let currentYPos = tableEndY + 20;
+        items.forEach(item => {
+            if (currentY > doc.page.height - 50) {
+                // Close Obs Box for this page
+                doc.moveTo(sideBoxX, obsBoxStartY).lineTo(sideBoxX, currentY).stroke(); // Left Vert
+                doc.moveTo(sideBoxX + sideBoxWidth, obsBoxStartY).lineTo(sideBoxX + sideBoxWidth, currentY).stroke(); // Right Vert
+                doc.moveTo(sideBoxX, currentY).lineTo(sideBoxX + sideBoxWidth, currentY).stroke(); // Bottom Line
+
+                doc.addPage();
+                currentY = drawHeader(doc);
+                doc.moveDown(1);
+                currentY += 10;
+
+                doc.font('Helvetica-Bold').fontSize(8);
+                drawTableHeader(currentY);
+                doc.font('Helvetica').fontSize(8);
+
+                // Reset Obs Box Start for new page
+                obsBoxStartY = currentY;
+                // Draw Obs box top line for new page
+                doc.moveTo(sideBoxX, currentY).lineTo(sideBoxX + sideBoxWidth, currentY).stroke();
+
+                currentY += headerHeight;
+            }
+
+            const area = parseFloat(item.area_ha || 0);
+            totalArea += area;
+            totalRateio += area;
+
+            const rowData = [
+                { text: farmCode },
+                { text: farmName },
+                { text: item.talhao_nome || item.talhao || '' },
+                { text: item.variedade || '' },
+                { text: formatNumber(area) },
+                { text: formatNumber(area) },
+                { text: osData.operacao_nome || osData.tipo_servico_desc || '' },
+                { text: formatNumber(item.quantidade || 0) }
+            ];
+            drawRow(currentY, rowData);
+            currentY += headerHeight;
+        });
+
+        // Total Row
+        const totalRow = [
+            { text: '' }, { text: '' }, { text: '' }, { text: 'Total', align: 'right' },
+            { text: formatNumber(totalArea) },
+            { text: formatNumber(totalRateio) },
+            { text: '' }, { text: '' }
+        ];
+        drawRow(currentY, totalRow);
+        currentY += headerHeight;
+
+        // Close Obs Box (Final)
+        doc.moveTo(sideBoxX, obsBoxStartY).lineTo(sideBoxX, currentY).stroke();
+        doc.moveTo(sideBoxX + sideBoxWidth, obsBoxStartY).lineTo(sideBoxX + sideBoxWidth, currentY).stroke();
+        doc.moveTo(sideBoxX, currentY).lineTo(sideBoxX + sideBoxWidth, currentY).stroke();
+
+        currentY += 10;
 
         // --- REQUISITION OF PRODUCTS ---
-        // Check if space exists, else new page
-        if (currentYPos + 100 > doc.page.height) {
+        if (currentY + 100 > doc.page.height) {
             doc.addPage();
-            currentYPos = 30;
-        } else {
-             doc.y = currentYPos;
+            currentY = drawHeader(doc) + 20;
         }
 
-        // Title Box
-        doc.rect(pageMargin, currentYPos, contentWidth, 15).stroke();
-        doc.font('Helvetica-Bold').fontSize(10).text('REQUISIÇÃO DE PRODUTOS', pageMargin, currentYPos + 3, { width: contentWidth, align: 'center' });
-        currentYPos += 15;
+        doc.rect(pageMargin, currentY, contentWidth, 15).stroke();
+        doc.font('Helvetica-Bold').fontSize(10).text('REQUISIÇÃO DE PRODUTOS', pageMargin, currentY + 3, { width: contentWidth, align: 'center' });
+        currentY += 15;
 
-        // Columns: Oper. | Produto | Descrição | Und. | Qtde HA | Qtde Total
-        // Grid lines mandatory
         const prodHeaders = [
             { text: 'Oper.', width: contentWidth * 0.15, align: 'left' },
             { text: 'Produto', width: contentWidth * 0.10, align: 'left' },
@@ -319,45 +311,37 @@ const generateOsPdf = async (req, res, db) => {
 
         const drawProdRow = (y, cols) => {
              let x = pageMargin;
-             doc.moveTo(x, y).lineTo(x + contentWidth, y).stroke(); // Top Line
-
              cols.forEach((col, i) => {
-                 doc.moveTo(x, y).lineTo(x, y + 15).stroke(); // Vertical Left
+                 doc.moveTo(x, y).lineTo(x, y + 15).stroke();
                  if (col.text) {
-                     doc.text(col.text, x + 2, y + 4, {
-                         width: prodHeaders[i].width - 4,
-                         align: prodHeaders[i].align,
-                         height: 11,
-                         ellipsis: true
-                     });
+                     doc.text(col.text, x + 2, y + 4, { width: col.width - 4, align: col.align, ellipsis: true });
                  }
-                 x += prodHeaders[i].width;
+                 x += col.width;
              });
-             doc.moveTo(x, y).lineTo(x, y + 15).stroke(); // Vertical Right
-             doc.moveTo(pageMargin, y + 15).lineTo(pageMargin + contentWidth, y + 15).stroke(); // Bottom
+             doc.moveTo(x, y).lineTo(x, y + 15).stroke();
+             doc.moveTo(pageMargin, y + 15).lineTo(pageMargin + contentWidth, y + 15).stroke();
         };
 
-        // Header
         doc.font('Helvetica-Bold').fontSize(8);
-        drawProdRow(currentYPos, prodHeaders);
-        currentYPos += 15;
+        drawProdRow(currentY, prodHeaders);
+        currentY += 15;
         doc.font('Helvetica');
 
         const products = osData.produtos || osData.products || [];
         let totalProdQty = 0;
 
         products.forEach(prod => {
-             if (currentYPos > doc.page.height - 50) {
+             if (currentY > doc.page.height - 50) {
                  doc.addPage();
-                 currentYPos = 30;
+                 currentY = drawHeader(doc) + 20;
                  doc.font('Helvetica-Bold');
-                 drawProdRow(currentYPos, prodHeaders);
-                 currentYPos += 15;
+                 drawProdRow(currentY, prodHeaders);
+                 currentY += 15;
                  doc.font('Helvetica');
              }
 
              const dosage = prod.dosagem_por_ha || prod.dosage || 0;
-             const qtyTotal = prod.qtde_total || prod.quantity || (dosage * (totalArea || 0)); // Fallback totalArea calc
+             const qtyTotal = prod.qtde_total || prod.quantity || (dosage * (totalArea || 0));
              totalProdQty += qtyTotal;
 
              const row = [
@@ -368,64 +352,54 @@ const generateOsPdf = async (req, res, db) => {
                  { text: formatNumber(dosage) },
                  { text: formatNumber(qtyTotal) }
              ];
-             drawProdRow(currentYPos, row);
-             currentYPos += 15;
+             drawProdRow(currentY, row);
+             currentY += 15;
         });
 
-        // Total Row
         const prodTotalRow = [
             { text: '' }, { text: '' }, { text: '' }, { text: '' }, { text: 'Total .:', align: 'right' },
             { text: formatNumber(totalProdQty) }
         ];
-        drawProdRow(currentYPos, prodTotalRow);
-        currentYPos += 15;
+        drawProdRow(currentY, prodTotalRow);
+        currentY += 40;
 
-        // Signatures again if they fit? Model shows signatures at bottom of page usually.
-        // We put them on Page 1. If user wants them on last page too:
-        // "Manter assinaturas (se ficar na mesma página do bloco final) igual ao modelo."
-        // We will add them here too if there is space, or new page.
-
-        if (currentYPos < doc.page.height - 120) {
-             const footerSignY2 = doc.page.height - 80;
-             doc.moveTo(pageMargin, footerSignY2).lineTo(pageMargin + 200, footerSignY2).stroke();
-             doc.text('TÉCNICO RESPONSÁVEL', pageMargin, footerSignY2 + 5, { width: 200, align: 'center' });
-
-             doc.moveTo(pageWidth - pageMargin - 200, footerSignY2).lineTo(pageWidth - pageMargin, footerSignY2).stroke();
-             doc.text('PRODUTOR', pageWidth - pageMargin - 200, footerSignY2 + 5, { width: 200, align: 'center' });
+        // --- SIGNATURES ---
+        if (currentY + 60 > doc.page.height) {
+            doc.addPage();
+            currentY = doc.page.height - 100;
         }
+
+        const signY = currentY;
+        doc.moveTo(pageMargin, signY).lineTo(pageMargin + 200, signY).stroke();
+        doc.text('TÉCNICO RESPONSÁVEL', pageMargin, signY + 5, { width: 200, align: 'center' });
+
+        doc.moveTo(pageWidth - pageMargin - 200, signY).lineTo(pageWidth - pageMargin, signY).stroke();
+        doc.text('PRODUTOR', pageWidth - pageMargin - 200, signY + 5, { width: 200, align: 'center' });
 
 
         // --- MAP PAGE (Landscape) ---
         if (geojsonData) {
             doc.addPage({ size: 'A4', layout: 'landscape', margin: 28 });
-
-            // Landscape Dimensions
-            // A4 Landscape: 841.89 x 595.28 pts
             const lsPageWidth = doc.page.width;
             const lsPageHeight = doc.page.height;
             const lsMargin = 28;
 
-            // Title
             doc.font('Helvetica-Bold').fontSize(14).text(`Mapa de Aplicação - O.S. ${osData.os_numero || osData.sequentialId || osId}`, lsMargin, lsMargin, { width: lsPageWidth - (lsMargin*2), align: 'center' });
 
-            // Area Calculation
             const mapAreaX = lsMargin;
             const mapAreaY = lsMargin + 30;
             const mapAreaW = lsPageWidth - (lsMargin * 2);
-            const mapAreaH = lsPageHeight - (lsMargin * 2) - 50; // Leave space for footer/title
+            const mapAreaH = lsPageHeight - (lsMargin * 2) - 50;
 
-            // Filter Features
             const farmFeatures = geojsonData.features.filter(f => {
                 if (!f.properties) return false;
                 const propKeys = Object.keys(f.properties);
                 const codeKey = propKeys.find(k => k.toLowerCase() === 'fundo_agr');
-                // Or try matching farm name if code is missing? Better rely on Code.
                 const featureFarmCode = codeKey ? f.properties[codeKey] : null;
                 return featureFarmCode && parseInt(featureFarmCode, 10) === parseInt(farmCode, 10);
             });
 
             if (farmFeatures.length > 0) {
-                // Calculate Bounds
                 const allCoords = farmFeatures.flatMap(f => f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates.flatMap(p => p[0]));
                 const bbox = {
                     minX: Math.min(...allCoords.map(c => c[0])), maxX: Math.max(...allCoords.map(c => c[0])),
@@ -434,25 +408,12 @@ const generateOsPdf = async (req, res, db) => {
 
                 const geoWidth = bbox.maxX - bbox.minX;
                 const geoHeight = bbox.maxY - bbox.minY;
-
-                // Scale to Fit
-                // scale = pixels / geoUnit
                 const scaleX = mapAreaW / geoWidth;
                 const scaleY = mapAreaH / geoHeight;
-                const scale = Math.min(scaleX, scaleY) * 0.98; // 2% padding inside
+                const scale = Math.min(scaleX, scaleY) * 0.98;
 
-                // Center Map
-                const finalMapW = geoWidth * scale;
-                const finalMapH = geoHeight * scale;
-                const offsetX = mapAreaX + (mapAreaW - finalMapW) / 2;
-                const offsetY = mapAreaY + (mapAreaH - finalMapH) / 2;
-
-                // Transform Function (Flip Y for PDF coords)
-                // PDF Y increases downwards. Geo Y increases upwards usually (Lat).
-                // Wait, Shapefiles are usually projected or Lat/Lon.
-                // If projected (meters), Y increases North (Up).
-                // If standard Lat/Lon, Y (Lat) increases North (Up).
-                // So (bbox.maxY - coord[1]) flips it correctly.
+                const offsetX = mapAreaX + (mapAreaW - (geoWidth * scale)) / 2;
+                const offsetY = mapAreaY + (mapAreaH - (geoHeight * scale)) / 2;
 
                 const transformCoord = (coord) => [
                     (coord[0] - bbox.minX) * scale + offsetX,
@@ -463,11 +424,8 @@ const generateOsPdf = async (req, res, db) => {
                 doc.lineWidth(0.5);
 
                 const labelsToDraw = [];
-
                 farmFeatures.forEach(feature => {
                     const talhaoNome = findShapefileProp(feature.properties, ['CD_TALHAO', 'COD_TALHAO', 'TALHAO']) || '';
-
-                    // Selected Logic
                     let isSelected = false;
                     const items = osData.itens || osData.items;
                     if (Array.isArray(osData.selectedPlots)) {
@@ -487,14 +445,12 @@ const generateOsPdf = async (req, res, db) => {
                     polygons.forEach(polygon => {
                         const path = polygon[0];
                         if (!path || path.length === 0) return;
-
                         const firstPoint = transformCoord(path[0]);
                         doc.moveTo(firstPoint[0], firstPoint[1]);
                         for (let i = 1; i < path.length; i++) doc.lineTo(...transformCoord(path[i]));
                         doc.fillAndStroke();
                     });
 
-                    // Label Center
                     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
                     let hasPoints = false;
                     polygons.forEach(polygon => {
@@ -518,7 +474,6 @@ const generateOsPdf = async (req, res, db) => {
                     }
                 });
 
-                // Draw Labels
                 labelsToDraw.forEach(label => {
                     doc.fontSize(8).font('Helvetica');
                     const textWidth = doc.widthOfString(label.text);
@@ -526,27 +481,22 @@ const generateOsPdf = async (req, res, db) => {
                     const padding = 2;
                     const rectWidth = textWidth + (padding * 2);
                     const rectHeight = textHeight + (padding * 2);
-
-                    // Draw White Box
                     doc.fillOpacity(1);
                     doc.fillColor('white');
                     doc.rect(label.x - (rectWidth / 2), label.y - (rectHeight / 2), rectWidth, rectHeight).fill();
-
-                    // Draw Text
                     doc.fillColor('black');
                     doc.text(label.text, label.x - (rectWidth / 2), label.y - (textHeight / 2), {
                         width: rectWidth, align: 'center', lineBreak: false
                     });
                 });
-
                 doc.restore();
-
             } else {
                  doc.text('Geometria da fazenda não encontrada no shapefile para gerar o mapa.', mapAreaX, mapAreaY);
             }
         }
 
-        // Generate Footer for all pages
+        // Generate Footer (Handles Pagination Loop)
+        // Ensure generatePdfFooter supports the loop. Based on pdfGenerator.js context, it does.
         generatePdfFooter(doc, osData.usuario_abertura_nome || osData.generatedBy || generatedBy || 'Sistema');
 
         doc.end();
