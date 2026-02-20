@@ -129,56 +129,39 @@ const generateOsPdf = async (req, res, db) => {
         const pageWidth = doc.page.width;
         const contentWidth = pageWidth - (pageMargin * 2);
 
-        const tableWidth = contentWidth * 0.65;
-        const sideBoxWidth = contentWidth * 0.35;
-        const sideBoxX = pageMargin + tableWidth;
+        const rowHeight = 14;
+        const padding = 3;
+        const mainBlockRows = 10;
 
-        // Adjusted Column Widths for better fit
-        // Reduced 'Operação' and 'Quantidade' slightly to give more to 'Fundo Agr.'
-        const headers = [
-            { text: 'Propriedade', width: tableWidth * 0.12, align: 'left' },
-            { text: 'Fundo Agr.', width: tableWidth * 0.28, align: 'left' }, // +3%
-            { text: 'Talhão', width: tableWidth * 0.10, align: 'center' },
-            { text: 'Variedade', width: tableWidth * 0.13, align: 'left' },
-            { text: 'Area', width: tableWidth * 0.10, align: 'right' },
-            { text: 'Area Rateio', width: tableWidth * 0.12, align: 'right' },
-            { text: 'Operação', width: tableWidth * 0.08, align: 'left' }, // -2%
-            { text: 'Qtde', width: tableWidth * 0.07, align: 'right' } // -1%
+        const blockX = pageMargin;
+        const blockY = currentY;
+        const blockW = contentWidth;
+        const blockH = rowHeight * (mainBlockRows + 1);
+
+        const wLeft = blockW * 0.65;
+        const wRight = blockW - wLeft;
+        const wOpQtd = wRight * 0.40;
+        const wObs = wRight - wOpQtd;
+
+        const xLeft = blockX;
+        const xOpQtd = blockX + wLeft;
+        const xObs = xOpQtd + wOpQtd;
+        const yHeaderBottom = blockY + rowHeight;
+        const rowsEndY = blockY + blockH;
+
+        const leftHeaders = [
+            { text: 'Propriedade', width: wLeft * 0.15, align: 'left' },
+            { text: 'Fundo Agr.', width: wLeft * 0.30, align: 'left' },
+            { text: 'Talhão', width: wLeft * 0.12, align: 'center' },
+            { text: 'Variedade', width: wLeft * 0.16, align: 'left' },
+            { text: 'Area', width: wLeft * 0.12, align: 'right' },
+            { text: 'Area Rateio', width: wLeft * 0.15, align: 'right' }
         ];
 
-        const rowHeight = 14; // Reduced height for tighter packing but keep padding logic
-        const padding = 3;
-
-        const drawTableHeader = (y) => {
-             let x = pageMargin;
-             // Header Background
-             doc.fillColor('#f0f0f0').rect(x, y, tableWidth, rowHeight).fill();
-             doc.fillColor('black');
-
-             doc.lineWidth(0.3).strokeColor('#555555'); // Thinner lines
-             doc.rect(x, y, tableWidth, rowHeight).stroke(); // Outer border
-
-             x = pageMargin;
-             headers.forEach((col, i) => {
-                 // Vertical lines
-                 if (i > 0) doc.moveTo(x, y).lineTo(x, y + rowHeight).stroke();
-
-                 doc.font('Helvetica-Bold').fontSize(7); // Smaller bold font
-                 doc.text(col.text, x + padding, y + padding + 1, { width: col.width - (padding*2), align: col.align, ellipsis: true });
-                 x += col.width;
-             });
-        };
-
-        drawTableHeader(currentY);
-
-        let obsBoxStartY = currentY;
-        // Obs Box Header
-        doc.lineWidth(0.3).strokeColor('#555555');
-        doc.rect(sideBoxX, currentY, sideBoxWidth, rowHeight).stroke();
-        doc.font('Helvetica-Bold').fontSize(7).text('Obs .:', sideBoxX + padding, currentY + padding + 1);
-
-        currentY += rowHeight;
-        doc.font('Helvetica').fontSize(7); // Content font size 7
+        const opQtdHeaders = [
+            { text: 'Operação', width: wOpQtd * 0.65, align: 'left' },
+            { text: 'Quantidade', width: wOpQtd * 0.35, align: 'right' }
+        ];
 
         let items = osData.itens || osData.items || [];
         if (items.length === 0 && osData.selectedPlots && farmData && farmData.talhoes) {
@@ -193,93 +176,143 @@ const generateOsPdf = async (req, res, db) => {
         let totalArea = 0;
         let totalRateio = 0;
 
-        // Obs Content
-        if (osData.observacoes || osData.observations) {
-            doc.font('Helvetica').fontSize(7);
-            doc.text(osData.observacoes || osData.observations, sideBoxX + padding, obsBoxStartY + rowHeight + padding, {
-                width: sideBoxWidth - (padding*2),
+        const drawMainBlock = (startIndex) => {
+            doc.lineWidth(0.3).strokeColor('#555555');
+
+            // Bloco externo e 2 divisões verticais
+            doc.rect(blockX, blockY, blockW, blockH).stroke();
+            doc.moveTo(xOpQtd, blockY).lineTo(xOpQtd, rowsEndY).stroke();
+            doc.moveTo(xObs, blockY).lineTo(xObs, rowsEndY).stroke();
+
+            // Cabeçalhos A e B
+            doc.fillColor('#f0f0f0').rect(xLeft, blockY, wLeft, rowHeight).fill();
+            doc.fillColor('#f0f0f0').rect(xOpQtd, blockY, wOpQtd, rowHeight).fill();
+            doc.fillColor('black');
+
+            let x = xLeft;
+            leftHeaders.forEach((col, i) => {
+                if (i > 0) doc.moveTo(x, blockY).lineTo(x, rowsEndY).stroke();
+                doc.font('Helvetica-Bold').fontSize(7).text(col.text, x + padding, blockY + padding + 1, {
+                    width: col.width - (padding * 2),
+                    align: col.align,
+                    ellipsis: true
+                });
+                x += col.width;
+            });
+
+            x = xOpQtd;
+            opQtdHeaders.forEach((col, i) => {
+                if (i > 0) doc.moveTo(x, blockY).lineTo(x, rowsEndY).stroke();
+                doc.font('Helvetica-Bold').fontSize(7).text(col.text, x + padding, blockY + padding + 1, {
+                    width: col.width - (padding * 2),
+                    align: col.align,
+                    ellipsis: true
+                });
+                x += col.width;
+            });
+
+            // Área C (Obs) limpa
+            doc.font('Helvetica-Bold').fontSize(7).text('Obs.:', xObs + padding, blockY + padding + 1, {
+                width: wObs - (padding * 2),
                 align: 'left'
             });
-        }
 
-        const drawRow = (y, cols, isTotal=false) => {
-            let x = pageMargin;
+            // Linhas horizontais apenas em A + B (nunca em C)
+            for (let row = 1; row <= mainBlockRows; row += 1) {
+                const y = blockY + (row * rowHeight);
+                doc.moveTo(blockX, y).lineTo(xObs, y).stroke();
+            }
 
-            if (isTotal) doc.font('Helvetica-Bold');
-            else doc.font('Helvetica');
+            const pageItems = items.slice(startIndex, startIndex + mainBlockRows);
+            let totalAreaPage = 0;
+            let totalRateioPage = 0;
 
-            // Draw Row Border
-            doc.rect(x, y, tableWidth, rowHeight).stroke();
+            pageItems.forEach((item, itemIndex) => {
+                const rowY = yHeaderBottom + (itemIndex * rowHeight);
+                const area = parseFloat(item.area_ha || 0);
+                totalArea += area;
+                totalRateio += area;
+                totalAreaPage += area;
+                totalRateioPage += area;
 
-            x = pageMargin;
-            cols.forEach((col, i) => {
-                if (i > 0) doc.moveTo(x, y).lineTo(x, y + rowHeight).stroke();
+                const leftData = [
+                    { text: farmCode },
+                    { text: farmName },
+                    { text: item.talhao_nome || item.talhao || '' },
+                    { text: item.variedade || '' },
+                    { text: formatNumber(area) },
+                    { text: formatNumber(area) }
+                ];
 
-                if (col.text) {
-                    doc.text(col.text, x + padding, y + padding + 1, {
-                        width: headers[i].width - (padding*2),
-                        align: headers[i].align,
-                        height: rowHeight - (padding*2),
+                const opQtdData = [
+                    { text: osData.operacao_nome || osData.tipo_servico_desc || '' },
+                    { text: formatNumber(item.quantidade || 0) }
+                ];
+
+                let dataX = xLeft;
+                leftData.forEach((col, i) => {
+                    doc.font('Helvetica').fontSize(7).text(col.text, dataX + padding, rowY + padding + 1, {
+                        width: leftHeaders[i].width - (padding * 2),
+                        align: leftHeaders[i].align,
                         ellipsis: true
                     });
-                }
-                x += headers[i].width;
+                    dataX += leftHeaders[i].width;
+                });
+
+                dataX = xOpQtd;
+                opQtdData.forEach((col, i) => {
+                    doc.font('Helvetica').fontSize(7).text(col.text, dataX + padding, rowY + padding + 1, {
+                        width: opQtdHeaders[i].width - (padding * 2),
+                        align: opQtdHeaders[i].align,
+                        ellipsis: true
+                    });
+                    dataX += opQtdHeaders[i].width;
+                });
             });
+
+            // Texto de observação permanece dentro do quadro limpo
+            if (startIndex === 0 && (osData.observacoes || osData.observations)) {
+                doc.font('Helvetica').fontSize(7).text(osData.observacoes || osData.observations, xObs + padding, yHeaderBottom + padding, {
+                    width: wObs - (padding * 2),
+                    align: 'left',
+                    height: blockH - rowHeight - (padding * 2),
+                    ellipsis: true
+                });
+            }
+
+            return {
+                consumed: pageItems.length,
+                pageTotalArea: totalAreaPage,
+                pageTotalRateio: totalRateioPage
+            };
         };
 
-        items.forEach(item => {
-            if (currentY > doc.page.height - 50) {
-                // Close Obs Box
-                doc.rect(sideBoxX, obsBoxStartY + rowHeight, sideBoxWidth, currentY - (obsBoxStartY + rowHeight)).stroke();
-
+        let currentIndex = 0;
+        let blockTotals = { pageTotalArea: 0, pageTotalRateio: 0 };
+        while (currentIndex < items.length || currentIndex === 0) {
+            blockTotals = drawMainBlock(currentIndex);
+            currentIndex += blockTotals.consumed;
+            if (currentIndex < items.length) {
                 doc.addPage();
                 currentY = drawHeader(doc);
                 doc.moveDown(0.5);
                 currentY += 8;
-
-                drawTableHeader(currentY);
-                obsBoxStartY = currentY;
-                // Draw Obs Box Header again? Or just top line. Let's replicate header logic.
-                doc.rect(sideBoxX, currentY, sideBoxWidth, rowHeight).stroke();
-                // No text needed if continuation, or "Obs (cont.)"
-
-                currentY += rowHeight;
+            } else {
+                break;
             }
+        }
 
-            const area = parseFloat(item.area_ha || 0);
-            totalArea += area;
-            totalRateio += area;
+        currentY = blockY + blockH;
+        doc.font('Helvetica').fontSize(7); // Content font size 7
+        // Linha de totais abaixo do bloco principal
+        const totalLineY = currentY + 6;
+        doc.font('Helvetica-Bold').fontSize(8);
+        doc.text('Total Área:', blockX, totalLineY, { width: 80, align: 'left' });
+        doc.text(formatNumber(totalArea), blockX + 80, totalLineY, { width: 55, align: 'right' });
+        doc.text('Total Rateio:', blockX + 145, totalLineY, { width: 90, align: 'left' });
+        doc.text(formatNumber(totalRateio), blockX + 235, totalLineY, { width: 55, align: 'right' });
 
-            const rowData = [
-                { text: farmCode },
-                { text: farmName },
-                { text: item.talhao_nome || item.talhao || '' },
-                { text: item.variedade || '' },
-                { text: formatNumber(area) },
-                { text: formatNumber(area) },
-                { text: osData.operacao_nome || osData.tipo_servico_desc || '' },
-                { text: formatNumber(item.quantidade || 0) }
-            ];
-            drawRow(currentY, rowData);
-            currentY += rowHeight;
-        });
-
-        // Total Row
-        const totalRow = [
-            { text: '' }, { text: '' }, { text: '' }, { text: 'Total', align: 'right' },
-            { text: formatNumber(totalArea) },
-            { text: formatNumber(totalRateio) },
-            { text: '' }, { text: '' }
-        ];
-        drawRow(currentY, totalRow, true);
-
-        // Final Close of Obs Box
-        // From start Y + header height to current Y + rowHeight (total row end)
-        // Wait, total row is part of table width, obs box is side.
-        // We close obs box at the same Y as total row bottom? Yes.
-        doc.rect(sideBoxX, obsBoxStartY + rowHeight, sideBoxWidth, (currentY + rowHeight) - (obsBoxStartY + rowHeight)).stroke();
-
-        currentY += rowHeight + 10;
+        currentY = totalLineY + rowHeight + 4;
 
         // --- REQUISITION OF PRODUCTS ---
         if (currentY + 80 > doc.page.height) {
