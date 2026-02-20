@@ -313,10 +313,12 @@ const generateOsPdf = async (req, res, db) => {
              let x = pageMargin;
              cols.forEach((col, i) => {
                  doc.moveTo(x, y).lineTo(x, y + 15).stroke();
+                 const colWidth = prodHeaders[i].width;
+                 const align = prodHeaders[i].align;
                  if (col.text) {
-                     doc.text(col.text, x + 2, y + 4, { width: col.width - 4, align: col.align, ellipsis: true });
+                     doc.text(col.text, x + 2, y + 4, { width: colWidth - 4, align: align, ellipsis: true });
                  }
-                 x += col.width;
+                 x += colWidth;
              });
              doc.moveTo(x, y).lineTo(x, y + 15).stroke();
              doc.moveTo(pageMargin, y + 15).lineTo(pageMargin + contentWidth, y + 15).stroke();
