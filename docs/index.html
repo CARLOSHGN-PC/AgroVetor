@@ -1924,32 +1924,39 @@
       }
 
       /* Estilos para o módulo O.S. Manual */
-      #ordemServicoManual .card {
-        flex: 0 0 450px; /* Base de 450px, sem crescer, pode encolher */
-        min-width: 320px; /* Largura mínima para telas menores */
-        max-width: 100%; /* Garante que não ultrapasse a tela */
-        transition: min-width 0.4s ease, flex-basis 0.4s ease; /* Transição suave */
+      #ordemServicoManual .wizard-step-indicator {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 16px;
       }
-
-      /* Estilos para o módulo Registro de Aplicação (mesma lógica) */
-      #registroAplicacao .card {
-        flex: 0 0 450px;
-        min-width: 320px;
-        max-width: 100%;
-        transition: min-width 0.4s ease, flex-basis 0.4s ease;
+      #ordemServicoManual .wizard-step-chip {
+          background: var(--color-bg);
+          border: 1px solid var(--color-border);
+          border-radius: 16px;
+          padding: 6px 12px;
+          font-size: 12px;
+          font-weight: 600;
       }
-
-      @media (max-width: 768px) {
-          #btnMobileToggleMap, #btnMobileToggleRegAppMap { display: flex !important; }
+      #ordemServicoManual .wizard-step-chip.active {
+          background: var(--color-info);
+          color: #fff;
+          border-color: var(--color-info);
       }
-
-      /* Quando o mapa está expandido, o painel encolhe */
-      #ordemServicoManual.map-expanded .card,
-      #registroAplicacao.map-expanded .card {
-          flex: 0 0 0;
-          min-width: 0;
-          overflow: hidden;
-          padding: 0;
+      #ordemServicoManual .os-operation-list {
+          max-height: 320px;
+          overflow-y: auto;
+          border: 1px solid var(--color-border);
+          border-radius: var(--border-radius);
+          padding: 8px;
+          background: var(--color-bg);
+      }
+      #ordemServicoManual .os-product-card {
+          border: 1px solid var(--color-border);
+          border-radius: var(--border-radius);
+          padding: 12px;
+          margin-bottom: 10px;
+          background: var(--color-bg);
       }
 
       /* Old .os-plot-item styles removed or deprecated */
@@ -2627,87 +2634,11 @@
 
             </section>
             
-            <section id="ordemServicoManual" class="tab-content" aria-label="Ordem de Serviço Manual" tabindex="0" hidden style="padding: 0; height: calc(100% + 40px); width: calc(100% + 40px); margin: -20px; overflow: hidden;">
-                <div style="display: flex; height: 100%;">
-
-                    <!-- Sidebar (Formulário e Lista) -->
-                    <div class="card" style="margin: 0; display: flex; flex-direction: column; height: 100%; overflow-y: auto; border-left-color: var(--color-info); border-radius: 0;">
-                        <div style="padding: 15px;">
-                            <h2 style="font-size: 20px; margin-bottom: 15px; color: var(--color-info);"><i class="fas fa-file-contract"></i> Ordem de Serviço Manual</h2>
-
-                            <button id="btnMobileToggleMap" class="save" style="display: none; width: 100%; margin-bottom: 15px; background: var(--color-info); max-width: none;">
-                                <i class="fas fa-map-marked-alt"></i> Ver Mapa
-                            </button>
-
-                        <div class="form-col" style="margin-bottom: 15px;">
-                            <label for="osFarmSelect" class="required">Fazenda:</label>
-                            <select id="osFarmSelect" style="width: 100%;"></select>
-                        </div>
-
-                        <div class="form-col" style="margin-bottom: 10px;">
-                            <label for="osResponsibleMatricula" class="required">Matrícula Responsável:</label>
-                            <input type="number" id="osResponsibleMatricula" placeholder="Digite matrícula...">
-                            <input type="text" id="osResponsibleName" readonly style="margin-top: 5px; background-color: #eee;" placeholder="Nome do responsável">
-                        </div>
-
-                        <div class="form-col" style="margin-bottom: 10px;">
-                            <label for="osServiceType" class="required">Tipo de Serviço:</label>
-                            <select id="osServiceType" style="width: 100%;"><option value="">Selecione...</option></select>
-                        </div>
-
-                        <div class="form-col" style="margin-bottom: 10px;">
-                            <label for="osOperation" class="required">Operação:</label>
-                            <select id="osOperation" style="width: 100%;"><option value="">Selecione...</option></select>
-                        </div>
-
-                        <div id="osProductSection" style="display: none; margin-bottom: 15px; border: 1px solid var(--color-border); padding: 10px; border-radius: var(--border-radius);">
-                            <h4 style="margin-bottom: 10px;">Produtos / Insumos</h4>
-                            <div id="osProductsList"></div>
-                            <div id="osProductsPreview" class="table-responsive" style="margin-top: 10px;"></div>
-                        </div>
-
-                        <div class="form-col" style="margin-bottom: 15px;">
-                            <label for="osObservations">Observações:</label>
-                            <textarea id="osObservations" placeholder="Instruções..." style="min-height: 60px;"></textarea>
-                        </div>
-
-                        <hr style="margin: 10px 0; border-color: var(--color-border);">
-
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                             <h4 style="margin: 0;">Talhões Selecionados</h4>
-                             <span id="osTotalArea" style="font-weight: bold; color: var(--color-primary);">0.00 ha</span>
-                        </div>
-                        <button id="osSelectAllPlotsBtn" class="btn-secondary" style="width: 100%; margin-bottom: 10px; justify-content: center; border-radius: 20px;">
-                            <i class="fas fa-check"></i> Selecionar Todos
-                        </button>
-
-                        <div id="osPlotsList" class="talhao-selection-list" style="flex-grow: 1; max-height: none; overflow-y: auto; background: var(--color-bg);">
-                            <p style="text-align: center; color: var(--color-text-light); padding: 20px;">Selecione uma fazenda para carregar os talhões.</p>
-                        </div>
-
-                        <button id="btnGenerateOS" class="save" style="margin-top: 15px; width: 100%; max-width: none;">
-                            <i class="fas fa-file-pdf"></i> Gerar O.S.
-                        </button>
-                        </div>
-                    </div>
-
-                    <!-- Mapa -->
-                    <div style="flex-grow: 1; position: relative; overflow: hidden;">
-                        <div id="os-map" style="width: 100%; height: 100%;"></div>
-                        <div class="map-controls" style="position: absolute; bottom: 20px; right: 20px; left: auto; display: flex; flex-direction: column; gap: 10px;">
-                            <button id="btnToggleOSPanel" class="map-control-btn" title="Expandir/Recolher Painel">
-                                <i class="fas fa-arrows-alt-h"></i>
-                            </button>
-                            <button id="btnCenterOSMap" class="map-control-btn" title="Centralizar Mapa">
-                                <i class="fas fa-expand"></i>
-                            </button>
-                        </div>
-                         <button id="btn-recolher-mapa-os" class="map-control-btn" style="position: absolute; top: 15px; left: 15px; z-index: 2; display: none;">
-                            <i class="fas fa-chevron-left"></i>
-                        </button>
-                    </div>
-
+            <section id="ordemServicoManual" class="tab-content card" aria-label="Ordem de Serviço Manual" tabindex="0" hidden>
+                <div class="card-header-actions">
+                    <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-file-contract"></i> Ordem de Serviço Manual</h2>
                 </div>
+                <div id="osManualWizardRoot"></div>
             </section>
 
             <section id="ordemServicoEscritorio" class="tab-content card" aria-label="Ordem de Serviço (Escritório)" tabindex="0" hidden>
