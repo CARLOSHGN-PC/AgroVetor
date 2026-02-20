@@ -738,7 +738,6 @@ document.addEventListener('DOMContentLoaded', () => {
             announcements: [],
             osMap: null,
             osSelectedPlots: new Set(),
-            osManualWizard: null,
             regAppMap: null,
             regAppSelectedPlots: new Map(), // Map<talhaoId, {area: number, direction: string, isPartial: boolean}>
             regAppDirectionTarget: null, // Stores talhaoId when selecting direction on map
@@ -771,7 +770,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnCenterMap: document.getElementById('btnCenterRegAppMap'),
             },
             osManual: {
-                root: document.getElementById('osManualWizardRoot'),
+                farmSelect: document.getElementById('osFarmSelect'),
+                serviceType: document.getElementById('osServiceType'),
+                operation: document.getElementById('osOperation'),
+                responsibleMatricula: document.getElementById('osResponsibleMatricula'),
+                responsibleName: document.getElementById('osResponsibleName'),
+                observations: document.getElementById('osObservations'),
+                totalArea: document.getElementById('osTotalArea'),
+                plotsList: document.getElementById('osPlotsList'),
+                btnGenerate: document.getElementById('btnGenerateOS'),
+                mapContainer: document.getElementById('os-map'),
+                btnCenterMap: document.getElementById('btnCenterOSMap'),
             },
             welcomeModal: {
                 overlay: document.getElementById('welcomeModal'),
@@ -14847,296 +14856,664 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         osManual: {
-            get defaultState() {
-                return {
-                    step: 1,
-                    operationCursor: 0,
-                    filters: { search: '', stage: '' },
-                    basic: {
-                        produtor: '', fazendaId: '', talhoes: [], etapaId: '', safraCiclo: '', data: new Date().toISOString().split('T')[0],
-                        responsavelMatricula: '', responsavelNome: '', obsGeral: ''
-                    },
-                    selectedOperations: [],
-                    operationProducts: {}
-                };
-            },
-
             init() {
-                if (!App.elements.osManual.root) return;
-                App.state.osManualWizard = App.state.osManualWizard || structuredClone(this.defaultState);
-                this.restoreDraft();
-                this.render();
+                this.populateFarmSelect();
+                this.populateDropdowns();
+                this.setupEventListeners();
+                this.initMap();
             },
 
-            getFarmById(farmId) {
-                return (App.state.fazendas || []).find(f => String(f.id) === String(farmId));
+            populateDropdowns() {
+                const typeSelect = App.elements.osManual.serviceType;
+                const opSelect = App.elements.osManual.operation;
+
+                if (typeSelect) {
+                    typeSelect.innerHTML = '<option value="">Selecione...</option>' +
+                        (App.state.tipos_servico || []).filter(x => x.ativo).map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
+                }
+                if (opSelect) {
+                    opSelect.innerHTML = '<option value="">Selecione...</option>' +
+                        (App.state.operacoes || []).filter(x => x.ativo).map(op => `<option value="${op.id}">${op.nome}</option>`).join('');
+                }
             },
 
-            getTotalArea() {
-                const state = App.state.osManualWizard;
-                const farm = this.getFarmById(state.basic.fazendaId);
-                if (!farm) return 0;
-                return state.basic.talhoes.reduce((sum, talhaoId) => {
-                    const talhao = (farm.talhoes || []).find(t => String(t.id) === String(talhaoId));
-                    const area = Number.parseFloat(talhao?.area);
-                    return sum + (Number.isFinite(area) ? area : 0);
-                }, 0);
+            setupEventListeners() {
+                const els = App.elements.osManual;
+                if (!els.farmSelect) return;
+
+                els.farmSelect.addEventListener('change', () => this.handleFarmChange());
+
+                if (els.responsibleMatricula) {
+                    els.responsibleMatricula.addEventListener('input', App.debounce((e) => this.lookupResponsible(e.target.value), 500));
+                }
+
+                if (els.operation) {
+                    els.operation.addEventListener('change', () => this.handleOperationChange());
+                }
+
+                els.btnGenerate.addEventListener('click', () => this.generateOS());
+
+                const selectAllBtn = document.getElementById('osSelectAllPlotsBtn');
+                if (selectAllBtn) {
+                    selectAllBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const plotCheckboxes = Array.from(els.plotsList.querySelectorAll('input[type="checkbox"]'));
+                        if (plotCheckboxes.length === 0) return;
+
+                        const allChecked = plotCheckboxes.every(cb => cb.checked);
+                        const targetState = !allChecked;
+
+                        plotCheckboxes.forEach(checkbox => {
+                            if (checkbox.checked !== targetState) {
+                                checkbox.checked = targetState;
+                                checkbox.dispatchEvent(new Event('change'));
+                            }
+                        });
+                    });
+                }
+
+                if (els.btnCenterMap) {
+                    els.btnCenterMap.addEventListener('click', () => {
+                        const farmCode = els.farmSelect.options[els.farmSelect.selectedIndex]?.text?.split(' - ')[0];
+                        if(farmCode) this.zoomToFarm(farmCode);
+                    });
+                }
+
+                const btnToggleOSPanel = document.getElementById('btnToggleOSPanel');
+                if (btnToggleOSPanel) btnToggleOSPanel.addEventListener('click', () => this.toggleMapSize());
+                const btnRecolherMapa = document.getElementById('btn-recolher-mapa-os');
+                if (btnRecolherMapa) btnRecolherMapa.addEventListener('click', () => this.toggleMapSize());
+                const btnMobileToggleMap = document.getElementById('btnMobileToggleMap');
+                if (btnMobileToggleMap) btnMobileToggleMap.addEventListener('click', () => this.toggleMapSize());
             },
 
-            render() {
-                const root = App.elements.osManual.root;
-                if (!root) return;
-                const state = App.state.osManualWizard;
-                root.innerHTML = `
-                    <div class="card" style="border-left-color: var(--color-info);">
-                        <div class="wizard-step-indicator">
-                            ${[1,2,3,4].map(i => `<span class="wizard-step-chip ${state.step === i ? 'active' : ''}">Etapa ${i}</span>`).join('')}
+            lookupResponsible(matricula) {
+                const nameInput = App.elements.osManual.responsibleName;
+                if (!matricula) {
+                    nameInput.value = '';
+                    return;
+                }
+                const person = App.state.personnel.find(p => String(p.matricula) === String(matricula));
+                if (person) {
+                    nameInput.value = person.name;
+                } else {
+                    nameInput.value = 'Não encontrado';
+                }
+            },
+
+            handleOperationChange() {
+                const opId = App.elements.osManual.operation.value;
+                const section = document.getElementById('osProductSection');
+                const list = document.getElementById('osProductsList');
+
+                if (!opId) {
+                    section.style.display = 'none';
+                    return;
+                }
+
+                const links = (App.state.operacao_produtos || []).filter(l => l.operacao_id === opId);
+
+                if (links.length === 0) {
+                    list.innerHTML = '<p>Sem produtos vinculados.</p>';
+                    section.style.display = 'block';
+                    this.updateProductCalculations();
+                    return;
+                }
+
+                let html = '';
+                links.forEach(link => {
+                    const prod = App.state.produtos.find(p => p.id === link.produto_id);
+                    if (!prod) return;
+
+                    const checked = link.obrigatorio ? 'checked disabled' : 'checked';
+
+                    html += `
+                        <div class="product-item" style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+                            <input type="checkbox" class="os-prod-cb" data-id="${prod.id}" data-name="${prod.nome}" data-unit="${prod.unidade}" ${checked}>
+                            <span style="flex: 1;">${prod.nome} (${prod.unidade})</span>
+                            <input type="number" class="os-prod-dosage" value="${link.dosagem_por_ha}" step="0.001" style="width: 80px;">
+                            <span>/ha</span>
                         </div>
-                        <div id="osManualStepContainer"></div>
-                    </div>
-                `;
-                if (state.step === 1) this.renderBasicDataStep();
-                if (state.step === 2) this.renderOperationSelector();
-                if (state.step === 3) this.renderOperationProductsEditor();
-                if (state.step === 4) this.renderOsReviewSummary();
-            },
+                    `;
+                });
 
-            renderBasicDataStep() {
-                const state = App.state.osManualWizard;
-                const farmOptions = (App.state.fazendas || []).sort((a,b) => String(a.name).localeCompare(String(b.name))).map(f => `<option value="${f.id}" ${String(state.basic.fazendaId)===String(f.id)?'selected':''}>${f.code} - ${f.name}</option>`).join('');
-                const stageOptions = (App.state.tipos_servico || []).filter(t => t.ativo).map(t => `<option value="${t.id}" ${String(state.basic.etapaId)===String(t.id)?'selected':''}>${t.descricao}</option>`).join('');
-                const farm = this.getFarmById(state.basic.fazendaId);
-                const talhoes = farm?.talhoes || [];
-                const talhoesHtml = talhoes.map(t => `
-                    <label class="talhao-selection-item" for="os-talhao-${t.id}">
-                        <input type="checkbox" id="os-talhao-${t.id}" data-talhao-id="${t.id}" ${state.basic.talhoes.includes(t.id) ? 'checked' : ''}>
-                        <div class="talhao-name">${t.name}</div>
-                        <div class="talhao-details"><span><i class="fas fa-ruler-combined"></i> Área: ${Number(t.area || 0).toFixed(2)} ha</span></div>
-                    </label>
-                `).join('');
+                list.innerHTML = html;
+                section.style.display = 'block';
 
-                document.getElementById('osManualStepContainer').innerHTML = `
-                    <h3><i class="fas fa-info-circle"></i> Dados básicos</h3>
-                    <div class="form-row">
-                        <div class="form-col"><label class="required" for="osProdutor">Produtor</label><input id="osProdutor" value="${state.basic.produtor || ''}" placeholder="Nome do produtor"></div>
-                        <div class="form-col"><label class="required" for="osFazenda">Fazenda</label><select id="osFazenda"><option value="">Selecione...</option>${farmOptions}</select></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col"><label class="required" for="osEtapa">Etapa</label><select id="osEtapa"><option value="">Selecione...</option>${stageOptions}</select></div>
-                        <div class="form-col"><label class="required" for="osSafraCiclo">Safra/Ciclo</label><input id="osSafraCiclo" value="${state.basic.safraCiclo || `${App.state.globalConfigs?.safra || ''}/${App.state.globalConfigs?.ciclo || ''}`}"></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col"><label class="required" for="osData">Data</label><input type="date" id="osData" value="${state.basic.data || ''}"></div>
-                        <div class="form-col"><label class="required" for="osRespMat">Matrícula Responsável</label><input type="number" id="osRespMat" value="${state.basic.responsavelMatricula || ''}"></div>
-                        <div class="form-col"><label for="osRespNome">Responsável</label><input id="osRespNome" value="${state.basic.responsavelNome || ''}" readonly></div>
-                    </div>
-                    <div class="form-col" style="margin-bottom: 12px;"><label for="osObsGeral">Observações</label><textarea id="osObsGeral" style="min-height: 64px;">${state.basic.obsGeral || ''}</textarea></div>
-                    <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;"><h4 style="margin:0;">Talhões</h4><strong>${this.getTotalArea().toFixed(2)} ha</strong></div><div class="talhao-selection-list">${talhoesHtml || '<p style="padding:10px">Selecione uma fazenda.</p>'}</div></div>
-                    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;"><button id="osSaveDraft1" class="btn-secondary">Salvar rascunho offline</button><button id="osNext1" class="save">Próximo: Operações</button></div>
-                `;
-
-                document.getElementById('osProdutor').addEventListener('input', e => state.basic.produtor = e.target.value);
-                document.getElementById('osFazenda').addEventListener('change', e => { state.basic.fazendaId = e.target.value; state.basic.talhoes = []; this.render(); });
-                document.getElementById('osEtapa').addEventListener('change', e => state.basic.etapaId = e.target.value);
-                document.getElementById('osSafraCiclo').addEventListener('input', e => state.basic.safraCiclo = e.target.value);
-                document.getElementById('osData').addEventListener('change', e => state.basic.data = e.target.value);
-                document.getElementById('osRespMat').addEventListener('input', App.debounce((e) => {
-                    state.basic.responsavelMatricula = e.target.value;
-                    const person = (App.state.personnel || []).find(p => String(p.matricula) === String(e.target.value));
-                    state.basic.responsavelNome = person?.name || 'Não encontrado';
-                    document.getElementById('osRespNome').value = state.basic.responsavelNome;
-                }, 300));
-                document.getElementById('osObsGeral').addEventListener('input', e => state.basic.obsGeral = e.target.value);
-                document.querySelectorAll('[data-talhao-id]').forEach(el => el.addEventListener('change', (e) => {
-                    const id = e.target.dataset.talhaoId;
-                    if (e.target.checked && !state.basic.talhoes.includes(id)) state.basic.talhoes.push(id);
-                    if (!e.target.checked) state.basic.talhoes = state.basic.talhoes.filter(t => String(t) !== String(id));
-                    this.render();
-                }));
-                document.getElementById('osNext1').addEventListener('click', () => {
-                    if (!state.basic.produtor || !state.basic.fazendaId || !state.basic.etapaId || !state.basic.safraCiclo || !state.basic.data || !state.basic.responsavelMatricula || state.basic.responsavelNome === 'Não encontrado' || state.basic.talhoes.length === 0) {
-                        return App.ui.showAlert('Preencha os campos obrigatórios e selecione ao menos um talhão.', 'warning');
+                list.querySelectorAll('.os-prod-cb, .os-prod-dosage').forEach(el => {
+                    el.addEventListener('change', () => this.updateProductCalculations());
+                    if (el.tagName === 'INPUT' && el.type === 'number') {
+                         el.addEventListener('input', () => this.updateProductCalculations());
                     }
-                    state.step = 2;
-                    this.render();
                 });
-                document.getElementById('osSaveDraft1').addEventListener('click', () => this.saveDraftOffline());
+
+                this.updateProductCalculations();
             },
 
-            renderOperationSelector() {
-                const state = App.state.osManualWizard;
-                const search = state.filters.search.toLowerCase();
-                const ops = (App.state.operacoes || []).filter(op => op.ativo).filter(op => !search || String(op.nome).toLowerCase().includes(search));
-                document.getElementById('osManualStepContainer').innerHTML = `
-                    <h3><i class="fas fa-tasks"></i> Selecionar Operações</h3>
-                    <div class="form-row">
-                        <div class="form-col"><label for="osOperationSearch">Buscar</label><input id="osOperationSearch" value="${state.filters.search || ''}" placeholder="Digite o nome da operação"></div>
-                        <div class="form-col"><label>&nbsp;</label><p style="margin:10px 0 0 0;font-weight:600;">${state.selectedOperations.length} operações selecionadas</p></div>
-                    </div>
-                    <div class="os-operation-list">
-                        ${ops.map(op => `<label class="talhao-selection-item" for="os-op-${op.id}"><input type="checkbox" id="os-op-${op.id}" data-op-id="${op.id}" ${state.selectedOperations.includes(op.id) ? 'checked' : ''}><div class="talhao-name">${op.nome}</div></label>`).join('') || '<p style="padding:10px">Nenhuma operação encontrada.</p>'}
-                    </div>
-                    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:12px;"><button id="osPrev2" class="btn-secondary">Voltar</button><div style="display:flex;gap:8px;"><button id="osSaveDraft2" class="btn-secondary">Salvar rascunho offline</button><button id="osNext2" class="save" ${state.selectedOperations.length === 0 ? 'disabled' : ''}>Próximo: Produtos por Operação</button></div></div>
-                `;
-                document.getElementById('osOperationSearch').addEventListener('input', (e) => { state.filters.search = e.target.value; this.render(); });
-                document.querySelectorAll('[data-op-id]').forEach(el => el.addEventListener('change', e => {
-                    const opId = e.target.dataset.opId;
-                    if (e.target.checked && !state.selectedOperations.includes(opId)) state.selectedOperations.push(opId);
-                    if (!e.target.checked) state.selectedOperations = state.selectedOperations.filter(id => String(id) !== String(opId));
-                    if (!state.operationProducts[opId]) state.operationProducts[opId] = [];
-                    this.render();
-                }));
-                document.getElementById('osPrev2').addEventListener('click', () => { state.step = 1; this.render(); });
-                document.getElementById('osNext2').addEventListener('click', () => { state.step = 3; state.operationCursor = 0; this.render(); });
-                document.getElementById('osSaveDraft2').addEventListener('click', () => this.saveDraftOffline());
+            updateProductCalculations() {
+                const totalArea = App.state.osTotalArea || 0;
+                const preview = document.getElementById('osProductsPreview');
+                const list = document.getElementById('osProductsList');
+
+                if (!list || !preview) return;
+
+                let html = '<table style="width:100%; font-size: 13px;"><thead><tr><th>Produto</th><th>Dosagem</th><th>Total</th></tr></thead><tbody>';
+
+                const items = list.querySelectorAll('.product-item');
+                let hasProducts = false;
+
+                items.forEach(item => {
+                    const cb = item.querySelector('.os-prod-cb');
+                    if (cb.checked) {
+                        hasProducts = true;
+                        const prodName = cb.dataset.name;
+                        const dosage = parseFloat(item.querySelector('.os-prod-dosage').value) || 0;
+                        const total = (dosage * totalArea).toFixed(3);
+                        const unit = cb.dataset.unit;
+
+                        html += `<tr><td>${prodName}</td><td>${dosage}</td><td>${total} ${unit}</td></tr>`;
+                    }
+                });
+
+                html += '</tbody></table>';
+                preview.innerHTML = hasProducts ? html : '';
             },
 
-            renderOperationProductsEditor() {
-                const state = App.state.osManualWizard;
-                const total = state.selectedOperations.length;
-                const opId = state.selectedOperations[state.operationCursor];
-                const op = (App.state.operacoes || []).find(item => String(item.id) === String(opId));
-                const links = (App.state.operacao_produtos || []).filter(l => String(l.operacao_id) === String(opId));
-                const products = links.map(link => (App.state.produtos || []).find(p => String(p.id) === String(link.produto_id))).filter(Boolean);
-                const opProducts = state.operationProducts[opId] || [];
-                document.getElementById('osManualStepContainer').innerHTML = `
-                    <div class="card" style="border-left-color: var(--color-info); margin-bottom: 12px;"><h3 style="margin:0;"><i class="fas fa-cog"></i> ${op?.nome || 'Operação'}</h3><p style="margin:6px 0 0 0;">Operação ${state.operationCursor + 1} de ${total}</p></div>
-                    <div class="form-row">
-                        <div class="form-col"><label for="osProductSelect">Produto</label><select id="osProductSelect"><option value="">Selecione...</option>${products.map(p => `<option value="${p.id}">${p.nome} (${p.unidade || '-'})</option>`).join('')}</select></div>
-                        <div class="form-col"><label for="osDoseInput">Dose/Qtde HA</label><input type="number" step="0.001" id="osDoseInput" placeholder="0.000"></div>
-                        <div class="form-col" style="display:flex;align-items:flex-end;"><button id="osAddProductBtn" class="save" style="max-width:none;width:100%;">Adicionar</button></div>
-                    </div>
-                    <div>${opProducts.map((prod,idx)=>`<div class="os-product-card"><div style="display:flex;justify-content:space-between;gap:8px;"><strong>${prod.descricao}</strong><button class="btn-secondary" data-remove-product="${idx}"><i class="fas fa-trash"></i></button></div><div class="form-row" style="margin-top:8px;"><div class="form-col"><label>Und</label><input value="${prod.und}" data-edit-und="${idx}"></div><div class="form-col"><label>Dose/Ha</label><input type="number" step="0.001" value="${prod.doseHa}" data-edit-dose="${idx}"></div><div class="form-col"><label>Qtde Total</label><input value="${prod.qtdeTotal.toFixed(3)}" readonly></div></div></div>`).join('') || '<p>Nenhum produto adicionado para esta operação.</p>'}</div>
-                    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:12px;"><button id="osPrev3" class="btn-secondary">Anterior</button><div style="display:flex;gap:8px;"><button id="osSaveDraft3" class="btn-secondary">Salvar rascunho offline</button><button id="osNext3" class="save">${state.operationCursor === total - 1 ? 'Próximo: Revisão' : 'Próxima operação'}</button></div></div>
-                `;
+            initMap() {
+                if (App.state.osMap) {
+                    setTimeout(() => App.state.osMap.resize(), 200);
+                    return;
+                }
 
-                document.getElementById('osAddProductBtn').addEventListener('click', () => {
-                    const productId = document.getElementById('osProductSelect').value;
-                    const dose = Number.parseFloat(document.getElementById('osDoseInput').value);
-                    if (!productId || !Number.isFinite(dose) || dose <= 0) return App.ui.showAlert('Selecione produto e informe dose válida.', 'warning');
-                    const p = (App.state.produtos || []).find(item => String(item.id) === String(productId));
-                    const list = state.operationProducts[opId] || [];
-                    list.push({ produtoId: p.id, descricao: p.nome, und: p.unidade || '', doseHa: dose, qtdeTotal: dose * this.getTotalArea() });
-                    state.operationProducts[opId] = list;
-                    this.render();
+                const mapContainer = App.elements.osManual.mapContainer;
+                if (!mapContainer) return;
+
+                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+
+                App.state.osMap = new mapboxgl.Map({
+                    container: mapContainer,
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [-48.45, -21.17],
+                    zoom: 10,
+                    attributionControl: false
                 });
-                document.querySelectorAll('[data-remove-product]').forEach(el => el.addEventListener('click', e => {
-                    const idx = Number(e.currentTarget.dataset.removeProduct);
-                    const list = state.operationProducts[opId] || [];
-                    list.splice(idx, 1);
-                    state.operationProducts[opId] = list;
-                    this.render();
-                }));
-                document.querySelectorAll('[data-edit-und]').forEach(el => el.addEventListener('input', e => {
-                    state.operationProducts[opId][Number(e.target.dataset.editUnd)].und = e.target.value;
-                }));
-                document.querySelectorAll('[data-edit-dose]').forEach(el => el.addEventListener('input', e => {
-                    const idx = Number(e.target.dataset.editDose);
-                    const dose = Number.parseFloat(e.target.value) || 0;
-                    state.operationProducts[opId][idx].doseHa = dose;
-                    state.operationProducts[opId][idx].qtdeTotal = dose * this.getTotalArea();
-                    this.render();
-                }));
-                document.getElementById('osPrev3').addEventListener('click', () => {
-                    if (state.operationCursor === 0) { state.step = 2; } else { state.operationCursor -= 1; }
-                    this.render();
+
+                const map = App.state.osMap;
+
+                map.on('load', () => {
+                    this.loadShapes();
+                    // Se já houver uma fazenda selecionada, aplica o filtro e zoom
+                    const farmId = App.elements.osManual.farmSelect.value;
+                    if (farmId) {
+                        const farm = App.state.fazendas.find(f => f.id === farmId);
+                        if (farm) {
+                            this.filterMap(farm.code);
+                            this.zoomToFarm(farm.code);
+                        }
+                    }
                 });
-                document.getElementById('osNext3').addEventListener('click', () => {
-                    const required = state.operationProducts[opId] || [];
-                    if (required.length === 0) return App.ui.showAlert('Adicione pelo menos um produto para a operação atual.', 'warning');
-                    if (state.operationCursor < total - 1) state.operationCursor += 1;
-                    else state.step = 4;
-                    this.render();
+
+                // Map click listener for plot selection
+                map.on('click', 'os-talhoes-layer', (e) => {
+                    if (e.features.length > 0) {
+                        const feature = e.features[0];
+                        this.togglePlotSelection(feature, true);
+                    }
                 });
-                document.getElementById('osSaveDraft3').addEventListener('click', () => this.saveDraftOffline());
+
+                let hoveredFeatureId = null;
+                map.on('mousemove', 'os-talhoes-layer', (e) => {
+                    map.getCanvas().style.cursor = 'pointer';
+                    if (e.features.length > 0) {
+                        if (hoveredFeatureId !== null) {
+                            map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: false });
+                        }
+                        hoveredFeatureId = e.features[0].id;
+                        map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: true });
+                    }
+                });
+
+                map.on('mouseleave', 'os-talhoes-layer', () => {
+                    map.getCanvas().style.cursor = '';
+                    if (hoveredFeatureId !== null) {
+                        map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: false });
+                        hoveredFeatureId = null;
+                    }
+                });
             },
 
-            renderOsReviewSummary() {
-                const state = App.state.osManualWizard;
-                const farm = this.getFarmById(state.basic.fazendaId);
-                const talhoes = (farm?.talhoes || []).filter(t => state.basic.talhoes.includes(t.id) || state.basic.talhoes.includes(String(t.id)));
-                const operations = state.selectedOperations.map(opId => {
-                    const op = (App.state.operacoes || []).find(item => String(item.id) === String(opId));
-                    return { operacaoId: opId, nome: op?.nome || 'Operação', produtos: state.operationProducts[opId] || [] };
+            loadShapes() {
+                const map = App.state.osMap;
+                if (!map || !App.state.geoJsonData) return;
+
+                const sourceId = 'os-talhoes-source';
+                const layerId = 'os-talhoes-layer';
+                const borderLayerId = 'os-talhoes-border-layer';
+                const labelLayerId = 'os-talhoes-labels';
+
+                if (map.getSource(sourceId)) {
+                    map.getSource(sourceId).setData(App.state.geoJsonData);
+                } else {
+                    map.addSource(sourceId, {
+                        type: 'geojson',
+                        data: App.state.geoJsonData,
+                        generateId: true
+                    });
+                }
+
+                const themeColors = App.ui._getThemeColors();
+
+                if (!map.getLayer(layerId)) {
+                    map.addLayer({
+                        id: layerId,
+                        type: 'fill',
+                        source: sourceId,
+                        paint: {
+                            'fill-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
+                                ['boolean', ['feature-state', 'hover'], false], '#607D8B',
+                                '#1C1C1C'
+                            ],
+                            'fill-opacity': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 0.9,
+                                ['boolean', ['feature-state', 'hover'], false], 0.8,
+                                0.7
+                            ]
+                        }
+                    });
+                }
+
+                if (!map.getLayer(labelLayerId)) {
+                    map.addLayer({
+                        id: labelLayerId,
+                        type: 'symbol',
+                        source: sourceId,
+                        minzoom: 10,
+                        layout: {
+                            'symbol-placement': 'point',
+                            'text-field': [
+                                'format',
+                                ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.9 },
+                                '\n', {},
+                                ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }
+                            ],
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 14,
+                            'text-ignore-placement': true,
+                            'text-allow-overlap': true,
+                            'text-pitch-alignment': 'viewport',
+                        },
+                        paint: {
+                            'text-color': '#FFFFFF',
+                            'text-halo-color': 'rgba(0, 0, 0, 0.9)',
+                            'text-halo-width': 2
+                        }
+                    });
+                }
+
+                if (!map.getLayer(borderLayerId)) {
+                     map.addLayer({
+                        id: borderLayerId,
+                        type: 'line',
+                        source: sourceId,
+                        paint: {
+                            'line-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF',
+                                '#FFFFFF'
+                            ],
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 3,
+                                1.5
+                            ],
+                            'line-opacity': 0.9
+                        }
+                    });
+                }
+            },
+
+            populateFarmSelect() {
+                const select = App.elements.osManual.farmSelect;
+                if (!select) return;
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Selecione uma fazenda...</option>';
+                App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
+                    select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
                 });
-                document.getElementById('osManualStepContainer').innerHTML = `
-                    <h3><i class="fas fa-check-circle"></i> Revisão e Salvar</h3>
-                    <div class="card" style="margin-bottom:12px;"><h4>Talhões (${talhoes.length})</h4>${talhoes.map(t => `<p style="margin:4px 0;">${t.name} - ${Number(t.area || 0).toFixed(2)} ha</p>`).join('')}</div>
-                    <div class="card" style="margin-bottom:12px;"><h4>Operações</h4>${operations.map(op => `<div style="margin-bottom:10px;"><strong>${op.nome}</strong>${op.produtos.map(p => `<p style="margin:4px 0 0 10px;">• ${p.descricao} | ${p.und} | Dose: ${p.doseHa} | Total: ${p.qtdeTotal.toFixed(3)}</p>`).join('')}</div>`).join('')}</div>
-                    <div style="display:flex;justify-content:space-between;gap:8px;"><button id="osPrev4" class="btn-secondary">Voltar</button><button id="osSaveFinal" class="save">Salvar O.S</button></div>
-                `;
-                document.getElementById('osPrev4').addEventListener('click', () => { state.step = 3; this.render(); });
-                document.getElementById('osSaveFinal').addEventListener('click', () => this.saveOS());
+                select.value = currentValue;
             },
 
-            async saveDraftOffline() {
-                localStorage.setItem('draft_os_manual_v2', JSON.stringify(App.state.osManualWizard));
-                App.ui.showAlert('Rascunho salvo localmente.', 'success');
+            handleFarmChange() {
+                const farmId = App.elements.osManual.farmSelect.value;
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+
+                // Limpa o estado visual do mapa antes de qualquer outra coisa
+                if (App.state.osMap && App.state.osMap.isStyleLoaded() && App.state.geoJsonData) {
+                    // Verifica se a fonte existe antes de tentar definir o estado
+                    if (App.state.osMap.getSource('os-talhoes-source')) {
+                        App.state.geoJsonData.features.forEach(feature => {
+                            if (feature.id !== undefined) {
+                                App.state.osMap.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+                            }
+                        });
+                    }
+                }
+
+                App.state.osSelectedPlots.clear(); // Limpa o estado dos dados
+                this.updateTotalArea();
+                this.updateProductCalculations();
+
+                if (farm) {
+                    this.renderPlotsList(farm.talhoes);
+                    this.zoomToFarm(farm.code);
+                    this.filterMap(farm.code);
+                } else {
+                    App.elements.osManual.plotsList.innerHTML = '<p style="color: #888; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
+                    if (App.state.osMap) {
+                        const map = App.state.osMap;
+                        if (map.getLayer('os-talhoes-layer')) {
+                            map.setFilter('os-talhoes-layer', null);
+                            map.setFilter('os-talhoes-border-layer', null);
+                            map.setFilter('os-talhoes-labels', null);
+                        }
+                    }
+                }
             },
 
-            restoreDraft() {
-                const draft = localStorage.getItem('draft_os_manual_v2');
-                if (!draft) return;
-                try { App.state.osManualWizard = { ...structuredClone(this.defaultState), ...JSON.parse(draft) }; } catch (error) { console.warn('Rascunho O.S inválido', error); }
-            },
+            renderPlotsList(talhoes) {
+                const listContainer = App.elements.osManual.plotsList;
+                listContainer.innerHTML = '';
 
-            async saveOS() {
-                const state = App.state.osManualWizard;
-                const farm = this.getFarmById(state.basic.fazendaId);
-                const talhoes = (farm?.talhoes || []).filter(t => state.basic.talhoes.includes(t.id) || state.basic.talhoes.includes(String(t.id))).map(t => ({ talhao_id: t.id, talhao_nome: t.name, area_ha: Number(t.area || 0), variedade: t.variedade || '' }));
-                const operacoes = state.selectedOperations.map(opId => {
-                    const op = (App.state.operacoes || []).find(item => String(item.id) === String(opId));
-                    return { operacaoId: opId, nome: op?.nome || '', produtos: (state.operationProducts[opId] || []).map(p => ({ produtoId: p.produtoId, descricao: p.descricao, und: p.und, doseHa: p.doseHa, qtdeTotal: p.qtdeTotal })) };
+                if (!talhoes || talhoes.length === 0) {
+                    listContainer.innerHTML = '<p>Nenhum talhão encontrado.</p>';
+                    return;
+                }
+
+                talhoes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).forEach(talhao => {
+                    const label = document.createElement('label');
+                    label.className = 'talhao-selection-item';
+                    label.htmlFor = `os-plot-${talhao.id}`;
+
+                    label.innerHTML = `
+                        <input type="checkbox" id="os-plot-${talhao.id}" data-id="${talhao.id}" data-name="${talhao.name}" data-area="${talhao.area}">
+                        <div class="talhao-name">${talhao.name}</div>
+                        <div class="talhao-details">
+                            <span><i class="fas fa-ruler-combined"></i>Área: ${talhao.area ? talhao.area.toFixed(2) : 0} ha</span>
+                            <span><i class="fas fa-seedling"></i>Variedade: ${talhao.variedade || 'N/A'}</span>
+                        </div>
+                    `;
+
+                    const checkbox = label.querySelector('input');
+                    checkbox.addEventListener('change', (e) => {
+                        this.togglePlotSelectionFromList(talhao, e.target.checked);
+                    });
+
+                    listContainer.appendChild(label);
                 });
-                const payload = sanitizeFirestoreData({
+            },
+
+            filterMap(farmCode) {
+                const map = App.state.osMap;
+                if (!map || !map.getLayer('os-talhoes-layer')) return;
+                const filter = ['==', ['get', 'AGV_FUNDO'], String(farmCode)];
+                map.setFilter('os-talhoes-layer', filter);
+                map.setFilter('os-talhoes-border-layer', filter);
+                map.setFilter('os-talhoes-labels', filter);
+            },
+
+            zoomToFarm(farmCode) {
+                const map = App.state.osMap;
+                if (!map || !App.state.geoJsonData) return;
+
+                const features = App.state.geoJsonData.features.filter(f => f.properties.AGV_FUNDO == farmCode);
+                if (features.length > 0) {
+                    const collection = turf.featureCollection(features);
+                    const bbox = turf.bbox(collection);
+                    map.fitBounds(bbox, { padding: 20 });
+                }
+            },
+
+            togglePlotSelection(feature, fromMap) {
+                const map = App.state.osMap;
+                const talhaoName = feature.properties.AGV_TALHAO;
+                const farmCode = feature.properties.AGV_FUNDO;
+
+                const farm = App.state.fazendas.find(f => f.code == farmCode);
+                if (!farm) return;
+
+                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName.toUpperCase());
+                if (!talhao) return;
+
+                const isSelected = App.state.osSelectedPlots.has(talhao.id);
+
+                if (!isSelected) {
+                    App.state.osSelectedPlots.add(talhao.id);
+                    if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: true });
+                    const checkbox = document.getElementById(`os-plot-${talhao.id}`);
+                    if (checkbox) checkbox.checked = true;
+                } else {
+                    App.state.osSelectedPlots.delete(talhao.id);
+                    if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+                    const checkbox = document.getElementById(`os-plot-${talhao.id}`);
+                    if (checkbox) checkbox.checked = false;
+                }
+
+                this.updateTotalArea();
+                this.updateProductCalculations();
+            },
+
+            togglePlotSelectionFromList(talhao, isChecked) {
+                const map = App.state.osMap;
+
+                if (isChecked) {
+                    App.state.osSelectedPlots.add(talhao.id);
+                } else {
+                    App.state.osSelectedPlots.delete(talhao.id);
+                }
+
+                if (map && map.getLayer('os-talhoes-layer')) {
+                    const farmCode = App.state.fazendas.find(f => f.id === App.elements.osManual.farmSelect.value)?.code;
+                    if (farmCode && App.state.geoJsonData && App.state.geoJsonData.features) {
+                        const feature = App.state.geoJsonData.features.find(f =>
+                            f.properties.AGV_TALHAO === talhao.name &&
+                            String(f.properties.AGV_FUNDO) === String(farmCode)
+                        );
+                        if (feature) {
+                            map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: isChecked });
+                        }
+                    }
+                }
+
+                this.updateTotalArea();
+                this.updateProductCalculations();
+            },
+
+            updateTotalArea() {
+                const farmId = App.elements.osManual.farmSelect.value;
+                if (!farmId) {
+                    App.elements.osManual.totalArea.textContent = '0.00 ha';
+                    App.state.osTotalArea = 0;
+                    return;
+                }
+
+                const farm = App.state.fazendas.find(f => f.id === farmId);
+                if (!farm) {
+                    App.state.osTotalArea = 0;
+                    return;
+                }
+
+                let total = 0;
+                App.state.osSelectedPlots.forEach(id => {
+                    const t = farm.talhoes.find(plot => plot.id === id);
+                    if (!t) return;
+                    const area = Number.parseFloat(t.area);
+                    if (Number.isFinite(area)) {
+                        total += area;
+                    }
+                });
+
+                App.state.osTotalArea = Number.isFinite(total) ? total : 0;
+                App.elements.osManual.totalArea.textContent = `${total.toFixed(2)} ha`;
+            },
+
+            async generateOS() {
+                const { farmSelect, serviceType, operation, responsibleMatricula, responsibleName, observations } = App.elements.osManual;
+
+                if (!farmSelect.value) return App.ui.showAlert("Selecione uma fazenda.", "warning");
+                if (!responsibleMatricula.value || responsibleName.value === 'Não encontrado') return App.ui.showAlert("Informe um responsável válido.", "warning");
+                if (!serviceType.value) return App.ui.showAlert("Selecione o tipo de serviço.", "warning");
+                if (!operation.value) return App.ui.showAlert("Selecione a operação.", "warning");
+                if (App.state.osSelectedPlots.size === 0) return App.ui.showAlert("Selecione ao menos 1 talhão.", "warning");
+
+                // Check Max Applications
+                const op = App.state.operacoes.find(o => o.id === operation.value);
+                const maxApp = op ? (op.max_aplicacoes || 99) : 99;
+
+                const blockedPlots = [];
+                const warnings = [];
+                const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
+
+                App.state.osSelectedPlots.forEach(talhaoId => {
+                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
+                    if(!talhao) return;
+
+                    const count = (App.state.ordens_servico || []).filter(os =>
+                        os.operacao_id === operation.value &&
+                        os.fazenda_id === farmSelect.value &&
+                        os.status !== 'CANCELADA' &&
+                        os.itens.some(item => item.talhao_id === talhao.name) // assuming name match, better if ID
+                    ).length;
+
+                    if (count >= maxApp) {
+                        blockedPlots.push(talhao.name);
+                    } else if (count > 0) {
+                        warnings.push(`${talhao.name} (${count}ª ap.)`);
+                    }
+                });
+
+                if (blockedPlots.length > 0) {
+                    return App.ui.showAlert(`Bloqueio: Limite de aplicações excedido para: ${blockedPlots.join(', ')}`, 'error');
+                }
+
+                if (warnings.length > 0) {
+                    const confirm = await App.ui.confirmCustom(`Alertas de re-aplicação: ${warnings.join(', ')}. Continuar?`);
+                    if (!confirm) return;
+                }
+
+                // Prepare Data
+                const products = [];
+                document.querySelectorAll('#osProductsList .product-item').forEach(item => {
+                    const cb = item.querySelector('.os-prod-cb');
+                    if (cb.checked) {
+                        products.push({
+                            produto_id: cb.dataset.id,
+                            produto_nome: cb.dataset.name,
+                            unidade: cb.dataset.unit,
+                            dosagem_por_ha: parseFloat(item.querySelector('.os-prod-dosage').value),
+                            qtde_total: parseFloat(item.querySelector('.os-prod-dosage').value) * App.state.osTotalArea
+                        });
+                    }
+                });
+
+                const plots = [];
+                let totalAreaHa = 0;
+                App.state.osSelectedPlots.forEach(talhaoId => {
+                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
+                    if(talhao) {
+                        const areaHa = Number.parseFloat(talhao.area);
+                        const safeAreaHa = Number.isFinite(areaHa) ? areaHa : 0;
+                        totalAreaHa += safeAreaHa;
+                        plots.push({
+                            talhao_id: talhao.name,
+                            talhao_nome: talhao.name,
+                            variedade: talhao.variedade,
+                            area_ha: safeAreaHa
+                        });
+                    }
+                });
+
+                const safeTotalAreaHa = Number.isFinite(totalAreaHa) ? totalAreaHa : 0;
+                App.state.osTotalArea = safeTotalAreaHa;
+
+                const osData = {
                     os_numero: Date.now(),
-                    data: state.basic.data,
-                    produtor: state.basic.produtor,
-                    safra_ciclo: state.basic.safraCiclo,
-                    etapa_id: state.basic.etapaId,
-                    fazenda_id: farm?.id || '',
-                    fazenda_nome: farm?.name || '',
-                    responsavel_matricula: state.basic.responsavelMatricula,
-                    responsavel_nome: state.basic.responsavelNome,
-                    status: 'ABERTA',
-                    companyId: App.state.currentUser.companyId,
+                    data: new Date().toISOString().split('T')[0],
+                    safra: App.state.globalConfigs?.safra || '24/25',
+                    ciclo: App.state.globalConfigs?.ciclo || '1',
+                    fazenda_id: farm.id,
+                    fazenda_nome: farm.name,
+                    responsavel_matricula: responsibleMatricula.value,
+                    responsavel_nome: responsibleName.value,
                     usuario_abertura_id: App.state.currentUser.uid,
                     usuario_abertura_nome: App.state.currentUser.username || App.state.currentUser.email,
-                    total_area_ha: this.getTotalArea(),
-                    os: { ...state.basic },
-                    talhoes,
-                    operacoes,
-                    obsGeral: state.basic.obsGeral,
-                    operacao_id: operacoes[0]?.operacaoId || null,
-                    operacao_nome: operacoes.map(op => op.nome).join(', '),
-                    produtos: operacoes.flatMap(op => op.produtos),
-                    itens: talhoes,
-                    created_at: new Date().toISOString()
-                });
+                    companyId: App.state.currentUser.companyId,
+                    tipo_servico_id: serviceType.value,
+                    tipo_servico_desc: App.state.tipos_servico.find(t => t.id === serviceType.value)?.descricao,
+                    operacao_id: operation.value,
+                    operacao_nome: op.nome,
+                    status: 'ABERTA',
+                    total_area_ha: safeTotalAreaHa,
+                    observacoes: observations.value,
+                    itens: plots,
+                    produtos: products,
+                    created_at: new Date().toISOString(),
+                    companyId: App.state.currentUser.companyId
+                };
 
                 try {
-                    if (!App.state.isOnline || App.state.authMode === 'offline') {
-                        const offlineId = `offline_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-                        await OfflineDB.add('offline-writes', { id: offlineId, collection: 'ordens_servico', data: payload });
-                        App.state.ordens_servico = App.state.ordens_servico || [];
-                        App.state.ordens_servico.push({ id: offlineId, ...payload });
-                        App.ui.showAlert('O.S salva offline. Será sincronizada automaticamente.', 'success');
-                    } else {
-                        await App.data.addDocument('ordens_servico', payload);
-                        App.ui.showAlert('O.S salva com sucesso', 'success');
-                    }
-                    localStorage.removeItem('draft_os_manual_v2');
-                    App.state.osManualWizard = structuredClone(this.defaultState);
-                    this.render();
-                    App.navigateTo('ordemServicoEscritorio');
-                    if (App.osEscritorio) App.osEscritorio.renderList();
-                } catch (error) {
-                    console.error(error);
-                    App.ui.showAlert(`Erro ao salvar O.S.: ${error.message}`, 'error');
+                    const docRef = await App.data.addDocument('ordens_servico', sanitizeFirestoreData(osData));
+                    App.ui.showAlert('O.S. Gerada com Sucesso!', 'success');
+
+                    const filename = `OS_${osData.os_numero}.pdf`;
+                    const endpointUrl = `${App.config.backendUrl}/api/reports/os/pdf`;
+                    App.reports._fetchAndDownloadReportByUrl(endpointUrl, { osId: docRef.id }, filename);
+
+                    this.resetForm();
+                } catch (e) {
+                    console.error(e);
+                    App.ui.showAlert(`Erro: ${e.message}`, 'error');
                 }
+            },
+
+            resetForm() {
+                const els = App.elements.osManual;
+                els.responsibleMatricula.value = '';
+                els.responsibleName.value = '';
+                els.observations.value = '';
+                els.operation.value = '';
+                els.serviceType.value = '';
+                els.farmSelect.value = '';
+
+                document.getElementById('osProductSection').style.display = 'none';
+                document.getElementById('osProductsList').innerHTML = '';
+                document.getElementById('osProductsPreview').innerHTML = '';
+
+                App.state.osSelectedPlots.clear();
+                this.updateTotalArea();
+
+                els.plotsList.innerHTML = '<p style="color: #888; text-align: center;">Selecione uma fazenda para carregar os talhões.</p>';
+
+                if (App.state.osMap) {
+                    const map = App.state.osMap;
+                    if (map.getLayer('os-talhoes-layer')) {
+                        map.setFilter('os-talhoes-layer', null);
+                        map.setFilter('os-talhoes-border-layer', null);
+                        map.setFilter('os-talhoes-labels', null);
+                    }
+                }
+            },
+
+            toggleMapSize() {
+                const section = document.getElementById('ordemServicoManual');
+                section.classList.toggle('map-expanded');
+                setTimeout(() => {
+                    if (App.state.osMap) App.state.osMap.resize();
+                }, 500);
             }
         },
-
 
         charts: {
             _getVibrantColors(count) {
@@ -17622,7 +17999,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (end) data = data.filter(d => d.data <= end);
                 if (status) data = data.filter(d => d.status === status);
 
-                data.sort((a, b) => (Number(b.os_numero) || 0) - (Number(a.os_numero) || 0));
+                data.sort((a, b) => b.os_numero - a.os_numero);
 
                 if (data.length === 0) {
                     listContainer.innerHTML = '<p style="padding: 20px; text-align: center;">Nenhuma O.S. encontrada.</p>';
@@ -17636,7 +18013,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${new Date(os.data + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                         <td>${os.os_numero}</td>
                         <td>${os.responsavel_nome}</td>
-                        <td>${Array.isArray(os.operacoes) ? os.operacoes.map(op => op.nome).join(', ') : (os.operacao_nome || '-')}</td>
+                        <td>${os.operacao_nome}</td>
                         <td><span class="plano-status ${os.status === 'FINALIZADA' ? 'concluido' : 'pendente'}">${os.status}</span></td>
                         <td>
                             <div style="display: flex; gap: 8px; justify-content: flex-end;">
