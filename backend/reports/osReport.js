@@ -1,4 +1,4 @@
-const { setupDoc, getLogoBase64, generatePdfHeader, generatePdfFooter, formatNumber } = require('../utils/pdfGenerator');
+const { setupDoc, formatNumber } = require('../utils/pdfGenerator');
 const { getShapefileData, findShapefileProp } = require('../utils/geoUtils');
 
 const findOsDocument = async (db, osId) => {
@@ -124,6 +124,20 @@ const generateOsPdf = async (req, res, db) => {
         doc.moveDown(0.5);
         currentY += 8;
 
+        const drawFooter = (pdfDoc, userName) => {
+            const pageCount = pdfDoc.bufferedPageRange().count;
+            for (let i = 0; i < pageCount; i += 1) {
+                pdfDoc.switchToPage(i);
+                const footerY = pdfDoc.page.height - pdfDoc.page.margins.bottom + 10;
+                const baseText = `Gerado por: ${userName} em: ${new Date().toLocaleString('pt-BR')}`;
+                const footerText = pageCount > 1 ? `${baseText} - Página ${i + 1} de ${pageCount}` : baseText;
+                pdfDoc.fontSize(8).font('Helvetica').text(footerText, pdfDoc.page.margins.left, footerY, {
+                    align: 'left',
+                    lineBreak: false
+                });
+            }
+        };
+
         // --- MAIN TABLE (Talhões) ---
         const pageMargin = 28;
         const pageWidth = doc.page.width;
@@ -131,23 +145,13 @@ const generateOsPdf = async (req, res, db) => {
 
         const rowHeight = 14;
         const padding = 3;
-        const mainBlockRows = 10;
 
         const blockX = pageMargin;
-        const blockY = currentY;
         const blockW = contentWidth;
-        const blockH = rowHeight * (mainBlockRows + 1);
+        const maxMainRowsPerPage = 18;
 
-        const wLeft = blockW * 0.65;
+        const wLeft = blockW * 0.7;
         const wRight = blockW - wLeft;
-        const wOpQtd = wRight * 0.40;
-        const wObs = wRight - wOpQtd;
-
-        const xLeft = blockX;
-        const xOpQtd = blockX + wLeft;
-        const xObs = xOpQtd + wOpQtd;
-        const yHeaderBottom = blockY + rowHeight;
-        const rowsEndY = blockY + blockH;
 
         const leftHeaders = [
             { text: 'Propriedade', width: wLeft * 0.15, align: 'left' },
@@ -156,11 +160,6 @@ const generateOsPdf = async (req, res, db) => {
             { text: 'Variedade', width: wLeft * 0.16, align: 'left' },
             { text: 'Area', width: wLeft * 0.12, align: 'right' },
             { text: 'Area Rateio', width: wLeft * 0.15, align: 'right' }
-        ];
-
-        const opQtdHeaders = [
-            { text: 'Operação', width: wOpQtd * 0.65, align: 'left' },
-            { text: 'Quantidade', width: wOpQtd * 0.35, align: 'right' }
         ];
 
         let items = osData.itens || osData.items || [];
@@ -173,25 +172,90 @@ const generateOsPdf = async (req, res, db) => {
              });
         }
 
-        let totalArea = 0;
-        let totalRateio = 0;
+        const collectOperationSummary = () => {
+            const opSet = new Set();
+            const addOp = (value) => {
+                if (!value) return;
+                const normalized = String(value).trim();
+                if (normalized) opSet.add(normalized);
+            };
 
-        const drawMainBlock = (startIndex) => {
+            addOp(osData.operacao_nome || osData.operationName || osData.tipo_servico_desc || osData.serviceType);
+            items.forEach((item) => addOp(item.operacao_nome || item.operationName || item.operacao));
+            (osData.operacoes || osData.operations || []).forEach((op) => addOp(op.nome || op.name || op.descricao || op));
+            (osData.produtos || osData.products || []).forEach((prod) => addOp(prod.operacao_nome || prod.operationName || prod.operacao));
+            return Array.from(opSet);
+        };
+
+        const fitSingleLine = (value, width, preferredFontSize = 7, minFontSize = 7) => {
+            const text = String(value || '');
+            let fontSize = preferredFontSize;
+            doc.fontSize(fontSize);
+            while (fontSize > minFontSize && doc.widthOfString(text) > width) {
+                fontSize -= 0.5;
+                doc.fontSize(fontSize);
+            }
+            if (doc.widthOfString(text) <= width) return { text, fontSize };
+
+            const ellipsis = '...';
+            let truncated = text;
+            while (truncated.length > 0 && doc.widthOfString(`${truncated}${ellipsis}`) > width) {
+                truncated = truncated.slice(0, -1);
+            }
+            return { text: `${truncated}${ellipsis}`, fontSize };
+        };
+
+        const drawOpSummaryBox = (x, y, width, height, operations) => {
+            doc.rect(x, y, width, height).stroke();
+            doc.font('Helvetica-Bold').fontSize(7).text('OP.:', x + padding, y + padding, { width: width - (padding * 2) });
+
+            const maxLines = 6;
+            const lines = operations.slice(0, maxLines);
+            const baseY = y + rowHeight;
+            const lineHeight = 10;
+            lines.forEach((line, index) => {
+                const content = fitSingleLine(line, width - (padding * 2), 7, 6.5);
+                doc.font('Helvetica').fontSize(content.fontSize).text(content.text, x + padding, baseY + (index * lineHeight), {
+                    width: width - (padding * 2),
+                    lineBreak: false
+                });
+            });
+            if (operations.length > maxLines) {
+                doc.font('Helvetica').fontSize(6.5).text('...', x + padding, baseY + (maxLines * lineHeight), { width: width - (padding * 2) });
+            }
+        };
+
+        const drawObsBox = (x, y, width, height, obsText) => {
+            doc.rect(x, y, width, height).stroke();
+            doc.font('Helvetica-Bold').fontSize(7).text('Obs.:', x + padding, y + padding, { width: width - (padding * 2) });
+            if (obsText) {
+                doc.font('Helvetica').fontSize(7).text(String(obsText), x + padding, y + rowHeight, {
+                    width: width - (padding * 2),
+                    height: height - rowHeight - padding,
+                    align: 'left',
+                    ellipsis: true
+                });
+            }
+        };
+
+        const drawMainBlockPlots = (startY, pageItems, operations) => {
+            const blockY = startY;
+            const xLeft = blockX;
+            const xRight = blockX + wLeft;
+            const itemRowCount = Math.max(pageItems.length, 1);
+            const blockH = rowHeight + (itemRowCount * rowHeight);
+            const blockBottom = blockY + blockH;
+
             doc.lineWidth(0.3).strokeColor('#555555');
-
-            // Bloco externo e 2 divisões verticais
             doc.rect(blockX, blockY, blockW, blockH).stroke();
-            doc.moveTo(xOpQtd, blockY).lineTo(xOpQtd, rowsEndY).stroke();
-            doc.moveTo(xObs, blockY).lineTo(xObs, rowsEndY).stroke();
+            doc.moveTo(xRight, blockY).lineTo(xRight, blockBottom).stroke();
 
-            // Cabeçalhos A e B
             doc.fillColor('#f0f0f0').rect(xLeft, blockY, wLeft, rowHeight).fill();
-            doc.fillColor('#f0f0f0').rect(xOpQtd, blockY, wOpQtd, rowHeight).fill();
             doc.fillColor('black');
 
             let x = xLeft;
             leftHeaders.forEach((col, i) => {
-                if (i > 0) doc.moveTo(x, blockY).lineTo(x, rowsEndY).stroke();
+                if (i > 0) doc.moveTo(x, blockY).lineTo(x, blockBottom).stroke();
                 doc.font('Helvetica-Bold').fontSize(7).text(col.text, x + padding, blockY + padding + 1, {
                     width: col.width - (padding * 2),
                     align: col.align,
@@ -200,40 +264,13 @@ const generateOsPdf = async (req, res, db) => {
                 x += col.width;
             });
 
-            x = xOpQtd;
-            opQtdHeaders.forEach((col, i) => {
-                if (i > 0) doc.moveTo(x, blockY).lineTo(x, rowsEndY).stroke();
-                doc.font('Helvetica-Bold').fontSize(7).text(col.text, x + padding, blockY + padding + 1, {
-                    width: col.width - (padding * 2),
-                    align: col.align,
-                    ellipsis: true
-                });
-                x += col.width;
-            });
-
-            // Área C (Obs) limpa
-            doc.font('Helvetica-Bold').fontSize(7).text('Obs.:', xObs + padding, blockY + padding + 1, {
-                width: wObs - (padding * 2),
-                align: 'left'
-            });
-
-            // Linhas horizontais apenas em A + B (nunca em C)
-            for (let row = 1; row <= mainBlockRows; row += 1) {
-                const y = blockY + (row * rowHeight);
-                doc.moveTo(blockX, y).lineTo(xObs, y).stroke();
-            }
-
-            const pageItems = items.slice(startIndex, startIndex + mainBlockRows);
-            let totalAreaPage = 0;
-            let totalRateioPage = 0;
+            doc.moveTo(xLeft, blockY + rowHeight).lineTo(xRight, blockY + rowHeight).stroke();
 
             pageItems.forEach((item, itemIndex) => {
-                const rowY = yHeaderBottom + (itemIndex * rowHeight);
+                const rowY = blockY + rowHeight + (itemIndex * rowHeight);
                 const area = parseFloat(item.area_ha || 0);
                 totalArea += area;
                 totalRateio += area;
-                totalAreaPage += area;
-                totalRateioPage += area;
 
                 const leftData = [
                     { text: farmCode },
@@ -242,11 +279,6 @@ const generateOsPdf = async (req, res, db) => {
                     { text: item.variedade || '' },
                     { text: formatNumber(area) },
                     { text: formatNumber(area) }
-                ];
-
-                const opQtdData = [
-                    { text: osData.operacao_nome || osData.tipo_servico_desc || '' },
-                    { text: formatNumber(item.quantidade || 0) }
                 ];
 
                 let dataX = xLeft;
@@ -259,50 +291,34 @@ const generateOsPdf = async (req, res, db) => {
                     dataX += leftHeaders[i].width;
                 });
 
-                dataX = xOpQtd;
-                opQtdData.forEach((col, i) => {
-                    doc.font('Helvetica').fontSize(7).text(col.text, dataX + padding, rowY + padding + 1, {
-                        width: opQtdHeaders[i].width - (padding * 2),
-                        align: opQtdHeaders[i].align,
-                        ellipsis: true
-                    });
-                    dataX += opQtdHeaders[i].width;
-                });
+                doc.moveTo(xLeft, rowY + rowHeight).lineTo(xRight, rowY + rowHeight).stroke();
             });
 
-            // Texto de observação permanece dentro do quadro limpo
-            if (startIndex === 0 && (osData.observacoes || osData.observations)) {
-                doc.font('Helvetica').fontSize(7).text(osData.observacoes || osData.observations, xObs + padding, yHeaderBottom + padding, {
-                    width: wObs - (padding * 2),
-                    align: 'left',
-                    height: blockH - rowHeight - (padding * 2),
-                    ellipsis: true
-                });
-            }
+            const opHeight = Math.max(rowHeight * 3, Math.min(blockH * 0.45, rowHeight * 7));
+            drawOpSummaryBox(xRight, blockY, wRight, opHeight, operations);
+            drawObsBox(xRight, blockY + opHeight, wRight, blockH - opHeight, osData.observacoes || osData.observations || '');
 
-            return {
-                consumed: pageItems.length,
-                pageTotalArea: totalAreaPage,
-                pageTotalRateio: totalRateioPage
-            };
+            return blockBottom;
         };
 
+        let totalArea = 0;
+        let totalRateio = 0;
+        const operationSummary = collectOperationSummary();
+
         let currentIndex = 0;
-        let blockTotals = { pageTotalArea: 0, pageTotalRateio: 0 };
-        while (currentIndex < items.length || currentIndex === 0) {
-            blockTotals = drawMainBlock(currentIndex);
-            currentIndex += blockTotals.consumed;
-            if (currentIndex < items.length) {
+        let mainBlockBottom = currentY;
+        const safeItems = items.length > 0 ? items : [{}];
+        while (currentIndex < safeItems.length) {
+            const pageItems = safeItems.slice(currentIndex, currentIndex + maxMainRowsPerPage);
+            mainBlockBottom = drawMainBlockPlots(currentY, pageItems, operationSummary);
+            currentIndex += pageItems.length;
+            if (currentIndex < safeItems.length) {
                 doc.addPage();
-                currentY = drawHeader(doc);
-                doc.moveDown(0.5);
-                currentY += 8;
-            } else {
-                break;
+                currentY = drawHeader(doc) + 8;
             }
         }
 
-        currentY = blockY + blockH;
+        currentY = mainBlockBottom;
         doc.font('Helvetica').fontSize(7); // Content font size 7
         // Linha de totais abaixo do bloco principal
         const totalLineY = currentY + 6;
@@ -352,53 +368,67 @@ const generateOsPdf = async (req, res, db) => {
                  const align = prodHeaders[i].align;
 
                  if (col.text) {
-                     doc.text(col.text, x + padding, y + padding + 1, { width: colWidth - (padding*2), align: align, ellipsis: true });
+                     const isProductOrDescriptionColumn = i === 1 || i === 2;
+                     const fitted = isProductOrDescriptionColumn
+                         ? fitSingleLine(col.text, colWidth - (padding * 2), 7, 7)
+                         : { text: String(col.text), fontSize: 7 };
+                     doc.fontSize(fitted.fontSize).text(fitted.text, x + padding, y + padding + 1, {
+                         width: colWidth - (padding*2),
+                         align: align,
+                         lineBreak: false,
+                         ellipsis: !isProductOrDescriptionColumn
+                     });
                  }
                  x += colWidth;
              });
         };
 
-        doc.font('Helvetica-Bold').fontSize(7);
-        drawProdRow(currentY, prodHeaders, true);
-        currentY += rowHeight;
-        doc.font('Helvetica').fontSize(7);
+        const drawProductsTable = (startY) => {
+            let tableY = startY;
+            doc.font('Helvetica-Bold').fontSize(7);
+            drawProdRow(tableY, prodHeaders, true);
+            tableY += rowHeight;
+            doc.font('Helvetica').fontSize(7);
 
-        const products = osData.produtos || osData.products || [];
-        let totalProdQty = 0;
+            const products = osData.produtos || osData.products || [];
+            let totalProdQty = 0;
 
-        products.forEach(prod => {
-             if (currentY > doc.page.height - 50) {
-                 doc.addPage();
-                 currentY = drawHeader(doc) + 20;
-                 doc.font('Helvetica-Bold');
-                 drawProdRow(currentY, prodHeaders, true);
-                 currentY += rowHeight;
-                 doc.font('Helvetica');
-             }
+            products.forEach(prod => {
+                if (tableY > doc.page.height - 50) {
+                    doc.addPage();
+                    tableY = drawHeader(doc) + 20;
+                    doc.font('Helvetica-Bold');
+                    drawProdRow(tableY, prodHeaders, true);
+                    tableY += rowHeight;
+                    doc.font('Helvetica');
+                }
 
-             const dosage = prod.dosagem_por_ha || prod.dosage || 0;
-             const qtyTotal = prod.qtde_total || prod.quantity || (dosage * (totalArea || 0));
-             totalProdQty += qtyTotal;
+                const dosage = prod.dosagem_por_ha || prod.dosage || 0;
+                const qtyTotal = prod.qtde_total || prod.quantity || (dosage * (totalArea || 0));
+                totalProdQty += qtyTotal;
 
-             const row = [
-                 { text: osData.operacao_nome || osData.operationId || '' },
-                 { text: prod.codigo_externo || prod.produto_id || '' },
-                 { text: prod.produto_nome || prod.name || '' },
-                 { text: prod.unidade || prod.unit || '' },
-                 { text: formatNumber(dosage) },
-                 { text: formatNumber(qtyTotal) }
-             ];
-             drawProdRow(currentY, row);
-             currentY += rowHeight;
-        });
+                const row = [
+                    { text: osData.operacao_nome || osData.operationId || '' },
+                    { text: prod.codigo_externo || prod.produto_id || '' },
+                    { text: prod.produto_nome || prod.name || '' },
+                    { text: prod.unidade || prod.unit || '' },
+                    { text: formatNumber(dosage) },
+                    { text: formatNumber(qtyTotal) }
+                ];
+                drawProdRow(tableY, row);
+                tableY += rowHeight;
+            });
 
-        doc.font('Helvetica-Bold');
-        const prodTotalRow = [
-            { text: '' }, { text: '' }, { text: '' }, { text: '' }, { text: 'Total .:', align: 'right' },
-            { text: formatNumber(totalProdQty) }
-        ];
-        drawProdRow(currentY, prodTotalRow);
-        currentY += 40;
+            doc.font('Helvetica-Bold');
+            const prodTotalRow = [
+                { text: '' }, { text: '' }, { text: '' }, { text: '' }, { text: 'Total .:', align: 'right' },
+                { text: formatNumber(totalProdQty) }
+            ];
+            drawProdRow(tableY, prodTotalRow);
+            return tableY + 40;
+        };
+
+        currentY = drawProductsTable(currentY);
 
         // --- SIGNATURES ---
         if (currentY + 60 > doc.page.height) {
@@ -533,7 +563,7 @@ const generateOsPdf = async (req, res, db) => {
             }
         }
 
-        generatePdfFooter(doc, osData.usuario_abertura_nome || osData.generatedBy || generatedBy || 'Sistema');
+        drawFooter(doc, osData.usuario_abertura_nome || osData.generatedBy || generatedBy || 'Sistema');
         doc.end();
 
     } catch (error) {
