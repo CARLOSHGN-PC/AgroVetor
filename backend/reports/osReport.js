@@ -13,8 +13,7 @@ const findOsDocument = async (db, osId) => {
 const generateOsPdf = async (req, res, db) => {
     try {
         const osId = req.query.osId || req.params.osId;
-        const companyId = req.query.companyId;
-        const generatedBy = req.query.generatedBy || 'Sistema';
+        const { companyId, generatedBy } = req.query;
 
         if (!osId || !companyId) {
             return res.status(400).json({ message: 'osId e companyId são obrigatórios' });
@@ -38,7 +37,7 @@ const generateOsPdf = async (req, res, db) => {
             }
         } catch (e) { console.warn("Error fetching company name:", e); }
 
-        const doc = setupDoc({ margin: 28, size: 'A4', layout: 'portrait', bufferPages: true });
+        const doc = setupDoc({ margin: 28, size: 'A4', bufferPages: true });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="OS_${osId}.pdf"`);
         doc.pipe(res);
@@ -68,7 +67,7 @@ const generateOsPdf = async (req, res, db) => {
              const drawCell = (x, y, w, h, text, align='left', font='Helvetica-Bold') => {
                  doc.rect(x, y, w, h).stroke();
                  if (text) {
-                     doc.font(font).text(text, x + padding, y + padding - 1, { width: w - (padding*2), align: align, ellipsis: true, lineBreak: false });
+                     doc.font(font).text(text, x + padding, y + padding - 1, { width: w - (padding*2), align: align, ellipsis: true });
                  }
              };
 
@@ -88,9 +87,9 @@ const generateOsPdf = async (req, res, db) => {
              y += rowH;
 
              // Row 2
-             doc.font('Helvetica-Bold').fontSize(11).text('OS - Ordem de Serviço', pageMargin + padding, y + 2, { lineBreak: false });
+             doc.font('Helvetica-Bold').fontSize(11).text('OS - Ordem de Serviço', pageMargin + padding, y + 2);
              doc.rect(pageMargin, y, contentWidth * 0.5, rowH * 2).stroke(); // Title Box (2 rows height)
-             doc.fontSize(8).text('AGRICOLA', pageMargin + padding, y + 14, { lineBreak: false });
+             doc.fontSize(8).text('AGRICOLA', pageMargin + padding, y + 14);
 
              drawCell(pageMargin + contentWidth * 0.5, y, contentWidth * 0.5, rowH, `Etapa: ${osData.tipo_servico_desc || osData.serviceType || ''}`);
              y += rowH;
@@ -111,8 +110,7 @@ const generateOsPdf = async (req, res, db) => {
              y += rowH;
 
              // Row 5
-             const userOpen = osData.usuario_abertura_nome || osData.generatedBy || generatedBy;
-             drawCell(pageMargin, y, contentWidth, rowH, `Usuário Abertura: ${userOpen}`);
+             drawCell(pageMargin, y, contentWidth, rowH, `Usuário Abertura: ${osData.usuario_abertura_nome || osData.generatedBy || generatedBy || 'Sistema'}`);
              y += rowH;
 
              // Row 6
@@ -166,7 +164,7 @@ const generateOsPdf = async (req, res, db) => {
                  if (i > 0) doc.moveTo(x, y).lineTo(x, y + rowHeight).stroke();
 
                  doc.font('Helvetica-Bold').fontSize(7); // Smaller bold font
-                 doc.text(col.text, x + padding, y + padding + 1, { width: col.width - (padding*2), align: col.align, ellipsis: true, lineBreak: false });
+                 doc.text(col.text, x + padding, y + padding + 1, { width: col.width - (padding*2), align: col.align, ellipsis: true });
                  x += col.width;
              });
         };
@@ -177,7 +175,7 @@ const generateOsPdf = async (req, res, db) => {
         // Obs Box Header
         doc.lineWidth(0.3).strokeColor('#555555');
         doc.rect(sideBoxX, currentY, sideBoxWidth, rowHeight).stroke();
-        doc.font('Helvetica-Bold').fontSize(7).text('Obs .:', sideBoxX + padding, currentY + padding + 1, { lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(7).text('Obs .:', sideBoxX + padding, currentY + padding + 1);
 
         currentY += rowHeight;
         doc.font('Helvetica').fontSize(7); // Content font size 7
@@ -222,8 +220,7 @@ const generateOsPdf = async (req, res, db) => {
                         width: headers[i].width - (padding*2),
                         align: headers[i].align,
                         height: rowHeight - (padding*2),
-                        ellipsis: true,
-                        lineBreak: false
+                        ellipsis: true
                     });
                 }
                 x += headers[i].width;
@@ -232,7 +229,7 @@ const generateOsPdf = async (req, res, db) => {
 
         items.forEach(item => {
             if (currentY > doc.page.height - 50) {
-                // Close Obs Box for current page
+                // Close Obs Box
                 doc.rect(sideBoxX, obsBoxStartY + rowHeight, sideBoxWidth, currentY - (obsBoxStartY + rowHeight)).stroke();
 
                 doc.addPage();
@@ -242,9 +239,9 @@ const generateOsPdf = async (req, res, db) => {
 
                 drawTableHeader(currentY);
                 obsBoxStartY = currentY;
-                // Draw Obs Box Header again for new page
+                // Draw Obs Box Header again? Or just top line. Let's replicate header logic.
                 doc.rect(sideBoxX, currentY, sideBoxWidth, rowHeight).stroke();
-                doc.font('Helvetica-Bold').fontSize(7).text('Obs .:', sideBoxX + padding, currentY + padding + 1, { lineBreak: false });
+                // No text needed if continuation, or "Obs (cont.)"
 
                 currentY += rowHeight;
             }
@@ -278,6 +275,8 @@ const generateOsPdf = async (req, res, db) => {
 
         // Final Close of Obs Box
         // From start Y + header height to current Y + rowHeight (total row end)
+        // Wait, total row is part of table width, obs box is side.
+        // We close obs box at the same Y as total row bottom? Yes.
         doc.rect(sideBoxX, obsBoxStartY + rowHeight, sideBoxWidth, (currentY + rowHeight) - (obsBoxStartY + rowHeight)).stroke();
 
         currentY += rowHeight + 10;
@@ -292,7 +291,7 @@ const generateOsPdf = async (req, res, db) => {
         doc.fillColor('#e0e0e0').rect(pageMargin, currentY, contentWidth, rowHeight).fill();
         doc.fillColor('black');
         doc.lineWidth(0.3).strokeColor('#555555').rect(pageMargin, currentY, contentWidth, rowHeight).stroke();
-        doc.font('Helvetica-Bold').fontSize(9).text('REQUISIÇÃO DE PRODUTOS', pageMargin, currentY + padding, { width: contentWidth, align: 'center', lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(9).text('REQUISIÇÃO DE PRODUTOS', pageMargin, currentY + padding, { width: contentWidth, align: 'center' });
         currentY += rowHeight;
 
         const prodHeaders = [
@@ -320,7 +319,7 @@ const generateOsPdf = async (req, res, db) => {
                  const align = prodHeaders[i].align;
 
                  if (col.text) {
-                     doc.text(col.text, x + padding, y + padding + 1, { width: colWidth - (padding*2), align: align, ellipsis: true, lineBreak: false });
+                     doc.text(col.text, x + padding, y + padding + 1, { width: colWidth - (padding*2), align: align, ellipsis: true });
                  }
                  x += colWidth;
              });
@@ -377,10 +376,10 @@ const generateOsPdf = async (req, res, db) => {
         const signY = currentY;
         doc.lineWidth(0.5).strokeColor('black'); // Reset line width
         doc.moveTo(pageMargin, signY).lineTo(pageMargin + 200, signY).stroke();
-        doc.text('TÉCNICO RESPONSÁVEL', pageMargin, signY + 5, { width: 200, align: 'center', lineBreak: false });
+        doc.text('TÉCNICO RESPONSÁVEL', pageMargin, signY + 5, { width: 200, align: 'center' });
 
         doc.moveTo(pageWidth - pageMargin - 200, signY).lineTo(pageWidth - pageMargin, signY).stroke();
-        doc.text('PRODUTOR', pageWidth - pageMargin - 200, signY + 5, { width: 200, align: 'center', lineBreak: false });
+        doc.text('PRODUTOR', pageWidth - pageMargin - 200, signY + 5, { width: 200, align: 'center' });
 
 
         // --- MAP PAGE (Landscape) ---
@@ -390,7 +389,7 @@ const generateOsPdf = async (req, res, db) => {
             const lsPageHeight = doc.page.height;
             const lsMargin = 28;
 
-            doc.font('Helvetica-Bold').fontSize(14).text(`Mapa de Aplicação - O.S. ${osData.os_numero || osData.sequentialId || osId}`, lsMargin, lsMargin, { width: lsPageWidth - (lsMargin*2), align: 'center', lineBreak: false });
+            doc.font('Helvetica-Bold').fontSize(14).text(`Mapa de Aplicação - O.S. ${osData.os_numero || osData.sequentialId || osId}`, lsMargin, lsMargin, { width: lsPageWidth - (lsMargin*2), align: 'center' });
 
             const mapAreaX = lsMargin;
             const mapAreaY = lsMargin + 30;
@@ -501,8 +500,7 @@ const generateOsPdf = async (req, res, db) => {
             }
         }
 
-        // Generate Footer (Page X of Y) for all buffered pages
-        generatePdfFooter(doc, osData.usuario_abertura_nome || osData.generatedBy || generatedBy);
+        generatePdfFooter(doc, osData.usuario_abertura_nome || osData.generatedBy || generatedBy || 'Sistema');
         doc.end();
 
     } catch (error) {
