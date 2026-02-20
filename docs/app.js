@@ -738,6 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
             announcements: [],
             osMap: null,
             osSelectedPlots: new Set(),
+            osManualWizard: null,
             regAppMap: null,
             regAppSelectedPlots: new Map(), // Map<talhaoId, {area: number, direction: string, isPartial: boolean}>
             regAppDirectionTarget: null, // Stores talhaoId when selecting direction on map
@@ -770,15 +771,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnCenterMap: document.getElementById('btnCenterRegAppMap'),
             },
             osManual: {
+                producer: document.getElementById('osProducer'),
                 farmSelect: document.getElementById('osFarmSelect'),
-                serviceType: document.getElementById('osServiceType'),
-                operation: document.getElementById('osOperation'),
+                stage: document.getElementById('osStage'),
+                safra: document.getElementById('osSafra'),
+                ciclo: document.getElementById('osCiclo'),
+                date: document.getElementById('osDate'),
                 responsibleMatricula: document.getElementById('osResponsibleMatricula'),
                 responsibleName: document.getElementById('osResponsibleName'),
                 observations: document.getElementById('osObservations'),
                 totalArea: document.getElementById('osTotalArea'),
                 plotsList: document.getElementById('osPlotsList'),
-                btnGenerate: document.getElementById('btnGenerateOS'),
+                operationsSearch: document.getElementById('osOperationSearch'),
+                operationsList: document.getElementById('osOperationsList'),
+                selectedCount: document.getElementById('osSelectedOperationsCount'),
+                productsEditor: document.getElementById('osOperationProductsEditor'),
+                productsOperationBadge: document.getElementById('osOperationProgressBadge'),
+                productsOperationName: document.getElementById('osOperationCurrentName'),
+                productsSearch: document.getElementById('osProductSearch'),
+                productsSearchList: document.getElementById('osOperationProductsSearchList'),
+                productsTable: document.getElementById('osOperationProductsTable'),
+                reviewSummary: document.getElementById('osReviewSummary'),
+                wizardSteps: Array.from(document.querySelectorAll('#ordemServicoManual [data-os-wizard-step]')),
+                progressPills: Array.from(document.querySelectorAll('#ordemServicoManual .os-progress-pill')),
+                btnNextBasic: document.getElementById('btnOSNextBasic'),
+                btnPrevOperations: document.getElementById('btnOSPrevOperations'),
+                btnNextOperations: document.getElementById('btnOSNextOperations'),
+                btnPrevProducts: document.getElementById('btnOSPrevProducts'),
+                btnNextProducts: document.getElementById('btnOSNextProducts'),
+                btnPrevReview: document.getElementById('btnOSPrevReview'),
+                btnSaveDraft: document.getElementById('btnOSSaveDraft'),
+                btnSave: document.getElementById('btnSaveOSManual'),
                 mapContainer: document.getElementById('os-map'),
                 btnCenterMap: document.getElementById('btnCenterOSMap'),
             },
@@ -14857,166 +14880,262 @@ document.addEventListener('DOMContentLoaded', () => {
 
         osManual: {
             init() {
+                this.ensureWizardState();
                 this.populateFarmSelect();
-                this.populateDropdowns();
                 this.setupEventListeners();
+                this.renderWizard();
                 this.initMap();
             },
 
-            populateDropdowns() {
-                const typeSelect = App.elements.osManual.serviceType;
-                const opSelect = App.elements.osManual.operation;
-
-                if (typeSelect) {
-                    typeSelect.innerHTML = '<option value="">Selecione...</option>' +
-                        (App.state.tipos_servico || []).filter(x => x.ativo).map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
+            ensureWizardState() {
+                if (!App.state.osManualWizard) {
+                    App.state.osManualWizard = { step: 1, operationIndex: 0, selectedOperations: [], operationsProducts: {} };
                 }
-                if (opSelect) {
-                    opSelect.innerHTML = '<option value="">Selecione...</option>' +
-                        (App.state.operacoes || []).filter(x => x.ativo).map(op => `<option value="${op.id}">${op.nome}</option>`).join('');
-                }
+                if (!App.elements.osManual.date?.value) App.elements.osManual.date.value = new Date().toISOString().slice(0, 10);
+                if (!App.elements.osManual.safra?.value) App.elements.osManual.safra.value = App.state.globalConfigs?.safra || '24/25';
+                if (!App.elements.osManual.ciclo?.value) App.elements.osManual.ciclo.value = App.state.globalConfigs?.ciclo || '1';
             },
 
             setupEventListeners() {
                 const els = App.elements.osManual;
                 if (!els.farmSelect) return;
-
                 els.farmSelect.addEventListener('change', () => this.handleFarmChange());
+                els.responsibleMatricula?.addEventListener('input', App.debounce((e) => this.lookupResponsible(e.target.value), 500));
+                els.operationsSearch?.addEventListener('input', () => this.OperationSelector());
+                els.productsSearch?.addEventListener('input', () => this.OperationProductsEditor());
 
-                if (els.responsibleMatricula) {
-                    els.responsibleMatricula.addEventListener('input', App.debounce((e) => this.lookupResponsible(e.target.value), 500));
-                }
-
-                if (els.operation) {
-                    els.operation.addEventListener('change', () => this.handleOperationChange());
-                }
-
-                els.btnGenerate.addEventListener('click', () => this.generateOS());
+                els.btnNextBasic?.addEventListener('click', () => this.goToStep(2));
+                els.btnPrevOperations?.addEventListener('click', () => this.goToStep(1));
+                els.btnNextOperations?.addEventListener('click', () => this.goToStep(3));
+                els.btnPrevReview?.addEventListener('click', () => this.goToStep(3));
+                els.btnSaveDraft?.addEventListener('click', () => this.saveOS({ draft: true }));
+                els.btnSave?.addEventListener('click', () => this.saveOS({ draft: false }));
 
                 const selectAllBtn = document.getElementById('osSelectAllPlotsBtn');
-                if (selectAllBtn) {
-                    selectAllBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        const plotCheckboxes = Array.from(els.plotsList.querySelectorAll('input[type="checkbox"]'));
-                        if (plotCheckboxes.length === 0) return;
-
-                        const allChecked = plotCheckboxes.every(cb => cb.checked);
-                        const targetState = !allChecked;
-
-                        plotCheckboxes.forEach(checkbox => {
-                            if (checkbox.checked !== targetState) {
-                                checkbox.checked = targetState;
-                                checkbox.dispatchEvent(new Event('change'));
-                            }
-                        });
+                selectAllBtn?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const plotCheckboxes = Array.from(els.plotsList.querySelectorAll('input[type="checkbox"]'));
+                    const allChecked = plotCheckboxes.length && plotCheckboxes.every(cb => cb.checked);
+                    plotCheckboxes.forEach(checkbox => {
+                        checkbox.checked = !allChecked;
+                        checkbox.dispatchEvent(new Event('change'));
                     });
-                }
+                });
 
-                if (els.btnCenterMap) {
-                    els.btnCenterMap.addEventListener('click', () => {
-                        const farmCode = els.farmSelect.options[els.farmSelect.selectedIndex]?.text?.split(' - ')[0];
-                        if(farmCode) this.zoomToFarm(farmCode);
-                    });
-                }
-
-                const btnToggleOSPanel = document.getElementById('btnToggleOSPanel');
-                if (btnToggleOSPanel) btnToggleOSPanel.addEventListener('click', () => this.toggleMapSize());
-                const btnRecolherMapa = document.getElementById('btn-recolher-mapa-os');
-                if (btnRecolherMapa) btnRecolherMapa.addEventListener('click', () => this.toggleMapSize());
-                const btnMobileToggleMap = document.getElementById('btnMobileToggleMap');
-                if (btnMobileToggleMap) btnMobileToggleMap.addEventListener('click', () => this.toggleMapSize());
+                els.btnCenterMap?.addEventListener('click', () => {
+                    const farmCode = els.farmSelect.options[els.farmSelect.selectedIndex]?.text?.split(' - ')[0];
+                    if (farmCode) this.zoomToFarm(farmCode);
+                });
+                document.getElementById('btnToggleOSPanel')?.addEventListener('click', () => this.toggleMapSize());
+                document.getElementById('btn-recolher-mapa-os')?.addEventListener('click', () => this.toggleMapSize());
+                document.getElementById('btnMobileToggleMap')?.addEventListener('click', () => this.toggleMapSize());
             },
 
             lookupResponsible(matricula) {
                 const nameInput = App.elements.osManual.responsibleName;
-                if (!matricula) {
-                    nameInput.value = '';
-                    return;
-                }
+                if (!matricula) return nameInput.value = '';
                 const person = App.state.personnel.find(p => String(p.matricula) === String(matricula));
-                if (person) {
-                    nameInput.value = person.name;
-                } else {
-                    nameInput.value = 'Não encontrado';
-                }
+                nameInput.value = person ? person.name : 'Não encontrado';
             },
 
-            handleOperationChange() {
-                const opId = App.elements.osManual.operation.value;
-                const section = document.getElementById('osProductSection');
-                const list = document.getElementById('osProductsList');
-
-                if (!opId) {
-                    section.style.display = 'none';
-                    return;
-                }
-
-                const links = (App.state.operacao_produtos || []).filter(l => l.operacao_id === opId);
-
-                if (links.length === 0) {
-                    list.innerHTML = '<p>Sem produtos vinculados.</p>';
-                    section.style.display = 'block';
-                    this.updateProductCalculations();
-                    return;
-                }
-
-                let html = '';
-                links.forEach(link => {
-                    const prod = App.state.produtos.find(p => p.id === link.produto_id);
-                    if (!prod) return;
-
-                    const checked = link.obrigatorio ? 'checked disabled' : 'checked';
-
-                    html += `
-                        <div class="product-item" style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
-                            <input type="checkbox" class="os-prod-cb" data-id="${prod.id}" data-name="${prod.nome}" data-unit="${prod.unidade}" ${checked}>
-                            <span style="flex: 1;">${prod.nome} (${prod.unidade})</span>
-                            <input type="number" class="os-prod-dosage" value="${link.dosagem_por_ha}" step="0.001" style="width: 80px;">
-                            <span>/ha</span>
-                        </div>
-                    `;
-                });
-
-                list.innerHTML = html;
-                section.style.display = 'block';
-
-                list.querySelectorAll('.os-prod-cb, .os-prod-dosage').forEach(el => {
-                    el.addEventListener('change', () => this.updateProductCalculations());
-                    if (el.tagName === 'INPUT' && el.type === 'number') {
-                         el.addEventListener('input', () => this.updateProductCalculations());
-                    }
-                });
-
-                this.updateProductCalculations();
+            validateBasicStep() {
+                const els = App.elements.osManual;
+                if (!els.producer?.value?.trim()) return 'Informe o produtor.';
+                if (!els.farmSelect.value) return 'Selecione uma fazenda.';
+                if (!els.stage?.value?.trim()) return 'Informe a etapa.';
+                if (!els.safra?.value?.trim()) return 'Informe a safra.';
+                if (!els.ciclo?.value?.trim()) return 'Informe o ciclo.';
+                if (!els.date?.value) return 'Informe a data.';
+                if (!els.responsibleMatricula.value || els.responsibleName.value === 'Não encontrado') return 'Informe um responsável válido.';
+                if (App.state.osSelectedPlots.size === 0) return 'Selecione ao menos 1 talhão.';
+                return null;
             },
 
-            updateProductCalculations() {
-                const totalArea = App.state.osTotalArea || 0;
-                const preview = document.getElementById('osProductsPreview');
-                const list = document.getElementById('osProductsList');
+            goToStep(step) {
+                const wizard = App.state.osManualWizard;
+                if (step === 2) {
+                    const err = this.validateBasicStep();
+                    if (err) return App.ui.showAlert(err, 'warning');
+                }
+                if (step === 3 && wizard.selectedOperations.length === 0) return App.ui.showAlert('Selecione ao menos 1 operação.', 'warning');
+                if (step === 4) {
+                    const allConfigured = wizard.selectedOperations.every(opId => (wizard.operationsProducts[opId] || []).length > 0);
+                    if (!allConfigured) return App.ui.showAlert('Configure produtos para cada operação.', 'warning');
+                }
+                wizard.step = step;
+                this.renderWizard();
+            },
 
-                if (!list || !preview) return;
+            renderWizard() {
+                const { wizardSteps, progressPills } = App.elements.osManual;
+                const wizard = App.state.osManualWizard;
+                wizardSteps.forEach(stepEl => stepEl.hidden = Number(stepEl.dataset.osWizardStep) !== wizard.step);
+                progressPills.forEach(pill => pill.classList.toggle('active', Number(pill.dataset.step) === wizard.step));
+                if (wizard.step === 2) this.OperationSelector();
+                if (wizard.step === 3) this.OperationProductsEditor();
+                if (wizard.step === 4) this.OsReviewSummary();
+            },
 
-                let html = '<table style="width:100%; font-size: 13px;"><thead><tr><th>Produto</th><th>Dosagem</th><th>Total</th></tr></thead><tbody>';
-
-                const items = list.querySelectorAll('.product-item');
-                let hasProducts = false;
-
-                items.forEach(item => {
-                    const cb = item.querySelector('.os-prod-cb');
-                    if (cb.checked) {
-                        hasProducts = true;
-                        const prodName = cb.dataset.name;
-                        const dosage = parseFloat(item.querySelector('.os-prod-dosage').value) || 0;
-                        const total = (dosage * totalArea).toFixed(3);
-                        const unit = cb.dataset.unit;
-
-                        html += `<tr><td>${prodName}</td><td>${dosage}</td><td>${total} ${unit}</td></tr>`;
+            OperationSelector() {
+                const els = App.elements.osManual;
+                const wizard = App.state.osManualWizard;
+                const search = (els.operationsSearch?.value || '').toLowerCase();
+                const operations = (App.state.operacoes || []).filter(op => op.ativo && op.nome.toLowerCase().includes(search));
+                els.operationsList.innerHTML = operations.length ? operations.map(op => {
+                    const checked = wizard.selectedOperations.includes(op.id) ? 'checked' : '';
+                    return `<label class="talhao-selection-item" style="grid-template-columns:auto 1fr;grid-template-areas:'check name';"><input type="checkbox" data-op-id="${op.id}" ${checked}><div class="talhao-name">${op.nome}</div></label>`;
+                }).join('') : '<p style="padding:8px;">Nenhuma operação encontrada.</p>';
+                els.operationsList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.addEventListener('change', (e) => {
+                    const opId = e.target.dataset.opId;
+                    if (e.target.checked) {
+                        if (!wizard.selectedOperations.includes(opId)) wizard.selectedOperations.push(opId);
+                    } else {
+                        wizard.selectedOperations = wizard.selectedOperations.filter(id => id !== opId);
                     }
-                });
+                    if (wizard.operationIndex >= wizard.selectedOperations.length) wizard.operationIndex = Math.max(0, wizard.selectedOperations.length - 1);
+                    this.OperationSelector();
+                }));
+                els.selectedCount.textContent = `${wizard.selectedOperations.length} operações selecionadas`;
+                els.btnNextOperations.disabled = wizard.selectedOperations.length === 0;
+            },
 
-                html += '</tbody></table>';
-                preview.innerHTML = hasProducts ? html : '';
+            OperationProductsEditor() {
+                const els = App.elements.osManual;
+                const wizard = App.state.osManualWizard;
+                if (!wizard.selectedOperations.length) return;
+                const opId = wizard.selectedOperations[wizard.operationIndex];
+                const operation = App.state.operacoes.find(o => o.id === opId);
+                const links = (App.state.operacao_produtos || []).filter(link => link.operacao_id === opId);
+                const search = (els.productsSearch?.value || '').toLowerCase();
+                const areaTotal = App.state.osTotalArea || 0;
+
+                els.productsOperationBadge.textContent = `Operação ${wizard.operationIndex + 1} de ${wizard.selectedOperations.length}`;
+                els.productsOperationName.textContent = operation?.nome || 'Operação';
+
+                const opProducts = wizard.operationsProducts[opId] || [];
+                const availableProducts = links.map(link => App.state.produtos.find(p => p.id === link.produto_id)).filter(Boolean).filter(p => p.nome.toLowerCase().includes(search));
+                els.productsSearchList.innerHTML = availableProducts.length ? availableProducts.map(prod => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid var(--color-border);"><span>${prod.nome} (${prod.unidade || '-'})</span><button class="btn-secondary" data-add-prod="${prod.id}"><i class="fas fa-plus"></i></button></div>`).join('') : '<p style="padding:8px;">Sem produtos vinculados.</p>';
+                els.productsSearchList.querySelectorAll('[data-add-prod]').forEach(btn => btn.addEventListener('click', () => {
+                    const product = App.state.produtos.find(p => p.id === btn.dataset.addProd);
+                    if (!product) return;
+                    wizard.operationsProducts[opId] = wizard.operationsProducts[opId] || [];
+                    wizard.operationsProducts[opId].push({ produtoId: product.id, descricao: product.nome, und: product.unidade || '', doseHa: 0, qtdeTotal: 0 });
+                    this.OperationProductsEditor();
+                }));
+
+                els.productsTable.innerHTML = !opProducts.length ? '<p style="padding:8px;">Nenhum produto adicionado.</p>' : `<table style="width:100%"><thead><tr><th>Produto</th><th>Und</th><th>Dose/ha</th><th>Qtde Total</th><th></th></tr></thead><tbody>${opProducts.map((item, idx) => `<tr><td>${item.descricao}</td><td><input data-field="und" data-idx="${idx}" value="${item.und || ''}"></td><td><input type="number" step="0.001" data-field="doseHa" data-idx="${idx}" value="${item.doseHa || 0}"></td><td>${(Number(item.doseHa || 0) * areaTotal).toFixed(3)}</td><td><button class="btn-secondary" data-remove-idx="${idx}"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</tbody></table>`;
+                els.productsTable.querySelectorAll('input[data-field]').forEach(input => input.addEventListener('input', (e) => {
+                    const idx = Number(e.target.dataset.idx);
+                    const field = e.target.dataset.field;
+                    opProducts[idx][field] = field === 'doseHa' ? Number.parseFloat(e.target.value) || 0 : e.target.value;
+                    opProducts[idx].qtdeTotal = Number(opProducts[idx].doseHa || 0) * areaTotal;
+                    this.OperationProductsEditor();
+                }));
+                els.productsTable.querySelectorAll('[data-remove-idx]').forEach(btn => btn.addEventListener('click', () => {
+                    opProducts.splice(Number(btn.dataset.removeIdx), 1);
+                    this.OperationProductsEditor();
+                }));
+
+                const prevBtn = els.btnPrevProducts;
+                const nextBtn = els.btnNextProducts;
+                prevBtn.textContent = wizard.operationIndex > 0 ? 'Operação anterior' : 'Anterior';
+                nextBtn.textContent = wizard.operationIndex < wizard.selectedOperations.length - 1 ? 'Próxima operação' : 'Próximo: Revisão';
+                prevBtn.onclick = () => {
+                    if (wizard.operationIndex > 0) {
+                        wizard.operationIndex -= 1;
+                        this.OperationProductsEditor();
+                    } else this.goToStep(2);
+                };
+                nextBtn.onclick = () => {
+                    if (wizard.operationIndex < wizard.selectedOperations.length - 1) {
+                        wizard.operationIndex += 1;
+                        this.OperationProductsEditor();
+                    } else this.goToStep(4);
+                };
+            },
+
+            OsReviewSummary() {
+                const els = App.elements.osManual;
+                const { plots, totalAreaHa } = this.collectPlots();
+                const operacoes = this.buildOperacoesPayload();
+                els.reviewSummary.innerHTML = `<h4>Talhões (${plots.length}) | Área total ${Number(totalAreaHa).toFixed(2)} ha</h4><ul>${plots.map(p => `<li>${p.talhao_nome} - ${Number(p.area_ha).toFixed(2)} ha</li>`).join('')}</ul><h4>Operações</h4>${operacoes.map(op => `<div style="margin-bottom:8px;"><strong>${op.nome}</strong><ul>${op.produtos.map(pr => `<li>${pr.descricao} (${pr.und}) - Dose/ha: ${Number(pr.doseHa).toFixed(3)} - Total: ${Number(pr.qtdeTotal).toFixed(3)}</li>`).join('')}</ul></div>`).join('')}`;
+            },
+
+            collectPlots() {
+                const farm = App.state.fazendas.find(f => f.id === App.elements.osManual.farmSelect.value);
+                const plots = [];
+                let totalAreaHa = 0;
+                App.state.osSelectedPlots.forEach(talhaoId => {
+                    const talhao = farm?.talhoes.find(t => t.id === talhaoId);
+                    if (!talhao) return;
+                    const area = Number.parseFloat(talhao.area);
+                    const safe = Number.isFinite(area) ? area : 0;
+                    totalAreaHa += safe;
+                    plots.push({ talhao_id: talhao.name, talhao_nome: talhao.name, variedade: talhao.variedade, area_ha: safe });
+                });
+                return { plots, totalAreaHa };
+            },
+
+            buildOperacoesPayload() {
+                const wizard = App.state.osManualWizard;
+                const areaTotal = App.state.osTotalArea || 0;
+                return wizard.selectedOperations.map(opId => {
+                    const op = App.state.operacoes.find(o => o.id === opId);
+                    const produtos = (wizard.operationsProducts[opId] || []).map(item => ({ produtoId: item.produtoId, descricao: item.descricao, und: item.und, doseHa: Number(item.doseHa || 0), qtdeTotal: Number(item.doseHa || 0) * areaTotal }));
+                    return { operacaoId: opId, nome: op?.nome || 'Operação', produtos };
+                });
+            },
+
+            async saveOS({ draft = false } = {}) {
+                const els = App.elements.osManual;
+                const err = this.validateBasicStep();
+                if (err) return App.ui.showAlert(err, 'warning');
+                if (App.state.osManualWizard.selectedOperations.length === 0) return App.ui.showAlert('Selecione ao menos 1 operação.', 'warning');
+
+                const farm = App.state.fazendas.find(f => f.id === els.farmSelect.value);
+                const { plots, totalAreaHa } = this.collectPlots();
+                App.state.osTotalArea = Number.isFinite(totalAreaHa) ? totalAreaHa : 0;
+                const operacoes = this.buildOperacoesPayload();
+
+                const osData = {
+                    os_numero: Date.now(),
+                    data: els.date.value,
+                    safra: els.safra.value.trim(),
+                    ciclo: els.ciclo.value.trim(),
+                    etapa: els.stage.value.trim(),
+                    produtor: els.producer.value.trim(),
+                    fazenda_id: farm?.id,
+                    fazenda_nome: farm?.name,
+                    responsavel_matricula: els.responsibleMatricula.value,
+                    responsavel_nome: els.responsibleName.value,
+                    usuario_abertura_id: App.state.currentUser.uid,
+                    usuario_abertura_nome: App.state.currentUser.username || App.state.currentUser.email,
+                    companyId: App.state.currentUser.companyId,
+                    status: draft ? 'RASCUNHO' : 'ABERTA',
+                    total_area_ha: App.state.osTotalArea,
+                    itens: plots,
+                    talhoes: plots,
+                    operacoes,
+                    obsGeral: els.observations.value,
+                    observacoes: els.observations.value,
+                    created_at: new Date().toISOString(),
+                };
+
+                try {
+                    if (!App.state.isOnline || App.state.authMode === 'offline' || draft) {
+                        const offlineId = `offline_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+                        await OfflineDB.add('offline-writes', { id: offlineId, collection: 'ordens_servico', data: sanitizeFirestoreData(osData) });
+                        App.state.ordens_servico.push({ id: offlineId, ...sanitizeFirestoreData(osData) });
+                    } else {
+                        await App.data.addDocument('ordens_servico', sanitizeFirestoreData(osData));
+                    }
+                    App.ui.showAlert('O.S salva com sucesso', 'success');
+                    this.resetForm();
+                    App.ui.showSection('ordemServicoEscritorio');
+                } catch (e) {
+                    console.error(e);
+                    App.ui.showAlert(`Erro: ${e.message}`, 'error');
+                }
             },
 
             initMap() {
@@ -15042,7 +15161,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 map.on('load', () => {
                     this.loadShapes();
-                    // Se já houver uma fazenda selecionada, aplica o filtro e zoom
                     const farmId = App.elements.osManual.farmSelect.value;
                     if (farmId) {
                         const farm = App.state.fazendas.find(f => f.id === farmId);
@@ -15053,7 +15171,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                // Map click listener for plot selection
                 map.on('click', 'os-talhoes-layer', (e) => {
                     if (e.features.length > 0) {
                         const feature = e.features[0];
@@ -15065,9 +15182,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 map.on('mousemove', 'os-talhoes-layer', (e) => {
                     map.getCanvas().style.cursor = 'pointer';
                     if (e.features.length > 0) {
-                        if (hoveredFeatureId !== null) {
-                            map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: false });
-                        }
+                        if (hoveredFeatureId !== null) map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: false });
                         hoveredFeatureId = e.features[0].id;
                         map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: true });
                     }
@@ -15094,85 +15209,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (map.getSource(sourceId)) {
                     map.getSource(sourceId).setData(App.state.geoJsonData);
                 } else {
-                    map.addSource(sourceId, {
-                        type: 'geojson',
-                        data: App.state.geoJsonData,
-                        generateId: true
-                    });
+                    map.addSource(sourceId, { type: 'geojson', data: App.state.geoJsonData, generateId: true });
                 }
 
                 const themeColors = App.ui._getThemeColors();
-
-                if (!map.getLayer(layerId)) {
-                    map.addLayer({
-                        id: layerId,
-                        type: 'fill',
-                        source: sourceId,
-                        paint: {
-                            'fill-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
-                                ['boolean', ['feature-state', 'hover'], false], '#607D8B',
-                                '#1C1C1C'
-                            ],
-                            'fill-opacity': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], 0.9,
-                                ['boolean', ['feature-state', 'hover'], false], 0.8,
-                                0.7
-                            ]
-                        }
-                    });
-                }
-
-                if (!map.getLayer(labelLayerId)) {
-                    map.addLayer({
-                        id: labelLayerId,
-                        type: 'symbol',
-                        source: sourceId,
-                        minzoom: 10,
-                        layout: {
-                            'symbol-placement': 'point',
-                            'text-field': [
-                                'format',
-                                ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.9 },
-                                '\n', {},
-                                ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }
-                            ],
-                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                            'text-size': 14,
-                            'text-ignore-placement': true,
-                            'text-allow-overlap': true,
-                            'text-pitch-alignment': 'viewport',
-                        },
-                        paint: {
-                            'text-color': '#FFFFFF',
-                            'text-halo-color': 'rgba(0, 0, 0, 0.9)',
-                            'text-halo-width': 2
-                        }
-                    });
-                }
-
-                if (!map.getLayer(borderLayerId)) {
-                     map.addLayer({
-                        id: borderLayerId,
-                        type: 'line',
-                        source: sourceId,
-                        paint: {
-                            'line-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF',
-                                '#FFFFFF'
-                            ],
-                            'line-width': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], 3,
-                                1.5
-                            ],
-                            'line-opacity': 0.9
-                        }
-                    });
-                }
+                if (!map.getLayer(layerId)) map.addLayer({ id: layerId, type: 'fill', source: sourceId, paint: { 'fill-color': ['case', ['boolean', ['feature-state', 'selected'], false], themeColors.primary, ['boolean', ['feature-state', 'hover'], false], '#607D8B', '#1C1C1C'], 'fill-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], 0.9, ['boolean', ['feature-state', 'hover'], false], 0.8, 0.7] } });
+                if (!map.getLayer(labelLayerId)) map.addLayer({ id: labelLayerId, type: 'symbol', source: sourceId, minzoom: 10, layout: { 'symbol-placement': 'point', 'text-field': ['format', ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.9 }, '\n', {}, ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }], 'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'], 'text-size': 14, 'text-ignore-placement': true, 'text-allow-overlap': true, 'text-pitch-alignment': 'viewport' }, paint: { 'text-color': '#FFFFFF', 'text-halo-color': 'rgba(0, 0, 0, 0.9)', 'text-halo-width': 2 } });
+                if (!map.getLayer(borderLayerId)) map.addLayer({ id: borderLayerId, type: 'line', source: sourceId, paint: { 'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#00FFFF', '#FFFFFF'], 'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1.5], 'line-opacity': 0.9 } });
             },
 
             populateFarmSelect() {
@@ -15190,21 +15233,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const farmId = App.elements.osManual.farmSelect.value;
                 const farm = App.state.fazendas.find(f => f.id === farmId);
 
-                // Limpa o estado visual do mapa antes de qualquer outra coisa
-                if (App.state.osMap && App.state.osMap.isStyleLoaded() && App.state.geoJsonData) {
-                    // Verifica se a fonte existe antes de tentar definir o estado
-                    if (App.state.osMap.getSource('os-talhoes-source')) {
-                        App.state.geoJsonData.features.forEach(feature => {
-                            if (feature.id !== undefined) {
-                                App.state.osMap.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
-                            }
-                        });
-                    }
+                if (App.state.osMap && App.state.osMap.isStyleLoaded() && App.state.geoJsonData && App.state.osMap.getSource('os-talhoes-source')) {
+                    App.state.geoJsonData.features.forEach(feature => {
+                        if (feature.id !== undefined) App.state.osMap.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+                    });
                 }
 
-                App.state.osSelectedPlots.clear(); // Limpa o estado dos dados
+                App.state.osSelectedPlots.clear();
                 this.updateTotalArea();
-                this.updateProductCalculations();
 
                 if (farm) {
                     this.renderPlotsList(farm.talhoes);
@@ -15226,31 +15262,13 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPlotsList(talhoes) {
                 const listContainer = App.elements.osManual.plotsList;
                 listContainer.innerHTML = '';
-
-                if (!talhoes || talhoes.length === 0) {
-                    listContainer.innerHTML = '<p>Nenhum talhão encontrado.</p>';
-                    return;
-                }
-
+                if (!talhoes || talhoes.length === 0) return listContainer.innerHTML = '<p>Nenhum talhão encontrado.</p>';
                 talhoes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).forEach(talhao => {
                     const label = document.createElement('label');
                     label.className = 'talhao-selection-item';
                     label.htmlFor = `os-plot-${talhao.id}`;
-
-                    label.innerHTML = `
-                        <input type="checkbox" id="os-plot-${talhao.id}" data-id="${talhao.id}" data-name="${talhao.name}" data-area="${talhao.area}">
-                        <div class="talhao-name">${talhao.name}</div>
-                        <div class="talhao-details">
-                            <span><i class="fas fa-ruler-combined"></i>Área: ${talhao.area ? talhao.area.toFixed(2) : 0} ha</span>
-                            <span><i class="fas fa-seedling"></i>Variedade: ${talhao.variedade || 'N/A'}</span>
-                        </div>
-                    `;
-
-                    const checkbox = label.querySelector('input');
-                    checkbox.addEventListener('change', (e) => {
-                        this.togglePlotSelectionFromList(talhao, e.target.checked);
-                    });
-
+                    label.innerHTML = `<input type="checkbox" id="os-plot-${talhao.id}" data-id="${talhao.id}"><div class="talhao-name">${talhao.name}</div><div class="talhao-details"><span><i class="fas fa-ruler-combined"></i>Área: ${talhao.area ? Number(talhao.area).toFixed(2) : 0} ha</span><span><i class="fas fa-seedling"></i>Variedade: ${talhao.variedade || 'N/A'}</span></div>`;
+                    label.querySelector('input').addEventListener('change', (e) => this.togglePlotSelectionFromList(talhao, e.target.checked));
                     listContainer.appendChild(label);
                 });
             },
@@ -15267,7 +15285,6 @@ document.addEventListener('DOMContentLoaded', () => {
             zoomToFarm(farmCode) {
                 const map = App.state.osMap;
                 if (!map || !App.state.geoJsonData) return;
-
                 const features = App.state.geoJsonData.features.filter(f => f.properties.AGV_FUNDO == farmCode);
                 if (features.length > 0) {
                     const collection = turf.featureCollection(features);
@@ -15280,15 +15297,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const map = App.state.osMap;
                 const talhaoName = feature.properties.AGV_TALHAO;
                 const farmCode = feature.properties.AGV_FUNDO;
-
                 const farm = App.state.fazendas.find(f => f.code == farmCode);
                 if (!farm) return;
-
                 const talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName.toUpperCase());
                 if (!talhao) return;
-
                 const isSelected = App.state.osSelectedPlots.has(talhao.id);
-
                 if (!isSelected) {
                     App.state.osSelectedPlots.add(talhao.id);
                     if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: true });
@@ -15300,35 +15313,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const checkbox = document.getElementById(`os-plot-${talhao.id}`);
                     if (checkbox) checkbox.checked = false;
                 }
-
                 this.updateTotalArea();
-                this.updateProductCalculations();
             },
 
             togglePlotSelectionFromList(talhao, isChecked) {
                 const map = App.state.osMap;
-
-                if (isChecked) {
-                    App.state.osSelectedPlots.add(talhao.id);
-                } else {
-                    App.state.osSelectedPlots.delete(talhao.id);
-                }
-
+                if (isChecked) App.state.osSelectedPlots.add(talhao.id);
+                else App.state.osSelectedPlots.delete(talhao.id);
                 if (map && map.getLayer('os-talhoes-layer')) {
                     const farmCode = App.state.fazendas.find(f => f.id === App.elements.osManual.farmSelect.value)?.code;
-                    if (farmCode && App.state.geoJsonData && App.state.geoJsonData.features) {
-                        const feature = App.state.geoJsonData.features.find(f =>
-                            f.properties.AGV_TALHAO === talhao.name &&
-                            String(f.properties.AGV_FUNDO) === String(farmCode)
-                        );
-                        if (feature) {
-                            map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: isChecked });
-                        }
-                    }
+                    const feature = App.state.geoJsonData?.features?.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
+                    if (feature) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: isChecked });
                 }
-
                 this.updateTotalArea();
-                this.updateProductCalculations();
             },
 
             updateTotalArea() {
@@ -15338,164 +15335,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.state.osTotalArea = 0;
                     return;
                 }
-
                 const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm) {
-                    App.state.osTotalArea = 0;
-                    return;
-                }
-
+                if (!farm) return;
                 let total = 0;
                 App.state.osSelectedPlots.forEach(id => {
                     const t = farm.talhoes.find(plot => plot.id === id);
-                    if (!t) return;
-                    const area = Number.parseFloat(t.area);
-                    if (Number.isFinite(area)) {
-                        total += area;
-                    }
+                    const area = Number.parseFloat(t?.area);
+                    if (Number.isFinite(area)) total += area;
                 });
-
                 App.state.osTotalArea = Number.isFinite(total) ? total : 0;
                 App.elements.osManual.totalArea.textContent = `${total.toFixed(2)} ha`;
             },
 
-            async generateOS() {
-                const { farmSelect, serviceType, operation, responsibleMatricula, responsibleName, observations } = App.elements.osManual;
-
-                if (!farmSelect.value) return App.ui.showAlert("Selecione uma fazenda.", "warning");
-                if (!responsibleMatricula.value || responsibleName.value === 'Não encontrado') return App.ui.showAlert("Informe um responsável válido.", "warning");
-                if (!serviceType.value) return App.ui.showAlert("Selecione o tipo de serviço.", "warning");
-                if (!operation.value) return App.ui.showAlert("Selecione a operação.", "warning");
-                if (App.state.osSelectedPlots.size === 0) return App.ui.showAlert("Selecione ao menos 1 talhão.", "warning");
-
-                // Check Max Applications
-                const op = App.state.operacoes.find(o => o.id === operation.value);
-                const maxApp = op ? (op.max_aplicacoes || 99) : 99;
-
-                const blockedPlots = [];
-                const warnings = [];
-                const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
-
-                App.state.osSelectedPlots.forEach(talhaoId => {
-                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
-                    if(!talhao) return;
-
-                    const count = (App.state.ordens_servico || []).filter(os =>
-                        os.operacao_id === operation.value &&
-                        os.fazenda_id === farmSelect.value &&
-                        os.status !== 'CANCELADA' &&
-                        os.itens.some(item => item.talhao_id === talhao.name) // assuming name match, better if ID
-                    ).length;
-
-                    if (count >= maxApp) {
-                        blockedPlots.push(talhao.name);
-                    } else if (count > 0) {
-                        warnings.push(`${talhao.name} (${count}ª ap.)`);
-                    }
-                });
-
-                if (blockedPlots.length > 0) {
-                    return App.ui.showAlert(`Bloqueio: Limite de aplicações excedido para: ${blockedPlots.join(', ')}`, 'error');
-                }
-
-                if (warnings.length > 0) {
-                    const confirm = await App.ui.confirmCustom(`Alertas de re-aplicação: ${warnings.join(', ')}. Continuar?`);
-                    if (!confirm) return;
-                }
-
-                // Prepare Data
-                const products = [];
-                document.querySelectorAll('#osProductsList .product-item').forEach(item => {
-                    const cb = item.querySelector('.os-prod-cb');
-                    if (cb.checked) {
-                        products.push({
-                            produto_id: cb.dataset.id,
-                            produto_nome: cb.dataset.name,
-                            unidade: cb.dataset.unit,
-                            dosagem_por_ha: parseFloat(item.querySelector('.os-prod-dosage').value),
-                            qtde_total: parseFloat(item.querySelector('.os-prod-dosage').value) * App.state.osTotalArea
-                        });
-                    }
-                });
-
-                const plots = [];
-                let totalAreaHa = 0;
-                App.state.osSelectedPlots.forEach(talhaoId => {
-                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
-                    if(talhao) {
-                        const areaHa = Number.parseFloat(talhao.area);
-                        const safeAreaHa = Number.isFinite(areaHa) ? areaHa : 0;
-                        totalAreaHa += safeAreaHa;
-                        plots.push({
-                            talhao_id: talhao.name,
-                            talhao_nome: talhao.name,
-                            variedade: talhao.variedade,
-                            area_ha: safeAreaHa
-                        });
-                    }
-                });
-
-                const safeTotalAreaHa = Number.isFinite(totalAreaHa) ? totalAreaHa : 0;
-                App.state.osTotalArea = safeTotalAreaHa;
-
-                const osData = {
-                    os_numero: Date.now(),
-                    data: new Date().toISOString().split('T')[0],
-                    safra: App.state.globalConfigs?.safra || '24/25',
-                    ciclo: App.state.globalConfigs?.ciclo || '1',
-                    fazenda_id: farm.id,
-                    fazenda_nome: farm.name,
-                    responsavel_matricula: responsibleMatricula.value,
-                    responsavel_nome: responsibleName.value,
-                    usuario_abertura_id: App.state.currentUser.uid,
-                    usuario_abertura_nome: App.state.currentUser.username || App.state.currentUser.email,
-                    companyId: App.state.currentUser.companyId,
-                    tipo_servico_id: serviceType.value,
-                    tipo_servico_desc: App.state.tipos_servico.find(t => t.id === serviceType.value)?.descricao,
-                    operacao_id: operation.value,
-                    operacao_nome: op.nome,
-                    status: 'ABERTA',
-                    total_area_ha: safeTotalAreaHa,
-                    observacoes: observations.value,
-                    itens: plots,
-                    produtos: products,
-                    created_at: new Date().toISOString(),
-                    companyId: App.state.currentUser.companyId
-                };
-
-                try {
-                    const docRef = await App.data.addDocument('ordens_servico', sanitizeFirestoreData(osData));
-                    App.ui.showAlert('O.S. Gerada com Sucesso!', 'success');
-
-                    const filename = `OS_${osData.os_numero}.pdf`;
-                    const endpointUrl = `${App.config.backendUrl}/api/reports/os/pdf`;
-                    App.reports._fetchAndDownloadReportByUrl(endpointUrl, { osId: docRef.id }, filename);
-
-                    this.resetForm();
-                } catch (e) {
-                    console.error(e);
-                    App.ui.showAlert(`Erro: ${e.message}`, 'error');
-                }
-            },
-
             resetForm() {
                 const els = App.elements.osManual;
+                els.producer.value = '';
                 els.responsibleMatricula.value = '';
                 els.responsibleName.value = '';
                 els.observations.value = '';
-                els.operation.value = '';
-                els.serviceType.value = '';
+                els.stage.value = '';
                 els.farmSelect.value = '';
-
-                document.getElementById('osProductSection').style.display = 'none';
-                document.getElementById('osProductsList').innerHTML = '';
-                document.getElementById('osProductsPreview').innerHTML = '';
-
+                els.operationsSearch.value = '';
+                els.productsSearch.value = '';
+                App.state.osManualWizard = { step: 1, operationIndex: 0, selectedOperations: [], operationsProducts: {} };
                 App.state.osSelectedPlots.clear();
                 this.updateTotalArea();
-
                 els.plotsList.innerHTML = '<p style="color: #888; text-align: center;">Selecione uma fazenda para carregar os talhões.</p>';
-
                 if (App.state.osMap) {
                     const map = App.state.osMap;
                     if (map.getLayer('os-talhoes-layer')) {
@@ -15504,14 +15369,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         map.setFilter('os-talhoes-labels', null);
                     }
                 }
+                this.renderWizard();
             },
 
             toggleMapSize() {
                 const section = document.getElementById('ordemServicoManual');
                 section.classList.toggle('map-expanded');
-                setTimeout(() => {
-                    if (App.state.osMap) App.state.osMap.resize();
-                }, 500);
+                setTimeout(() => { if (App.state.osMap) App.state.osMap.resize(); }, 500);
             }
         },
 
@@ -17999,7 +17863,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (end) data = data.filter(d => d.data <= end);
                 if (status) data = data.filter(d => d.status === status);
 
-                data.sort((a, b) => b.os_numero - a.os_numero);
+                data.sort((a, b) => Number(b.os_numero || 0) - Number(a.os_numero || 0));
 
                 if (data.length === 0) {
                     listContainer.innerHTML = '<p style="padding: 20px; text-align: center;">Nenhuma O.S. encontrada.</p>';
@@ -18013,7 +17877,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${new Date(os.data + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                         <td>${os.os_numero}</td>
                         <td>${os.responsavel_nome}</td>
-                        <td>${os.operacao_nome}</td>
+                        <td>${(os.operacoes && os.operacoes.length ? os.operacoes.map(op => op.nome).join(', ') : os.operacao_nome) || 'N/A'}</td>
                         <td><span class="plano-status ${os.status === 'FINALIZADA' ? 'concluido' : 'pendente'}">${os.status}</span></td>
                         <td>
                             <div style="display: flex; gap: 8px; justify-content: flex-end;">
