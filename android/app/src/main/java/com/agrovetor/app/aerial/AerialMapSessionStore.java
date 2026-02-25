@@ -10,7 +10,6 @@ public final class AerialMapSessionStore {
     public static String talhoesGeoJson = null;
     public static String highlightedTalhaoId = null;
     public static final Map<String, OfflineRegionMetadata> offlineRegions = new ConcurrentHashMap<>();
-    public static String lastUsedOfflineRegionId = null;
 
     private AerialMapSessionStore() {}
 }
