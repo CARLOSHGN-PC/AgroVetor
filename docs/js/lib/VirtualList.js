@@ -54,8 +54,11 @@ export default class VirtualList {
         this.loading = true;
 
         // Temporarily unobserve
-        if (this.sentinel) {
+        if (this.observer && this.sentinel) {
             this.observer.unobserve(this.sentinel);
+        }
+
+        if (this.sentinel) {
             this.sentinel.remove();
         }
 
@@ -83,7 +86,9 @@ export default class VirtualList {
         // Re-append sentinel if there are more items
         if (this.currentIndex < this.items.length) {
             this.container.appendChild(this.sentinel);
-            this.observer.observe(this.sentinel);
+            if (this.observer && this.sentinel) {
+                this.observer.observe(this.sentinel);
+            }
         }
 
         this.loading = false;
