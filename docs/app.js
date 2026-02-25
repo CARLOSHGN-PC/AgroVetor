@@ -665,17 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
             originalUser: null,
             isAuthenticated: false,
             authMode: null, // 'online' | 'offline'
-            isOnline: isCapacitorNative() ? true : navigator.onLine,
-            preferCapacitorNetwork: isCapacitorNative(),
-            connectivityBootGracePending: isCapacitorNative(),
-            connectivityBootGraceTimer: null,
-            connectivity: {
-                connectionType: 'unknown',
-                transportConnected: isCapacitorNative() ? true : navigator.onLine,
-                internetReachable: isCapacitorNative() ? true : navigator.onLine,
-                effectiveOnline: isCapacitorNative() ? true : navigator.onLine,
-                lastConnectivitySource: 'bootstrap',
-            },
+            isOnline: navigator.onLine,
             syncStatus: 'idle', // 'idle' | 'syncing' | 'error' | 'done'
             bootStage: 'BOOT: start',
             menuRenderedAt: null,
@@ -1396,82 +1386,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return perfLogger.export();
         },
 
-        updateConnectivityState(status = {}, source = 'unknown', options = {}) {
-            const previousOnline = App.state.isOnline;
-            const previousType = App.state.connectivity?.connectionType || 'unknown';
-            const fallbackBrowserOnline = navigator.onLine;
-            const incomingType = status.connectionType || (status.connected === false ? 'none' : previousType);
-            const connectionType = incomingType || (fallbackBrowserOnline ? 'unknown' : 'none');
-            const transportConnected = typeof status.transportConnected === 'boolean'
-                ? status.transportConnected
-                : (typeof status.connected === 'boolean' ? status.connected : connectionType !== 'none');
-            const internetReachable = typeof status.internetReachable === 'boolean'
-                ? status.internetReachable
-                : transportConnected;
-
-            let effectiveOnline = typeof status.effectiveOnline === 'boolean'
-                ? status.effectiveOnline
-                : (App.state.preferCapacitorNetwork ? transportConnected : fallbackBrowserOnline);
-
-            if (connectionType === 'none') {
-                effectiveOnline = false;
-            } else if (!transportConnected) {
-                effectiveOnline = false;
-            }
-
-            App.state.connectivity = {
-                connectionType,
-                transportConnected,
-                internetReachable,
-                effectiveOnline,
-                lastConnectivitySource: source,
-            };
-            App.state.isOnline = effectiveOnline;
-
-            console.info(`[NET] source=${source} connectionType=${connectionType} transportConnected=${transportConnected} internetReachable=${internetReachable} effectiveOnline=${effectiveOnline}`);
-
-            const changed = previousOnline !== effectiveOnline;
-            const shouldApplyAuth = options.applyAuth !== false && (changed || options.forceAuth === true);
-            if (shouldApplyAuth) {
-                console.info(`[NET] auth.onConnectivityChanged(${effectiveOnline}) source=${source}`);
-                App.auth.onConnectivityChanged(effectiveOnline, {
-                    source,
-                    connectionType,
-                    transportConnected,
-                    internetReachable,
-                });
-            }
-
-            if (options.emitBrowserEvent && changed) {
-                window.dispatchEvent(new Event(effectiveOnline ? 'online' : 'offline'));
-            }
-
-            return App.state.connectivity;
-        },
-
-        async startConnectivityBootGrace(ms = 1500) {
-            if (!App.state.preferCapacitorNetwork) {
-                App.state.connectivityBootGracePending = false;
-                return;
-            }
-
-            if (App.state.connectivityBootGraceTimer) {
-                clearTimeout(App.state.connectivityBootGraceTimer);
-                App.state.connectivityBootGraceTimer = null;
-            }
-
-            App.state.connectivityBootGracePending = true;
-            console.info('[NET] boot grace pending');
-            await new Promise((resolve) => {
-                App.state.connectivityBootGraceTimer = setTimeout(() => {
-                    App.state.connectivityBootGracePending = false;
-                    App.state.connectivityBootGraceTimer = null;
-                    console.info('[NET] boot grace finished');
-                    resolve();
-                }, ms);
-            });
-        },
-
         debounce(func, delay = 1000) {
             let timeout;
             return (...args) => {
@@ -1513,27 +1427,22 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 logBootStage('MAP:CACHE:manifest', { status: 'missing' });
             }
-            await this.native.init();
+            this.native.init();
             this.ui.applyTheme(localStorage.getItem(this.config.themeKey) || 'theme-green');
             this.ui.setupEventListeners();
             this.auth.checkSession();
-            if (!App.state.preferCapacitorNetwork) {
-                this.updateConnectivityState({
-                    connected: navigator.onLine,
-                    connectionType: navigator.onLine ? 'unknown' : 'none',
-                }, 'browser initial', { applyAuth: true, forceAuth: true });
-            }
+            this.auth.onConnectivityChanged(navigator.onLine);
             this.pwa.registerServiceWorker();
             logBootStage('APP:ready');
             perfLogger.end('App.init');
         },
 
         native: {
-            async init() {
+            init() {
                 if (window.Capacitor && Capacitor.isNativePlatform()) {
                     this.configureStatusBar();
                     this.registerPushNotifications();
-                    await this.listenForNetworkChanges(); // Adiciona o listener de rede
+                    this.listenForNetworkChanges(); // Adiciona o listener de rede
                 }
             },
 
@@ -1542,31 +1451,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const { Network } = Capacitor.Plugins;
 
-                    await App.startConnectivityBootGrace(1500);
-
                     // Exibe o status inicial
                     const status = await Network.getStatus();
-                    const source = 'capacitor initial';
-                    console.info(`[NET] source=${source} connected=${status.connected} connectionType=${status.connectionType || 'unknown'}`);
-                    logAereoOffline('network:capacitor:initial', { connected: status.connected, connectionType: status.connectionType || 'unknown' });
-                    App.updateConnectivityState(status, source, { applyAuth: true, forceAuth: true });
+                    console.log(`Status inicial da rede: ${status.connected ? 'Online' : 'Offline'}`);
+                    logAereoOffline('network:capacitor:initial', { connected: status.connected });
+                    App.auth.onConnectivityChanged(status.connected);
 
                     // Adiciona um 'ouvinte' para quando o status da rede mudar
                     Network.addListener('networkStatusChange', (status) => {
-                        const source = 'capacitor change';
-                        console.info(`[NET] source=${source} connected=${status.connected} connectionType=${status.connectionType || 'unknown'}`);
-                        logAereoOffline('network:capacitor:change', { connected: status.connected, connectionType: status.connectionType || 'unknown' });
-                        App.updateConnectivityState(status, source, { applyAuth: true });
+                        console.log(`Status da rede alterado para: ${status.connected ? 'Online' : 'Offline'}`);
+                        logAereoOffline('network:capacitor:change', { connected: status.connected });
+                        const eventName = status.connected ? 'online' : 'offline';
+                        window.dispatchEvent(new Event(eventName));
                     });
                 } catch (e) {
-                    App.state.preferCapacitorNetwork = false;
-                    App.state.connectivityBootGracePending = false;
                     console.error("Erro ao configurar o monitoramento de rede do Capacitor.", e);
-                    console.warn('[NET] fallback para browser connectivity devido a erro no plugin Network.');
-                    App.updateConnectivityState({
-                        connected: navigator.onLine,
-                        connectionType: navigator.onLine ? 'unknown' : 'none',
-                    }, 'browser fallback', { applyAuth: true, forceAuth: true });
                 }
             },
 
@@ -2027,7 +1926,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const localProfiles = App.actions.getLocalUserProfiles();
                             this._setBootStage('AUTH:resolved', { userId: null, mode: 'guest' });
                             App.ui.showLoginScreen();
-                            if (!App.state.isOnline) {
+                            if (!navigator.onLine) {
                                 App.ui.showLoginMessage('Sem conexão. Você pode entrar com credenciais offline já sincronizadas.');
                             }
                         }
@@ -2043,12 +1942,12 @@ document.addEventListener('DOMContentLoaded', () => {
             async login() {
                 const email = App.elements.loginUser.value.trim();
                 const password = App.elements.loginPass.value;
-                logBootStage('LOGIN:submit', { email: email || null, isOnline: App.state.isOnline });
+                logBootStage('LOGIN:submit', { email: email || null, isOnline: navigator.onLine });
                 if (!email || !password) {
                     App.ui.showLoginMessage("Preencha e-mail e senha.");
                     return;
                 }
-                if (!App.state.isOnline) {
+                if (!navigator.onLine) {
                     logBootStage('LOGIN:offlineAttempt', { email });
                     await this.loginOffline(email, password);
                     return;
@@ -2202,10 +2101,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 await this._storeOfflineCredential(record);
                 App.actions.saveUserProfileLocally(userProfile);
             },
-            async onConnectivityChanged(isOnline, context = {}) {
+            async onConnectivityChanged(isOnline) {
                 App.state.isOnline = isOnline;
                 logBootStage(`NET:isOnline=${isOnline}`);
-                console.info(`[NET] effectiveOnline=${isOnline} source=${context.source || 'unknown'} connectionType=${context.connectionType || 'unknown'} transportConnected=${context.transportConnected ?? 'n/a'} internetReachable=${context.internetReachable ?? 'n/a'}`);
                 if (!isOnline) {
                     App.state.syncStatus = 'idle';
                 }
@@ -2218,7 +2116,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!App.state.isAuthenticated || !App.state.isOnline) {
                     return;
                 }
-                if (!App.state.preferCapacitorNetwork && !navigator.onLine) {
+                if (!navigator.onLine) {
                     return;
                 }
                 if (auth.currentUser) {
@@ -2308,7 +2206,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             async logout() {
-                if (App.state.isOnline) {
+                if (navigator.onLine) {
                     await signOut(auth);
                 }
                 App.state.isAuthenticated = false;
@@ -2412,7 +2310,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!App.state.adminAction || typeof App.state.adminAction !== 'function') { return; }
 
                 // Se estiver offline, confia no papel do utilizador já logado
-                if (!App.state.isOnline) {
+                if (!navigator.onLine) {
                     const userRole = App.state.currentUser?.role;
                     if (userRole === 'admin' || userRole === 'super-admin') {
                         App.ui.setLoading(true, "A executar ação offline...");
@@ -8553,7 +8451,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async checkActiveConnection() {
-                if (App.state.isCheckingConnection || !App.state.connectivity.transportConnected) return;
+                if (App.state.isCheckingConnection || !navigator.onLine) return;
                 App.state.isCheckingConnection = true;
                 console.log("Actively checking internet connection...");
                 try {
@@ -8571,22 +8469,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.connectionCheckInterval = null;
                         console.log("Periodic connection check stopped.");
                     }
-                    App.updateConnectivityState({
-                        connectionType: App.state.connectivity.connectionType,
-                        transportConnected: true,
-                        internetReachable: true,
-                        effectiveOnline: true,
-                    }, 'active-check:success', { applyAuth: false });
                     // Now, proceed with the actual synchronization logic
                     await App.auth.resumeOnlineSessionAndSync();
 
                 } catch (error) {
-                    App.updateConnectivityState({
-                        connectionType: App.state.connectivity.connectionType,
-                        transportConnected: App.state.connectivity.transportConnected,
-                        internetReachable: false,
-                        effectiveOnline: App.state.connectivity.connectionType !== 'none' && App.state.connectivity.transportConnected,
-                    }, 'active-check:failed', { applyAuth: false });
                     console.warn("Active connection check failed. Still effectively offline.");
                 } finally {
                     App.state.isCheckingConnection = false;
@@ -18639,20 +18525,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('offline', () => {
-        logAereoOffline('network:browser:event', { connected: false, type: 'offline' });
-        console.info('[NET] source=browser event=offline');
-        if (App.state.preferCapacitorNetwork) {
-            console.info('[NET] browser offline ignored on native (capacitor source preferred)');
-            return;
-        }
-        App.updateConnectivityState({
-            connected: false,
-            connectionType: 'none',
-            transportConnected: false,
-            internetReachable: false,
-            effectiveOnline: false,
-        }, 'browser offline', { applyAuth: true });
+        logAereoOffline('network:browser:event', { connected: false });
         App.ui.showAlert("Conexão perdida. A operar em modo offline.", "warning");
+        App.auth.onConnectivityChanged(false);
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
             App.state.connectionCheckInterval = null;
@@ -18661,21 +18536,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('online', () => {
-        logAereoOffline('network:browser:event', { connected: true, type: 'online' });
-        console.info('[NET] source=browser event=online');
-        if (App.state.preferCapacitorNetwork) {
-            console.info('[NET] browser online ignored on native (capacitor source preferred)');
-            return;
-        }
+        logAereoOffline('network:browser:event', { connected: true });
         console.log("Browser reports 'online'. Starting active connection checks.");
         App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
-        App.updateConnectivityState({
-            connected: true,
-            connectionType: 'unknown',
-            transportConnected: true,
-            internetReachable: true,
-            effectiveOnline: true,
-        }, 'browser online', { applyAuth: true });
+        App.auth.onConnectivityChanged(true);
         // Clear any previous interval just in case
         if (App.state.connectionCheckInterval) {
             clearInterval(App.state.connectionCheckInterval);
