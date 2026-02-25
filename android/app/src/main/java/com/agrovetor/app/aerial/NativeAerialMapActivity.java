@@ -123,7 +123,12 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
             if (current.talhoesStyle != style || current.talhoesSource == null) {
                 current.setupTalhoes(style);
             } else {
-                current.talhoesSource.featureCollection(FeatureCollection.fromJson(geojson));
+                try {
+                    current.talhoesSource.featureCollection(FeatureCollection.fromJson(geojson));
+                } catch (Exception error) {
+                    Log.e(TAG, "Falha ao atualizar talhões", error);
+                    AerialMapPlugin.notifyError("Falha ao atualizar talhões no mapa nativo", error.getMessage());
+                }
             }
             current.applyHighlight(style, AerialMapSessionStore.highlightedTalhaoId);
         }));
