@@ -5,6 +5,8 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -31,18 +33,25 @@ import com.mapbox.maps.plugin.gestures.GesturesPlugin;
 import com.mapbox.maps.plugin.gestures.OnMapClickListener;
 
 import java.lang.ref.WeakReference;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public class NativeAerialMapActivity extends AppCompatActivity implements OnMapClickListener {
-    private static final String TAG = "NativeAerialMapActivity";
+    private static final String TAG = "AerialOfflineDebug";
     private static final String TALHOES_SOURCE = "native-talhoes-source";
     private static final String TALHOES_FILL_LAYER = "native-talhoes-fill";
     private static final String TALHOES_HIGHLIGHT_LAYER = "native-talhoes-highlight";
     private static final String TALHOES_BORDER_LAYER = "native-talhoes-border";
 
     private static WeakReference<NativeAerialMapActivity> activeInstance = new WeakReference<>(null);
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private MapView mapView;
     @Nullable
@@ -58,26 +67,36 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     @Nullable
     private Style talhoesStyle;
 
+    @Nullable
+    private Object mapLoadingErrorCancelable;
+    private boolean styleReady;
+    private boolean styleLoading;
+    private int styleAttemptIndex;
+    private List<String> styleFallbackChain = Collections.emptyList();
+    @Nullable
+    private String pendingTalhoesGeoJson;
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.i(TAG, "NativeAerialMapActivity.onCreate");
         setContentView(R.layout.activity_aerial_map);
 
         mapView = findViewById(R.id.nativeAerialMapView);
+        AerialMapboxRuntime.applyTileStoreToMapboxMap(mapView.getMapboxMap(), getApplicationContext());
+        subscribeMapLoadingErrors();
 
-        if (!isNetworkAvailable()) {
-            Log.i(TAG, "Sem internet: tentando abrir mapa com dados offline disponíveis.");
-        }
+        boolean networkAvailable = isNetworkAvailable();
+        logOfflineRegions(networkAvailable);
 
-        mapView.getMapboxMap().loadStyleUri(AerialMapSessionStore.styleUri, style -> {
-            Log.i(TAG, "Estilo carregado com sucesso (online/offline)");
-            setupTalhoes(style);
-            applyHighlight(style, AerialMapSessionStore.highlightedTalhaoId);
-            setupCamera();
-        });
+        pendingTalhoesGeoJson = AerialMapSessionStore.talhoesGeoJson;
+        styleFallbackChain = buildStyleFallbackChain();
+        styleAttemptIndex = 0;
+        loadStyleWithFallback();
 
         gesturesPlugin = (GesturesPlugin) mapView.getPlugin(Plugin.MAPBOX_GESTURES_PLUGIN_ID);
         if (gesturesPlugin != null) {
+            gesturesPlugin.removeOnMapClickListener(this);
             gesturesPlugin.addOnMapClickListener(this);
         }
     }
@@ -85,11 +104,13 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     @Override
     protected void onStart() {
         super.onStart();
+        Log.i(TAG, "NativeAerialMapActivity.onStart");
         activeInstance = new WeakReference<>(this);
     }
 
     @Override
     protected void onStop() {
+        Log.i(TAG, "NativeAerialMapActivity.onStop");
         NativeAerialMapActivity current = activeInstance.get();
         if (current == this) {
             activeInstance = new WeakReference<>(null);
@@ -119,14 +140,18 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
             return;
         }
 
-        current.runOnUiThread(() -> current.mapView.getMapboxMap().getStyle(style -> {
-            if (current.talhoesStyle != style || current.talhoesSource == null) {
-                current.setupTalhoes(style);
-            } else {
-                current.talhoesSource.featureCollection(FeatureCollection.fromJson(geojson));
+        current.runOnUiThread(() -> {
+            current.pendingTalhoesGeoJson = geojson;
+            if (!current.styleReady) {
+                Log.i(TAG, "Talhões recebidos antes do style pronto. Aplicação será postergada.");
+                return;
             }
-            current.applyHighlight(style, AerialMapSessionStore.highlightedTalhaoId);
-        }));
+
+            current.mapView.getMapboxMap().getStyle(style -> {
+                current.setupTalhoes(style, current.pendingTalhoesGeoJson);
+                current.applyHighlight(style, AerialMapSessionStore.highlightedTalhaoId);
+            });
+        });
     }
 
     public static void highlightTalhaoIfVisible(String talhaoId) {
@@ -145,10 +170,87 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
                 .build());
     }
 
-    private void setupTalhoes(Style style) {
-        if (AerialMapSessionStore.talhoesGeoJson == null) return;
+    private void loadStyleWithFallback() {
+        if (styleFallbackChain.isEmpty()) {
+            Log.e(TAG, "Nenhum styleUri disponível para carregar mapa.");
+            AerialMapPlugin.notifyError("Falha ao abrir mapa offline", "Nenhum styleUri disponível para fallback.");
+            return;
+        }
+
+        final String styleUri = styleFallbackChain.get(Math.min(styleAttemptIndex, styleFallbackChain.size() - 1));
+        styleLoading = true;
+        styleReady = false;
+        Log.i(TAG, "Iniciando loadStyleUri. attempt=" + (styleAttemptIndex + 1) + "/" + styleFallbackChain.size() + " styleUri=" + styleUri);
+
+        mainHandler.postDelayed(() -> {
+            if (!styleReady && styleLoading) {
+                Log.w(TAG, "Timeout carregando styleUri=" + styleUri + ". Tentando fallback.");
+                proceedToNextStyleOrFail("Timeout no carregamento do estilo");
+            }
+        }, 9000);
+
+        mapView.getMapboxMap().loadStyleUri(styleUri, style -> {
+            styleLoading = false;
+            styleReady = true;
+            AerialMapSessionStore.styleUri = styleUri;
+            Log.i(TAG, "Style carregado com sucesso. styleUri=" + styleUri);
+            setupTalhoes(style, pendingTalhoesGeoJson != null ? pendingTalhoesGeoJson : AerialMapSessionStore.talhoesGeoJson);
+            applyHighlight(style, AerialMapSessionStore.highlightedTalhaoId);
+            setupCamera();
+        });
+    }
+
+    private void proceedToNextStyleOrFail(String reason) {
+        styleLoading = false;
+        styleAttemptIndex += 1;
+        if (styleAttemptIndex < styleFallbackChain.size()) {
+            String next = styleFallbackChain.get(styleAttemptIndex);
+            Log.w(TAG, "Fallback de style acionado. reason=" + reason + ", próximo=" + next);
+            loadStyleWithFallback();
+            return;
+        }
+
+        Log.e(TAG, "Falha final ao carregar estilo. reason=" + reason + ", attempts=" + styleFallbackChain);
+        AerialMapPlugin.notifyError("Falha ao carregar mapa offline", reason + " | styles tentados=" + styleFallbackChain);
+    }
+
+    private List<String> buildStyleFallbackChain() {
+        Set<String> chain = new LinkedHashSet<>();
+        if (AerialMapSessionStore.styleUri != null && !AerialMapSessionStore.styleUri.trim().isEmpty()) {
+            chain.add(AerialMapSessionStore.styleUri);
+        }
+
+        AerialOfflineRegionStore regionStore = new AerialOfflineRegionStore(getApplicationContext());
+        List<OfflineRegionMetadata> regions = regionStore.readAll();
+        for (OfflineRegionMetadata region : regions) {
+            if ("ready".equals(region.status) && region.styleUri != null && !region.styleUri.trim().isEmpty()) {
+                chain.add(region.styleUri);
+            }
+        }
+
+        chain.add("mapbox://styles/mapbox/standard-satellite");
+        return new ArrayList<>(chain);
+    }
+
+    private void logOfflineRegions(boolean networkAvailable) {
+        AerialOfflineRegionStore regionStore = new AerialOfflineRegionStore(getApplicationContext());
+        List<OfflineRegionMetadata> regions = regionStore.readAll();
+        int readyCount = 0;
+        for (OfflineRegionMetadata region : regions) {
+            if ("ready".equals(region.status)) {
+                readyCount++;
+            }
+            Log.i(TAG, "Offline region: id=" + region.regionId + " status=" + region.status + " stylePackId=" + region.stylePackId + " tileRegionId=" + region.tileRegionId + " styleUri=" + region.styleUri);
+        }
+        Log.i(TAG, "Abertura do mapa: online=" + networkAvailable + " totalRegioes=" + regions.size() + " ready=" + readyCount + " styleSessao=" + AerialMapSessionStore.styleUri);
+    }
+
+    private void setupTalhoes(Style style, @Nullable String geojson) {
+        if (geojson == null || geojson.trim().isEmpty()) {
+            return;
+        }
         try {
-            FeatureCollection featureCollection = FeatureCollection.fromJson(AerialMapSessionStore.talhoesGeoJson);
+            FeatureCollection featureCollection = FeatureCollection.fromJson(geojson);
 
             if (talhoesStyle != style) {
                 talhoesSource = null;
@@ -272,11 +374,49 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
                         || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
     }
 
+    private void subscribeMapLoadingErrors() {
+        try {
+            Method subscribeMethod = mapView.getMapboxMap().getClass().getMethod("subscribeMapLoadingError", Class.forName("com.mapbox.maps.MapLoadingErrorCallback"));
+            Class<?> callbackClass = Class.forName("com.mapbox.maps.MapLoadingErrorCallback");
+            Object callbackProxy = Proxy.newProxyInstance(
+                    callbackClass.getClassLoader(),
+                    new Class[]{callbackClass},
+                    new InvocationHandler() {
+                        @Override
+                        public Object invoke(Object proxy, Method method, Object[] args) {
+                            if (args != null && args.length > 0 && args[0] != null) {
+                                String details = String.valueOf(args[0]);
+                                Log.e(TAG, "MapLoadingError recebido: " + details);
+                                proceedToNextStyleOrFail("MapLoadingError: " + details);
+                            }
+                            return null;
+                        }
+                    }
+            );
+            mapLoadingErrorCancelable = subscribeMethod.invoke(mapView.getMapboxMap(), callbackProxy);
+            Log.i(TAG, "subscribeMapLoadingError registrado com sucesso");
+        } catch (Exception error) {
+            Log.w(TAG, "subscribeMapLoadingError indisponível: " + error.getMessage());
+        }
+    }
+
     @Override
     protected void onDestroy() {
+        Log.i(TAG, "NativeAerialMapActivity.onDestroy");
         if (gesturesPlugin != null) {
             gesturesPlugin.removeOnMapClickListener(this);
+            gesturesPlugin = null;
         }
+        if (mapLoadingErrorCancelable != null) {
+            try {
+                Method cancel = mapLoadingErrorCancelable.getClass().getMethod("cancel");
+                cancel.invoke(mapLoadingErrorCancelable);
+            } catch (Exception error) {
+                Log.w(TAG, "Falha ao cancelar subscription de map loading error", error);
+            }
+            mapLoadingErrorCancelable = null;
+        }
+        mainHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
 }
