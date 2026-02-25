@@ -4,6 +4,8 @@ android {
     namespace "com.agrovetor.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
+        def mapboxAccessToken = project.findProperty("MAPBOX_ACCESS_TOKEN") ?: System.getenv("MAPBOX_ACCESS_TOKEN") ?: ""
+        resValue "string", "mapbox_access_token", "\"${mapboxAccessToken}\""
         applicationId "com.agrovetor.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
@@ -40,6 +42,7 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    implementation "com.mapbox.maps:android:11.8.0"
 }
 
 apply from: 'capacitor.build.gradle'
