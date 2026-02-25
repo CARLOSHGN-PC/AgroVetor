@@ -15,13 +15,11 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import com.mapbox.common.GlyphsRasterizationMode;
 import com.mapbox.common.TileRegion;
 import com.mapbox.common.TileRegionLoadOptions;
 import com.mapbox.common.TileRegionLoadProgress;
 import com.mapbox.common.TileStore;
 import com.mapbox.common.TilesetDescriptor;
-import com.mapbox.common.TilesetDescriptorOptions;
 import com.mapbox.geojson.Point;
 import com.mapbox.geojson.Polygon;
 import com.mapbox.maps.OfflineManager;
@@ -33,6 +31,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.lang.reflect.Method;
 
 @CapacitorPlugin(name = "AerialMap")
 public class AerialMapPlugin extends Plugin {
@@ -242,16 +241,13 @@ public class AerialMapPlugin extends Plugin {
         persistRegion(metadata);
         emitOfflineProgress(metadata, 0);
 
-        TilesetDescriptor descriptor = offlineManager.createTilesetDescriptor(
-                new TilesetDescriptorOptions.Builder()
-                        .styleURI(metadata.styleUri)
-                        .minZoom((byte) metadata.minZoom)
-                        .maxZoom((byte) metadata.maxZoom)
-                        .build()
-        );
+        TilesetDescriptor descriptor = createTilesetDescriptorCompat(metadata);
+        if (descriptor == null) {
+            markDownloadFailed(metadata, "Não foi possível criar TilesetDescriptor para o download offline.");
+            return;
+        }
 
         StylePackLoadOptions stylePackLoadOptions = new StylePackLoadOptions.Builder()
-                .glyphsRasterizationMode(GlyphsRasterizationMode.IDEOGRAPHS_RASTERIZED_LOCALLY)
                 .build();
 
         Log.i(TAG, "Iniciando download de style pack para região " + metadata.regionId);
@@ -382,6 +378,123 @@ public class AerialMapPlugin extends Plugin {
             return "minZoom/maxZoom inválidos.";
         }
         return null;
+    }
+
+    private TilesetDescriptor createTilesetDescriptorCompat(@NonNull OfflineRegionMetadata metadata) {
+        try {
+            Object options = buildTilesetDescriptorOptions(metadata);
+            if (options != null) {
+                Method method = offlineManager.getClass().getMethod("createTilesetDescriptor", options.getClass());
+                Object descriptorObj = method.invoke(offlineManager, options);
+                if (descriptorObj instanceof TilesetDescriptor) {
+                    return (TilesetDescriptor) descriptorObj;
+                }
+            }
+
+            for (Method method : offlineManager.getClass().getMethods()) {
+                if (!"createTilesetDescriptor".equals(method.getName())) {
+                    continue;
+                }
+
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length == 4 && params[0] == String.class && isZoomType(params[1]) && isZoomType(params[2]) && isZoomType(params[3])) {
+                    Object descriptorObj = method.invoke(
+                            offlineManager,
+                            metadata.styleUri,
+                            castZoom(metadata.minZoom, params[1]),
+                            castZoom(metadata.maxZoom, params[2]),
+                            castZoom(1, params[3])
+                    );
+                    if (descriptorObj instanceof TilesetDescriptor) {
+                        return (TilesetDescriptor) descriptorObj;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Falha ao criar TilesetDescriptor", e);
+        }
+
+        return null;
+    }
+
+    private Object buildTilesetDescriptorOptions(@NonNull OfflineRegionMetadata metadata) {
+        String[] classNames = new String[]{
+                "com.mapbox.common.TilesetDescriptorOptions",
+                "com.mapbox.maps.TilesetDescriptorOptions"
+        };
+
+        for (String className : classNames) {
+            try {
+                Class<?> optionsClass = Class.forName(className);
+                Class<?> builderClass = Class.forName(className + "$Builder");
+                Object builder = builderClass.getDeclaredConstructor().newInstance();
+
+                invokeIfPresent(builderClass, builder, new String[]{"styleURI", "styleUri"}, metadata.styleUri);
+                invokeIfPresent(builderClass, builder, new String[]{"minZoom"}, metadata.minZoom.byteValue(), metadata.minZoom);
+                invokeIfPresent(builderClass, builder, new String[]{"maxZoom"}, metadata.maxZoom.byteValue(), metadata.maxZoom);
+
+                Method buildMethod = builderClass.getMethod("build");
+                Object options = buildMethod.invoke(builder);
+                if (optionsClass.isInstance(options)) {
+                    return options;
+                }
+            } catch (Exception ignored) {
+                // tenta próxima variação de classe/assinatura disponível no SDK
+            }
+        }
+
+        return null;
+    }
+
+    private void invokeIfPresent(Class<?> builderClass, Object builder, String[] methodNames, Object... candidateArgs) throws Exception {
+        for (String methodName : methodNames) {
+            for (Method method : builderClass.getMethods()) {
+                if (!methodName.equals(method.getName()) || method.getParameterTypes().length != 1) {
+                    continue;
+                }
+
+                Class<?> paramType = method.getParameterTypes()[0];
+                for (Object candidateArg : candidateArgs) {
+                    if (candidateArg == null) {
+                        continue;
+                    }
+                    if (isCompatibleParam(paramType, candidateArg.getClass())) {
+                        method.invoke(builder, candidateArg);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean isCompatibleParam(Class<?> expectedType, Class<?> providedType) {
+        if (expectedType.isAssignableFrom(providedType)) {
+            return true;
+        }
+        return (expectedType == byte.class && providedType == Byte.class)
+                || (expectedType == int.class && providedType == Integer.class)
+                || (expectedType == float.class && providedType == Float.class)
+                || (expectedType == double.class && providedType == Double.class);
+    }
+
+    private boolean isZoomType(Class<?> type) {
+        return type == byte.class || type == Byte.class
+                || type == int.class || type == Integer.class
+                || type == float.class || type == Float.class
+                || type == double.class || type == Double.class;
+    }
+
+    private Object castZoom(int zoom, Class<?> type) {
+        if (type == byte.class || type == Byte.class) {
+            return (byte) zoom;
+        }
+        if (type == float.class || type == Float.class) {
+            return (float) zoom;
+        }
+        if (type == double.class || type == Double.class) {
+            return (double) zoom;
+        }
+        return zoom;
     }
 
     public static void notifyTalhaoClick(String featureJson) {
