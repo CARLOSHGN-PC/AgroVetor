@@ -47,6 +47,16 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private MapView mapView;
     @Nullable
     private GesturesPlugin gesturesPlugin;
+    @Nullable
+    private GeoJsonSource talhoesSource;
+    @Nullable
+    private FillLayer talhoesFillLayer;
+    @Nullable
+    private FillLayer talhoesHighlightLayer;
+    @Nullable
+    private LineLayer talhoesBorderLayer;
+    @Nullable
+    private Style talhoesStyle;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -103,13 +113,18 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
 
     public static void reloadTalhoesIfVisible(String geojson) {
         NativeAerialMapActivity current = activeInstance.get();
+        AerialMapSessionStore.talhoesGeoJson = geojson;
+
         if (current == null || current.mapView == null) {
             return;
         }
 
         current.runOnUiThread(() -> current.mapView.getMapboxMap().getStyle(style -> {
-            AerialMapSessionStore.talhoesGeoJson = geojson;
-            current.setupTalhoes(style);
+            if (current.talhoesStyle != style || current.talhoesSource == null) {
+                current.setupTalhoes(style);
+            } else {
+                current.talhoesSource.featureCollection(FeatureCollection.fromJson(geojson));
+            }
             current.applyHighlight(style, AerialMapSessionStore.highlightedTalhaoId);
         }));
     }
@@ -135,36 +150,43 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         try {
             FeatureCollection featureCollection = FeatureCollection.fromJson(AerialMapSessionStore.talhoesGeoJson);
 
-            GeoJsonSource source = (GeoJsonSource) style.getSource(TALHOES_SOURCE);
-            if (source == null) {
-                source = new GeoJsonSource.Builder(TALHOES_SOURCE)
+            if (talhoesStyle != style) {
+                talhoesSource = null;
+                talhoesFillLayer = null;
+                talhoesHighlightLayer = null;
+                talhoesBorderLayer = null;
+                talhoesStyle = style;
+            }
+
+            if (talhoesSource == null) {
+                talhoesSource = new GeoJsonSource.Builder(TALHOES_SOURCE)
                         .featureCollection(featureCollection)
                         .build();
-                source.bindTo(style);
+                talhoesSource.bindTo(style);
             } else {
-                source.featureCollection(featureCollection);
+                talhoesSource.featureCollection(featureCollection);
             }
 
-            if (style.getLayer(TALHOES_FILL_LAYER) == null) {
-                FillLayer fillLayer = new FillLayer(TALHOES_FILL_LAYER, TALHOES_SOURCE)
+            if (talhoesFillLayer == null) {
+                talhoesFillLayer = new FillLayer(TALHOES_FILL_LAYER, TALHOES_SOURCE)
                         .fillOpacity(0.45)
                         .fillColor(Expression.rgb(27.0, 94.0, 32.0));
-                fillLayer.bindTo(style);
+                talhoesFillLayer.bindTo(style);
             }
 
-            if (style.getLayer(TALHOES_HIGHLIGHT_LAYER) == null) {
-                FillLayer highlightLayer = new FillLayer(TALHOES_HIGHLIGHT_LAYER, TALHOES_SOURCE)
+            if (talhoesHighlightLayer == null) {
+                talhoesHighlightLayer = new FillLayer(TALHOES_HIGHLIGHT_LAYER, TALHOES_SOURCE)
                         .fillOpacity(0.8)
                         .fillColor(Expression.rgb(255.0, 235.0, 59.0))
                         .filter(Expression.literal(false));
-                highlightLayer.bindTo(style);
+                talhoesHighlightLayer.bindTo(style);
             }
 
-            if (style.getLayer(TALHOES_BORDER_LAYER) == null) {
-                LineLayer lineLayer = new LineLayer(TALHOES_BORDER_LAYER, TALHOES_SOURCE)
+            if (talhoesBorderLayer == null) {
+                talhoesBorderLayer = new LineLayer(TALHOES_BORDER_LAYER, TALHOES_SOURCE)
                         .lineColor(Expression.rgb(255.0, 255.0, 255.0))
                         .lineWidth(2.0);
-                lineLayer.bindTo(style);
+                talhoesBorderLayer.bindTo(style);
             }
         } catch (Exception error) {
             Log.e(TAG, "Falha ao desenhar talhões", error);
@@ -174,17 +196,16 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
 
     private void applyHighlight(Style style, String talhaoId) {
         try {
-            FillLayer highlightLayer = (FillLayer) style.getLayer(TALHOES_HIGHLIGHT_LAYER);
-            if (highlightLayer == null) {
+            if (talhoesStyle != style || talhoesHighlightLayer == null) {
                 return;
             }
 
             if (talhaoId == null || talhaoId.trim().isEmpty()) {
-                highlightLayer.filter(Expression.literal(false));
+                talhoesHighlightLayer.filter(Expression.literal(false));
                 return;
             }
 
-            highlightLayer.filter(Expression.any(
+            talhoesHighlightLayer.filter(Expression.any(
                     Expression.eq(Expression.get("talhaoId"), Expression.literal(talhaoId)),
                     Expression.eq(Expression.get("id"), Expression.literal(talhaoId)),
                     Expression.eq(Expression.get("codigo"), Expression.literal(talhaoId))

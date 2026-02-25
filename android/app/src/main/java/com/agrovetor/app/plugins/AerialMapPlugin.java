@@ -15,18 +15,18 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.mapbox.common.GlyphsRasterizationMode;
+import com.mapbox.common.TileRegion;
+import com.mapbox.common.TileRegionLoadOptions;
+import com.mapbox.common.TileRegionLoadProgress;
 import com.mapbox.common.TileStore;
+import com.mapbox.common.TilesetDescriptor;
+import com.mapbox.common.TilesetDescriptorOptions;
 import com.mapbox.geojson.Point;
 import com.mapbox.geojson.Polygon;
 import com.mapbox.maps.OfflineManager;
 import com.mapbox.maps.StylePackLoadOptions;
 import com.mapbox.maps.StylePackLoadProgress;
-import com.mapbox.maps.TileRegion;
-import com.mapbox.maps.TileRegionLoadOptions;
-import com.mapbox.maps.TileRegionLoadProgress;
-import com.mapbox.maps.TilesetDescriptor;
-import com.mapbox.maps.TilesetDescriptorOptions;
-import com.mapbox.maps.glyphs.GlyphsRasterizationMode;
 
 import org.json.JSONObject;
 
@@ -48,7 +48,7 @@ public class AerialMapPlugin extends Plugin {
         instance = this;
         regionStore = new AerialOfflineRegionStore(getContext());
         tileStore = TileStore.create();
-        offlineManager = OfflineManager.getInstance();
+        offlineManager = new OfflineManager();
 
         for (OfflineRegionMetadata metadata : regionStore.readAll()) {
             AerialMapSessionStore.offlineRegions.put(metadata.regionId, metadata);
@@ -119,8 +119,10 @@ public class AerialMapPlugin extends Plugin {
         String regionName = call.getString("regionName");
         String styleUri = call.getString("styleUri", AerialMapSessionStore.styleUri);
         JSArray boundsInput = call.getArray("bounds");
-        Integer minZoom = call.getInt("minZoom", 12);
-        Integer maxZoom = call.getInt("maxZoom", 16);
+        Integer minZoomValue = call.getInt("minZoom", 12);
+        Integer maxZoomValue = call.getInt("maxZoom", 16);
+        int minZoom = minZoomValue != null ? minZoomValue : 12;
+        int maxZoom = maxZoomValue != null ? maxZoomValue : 16;
 
         String validationError = validateOfflineDownloadParams(regionId, styleUri, boundsInput, minZoom, maxZoom);
         if (validationError != null) {
@@ -227,7 +229,8 @@ public class AerialMapPlugin extends Plugin {
                     notifyError("Falha na remoção da região offline", "Remoção parcial: tile/style removidos, mas metadados persistidos.");
                 }
 
-                emitRemovalCompleted(regionId, result.getBool("removed", false));
+                Boolean removedObj = result.getBool("removed");
+                emitRemovalCompleted(regionId, Boolean.TRUE.equals(removedObj));
                 call.resolve(result);
             });
         });
@@ -242,8 +245,8 @@ public class AerialMapPlugin extends Plugin {
         TilesetDescriptor descriptor = offlineManager.createTilesetDescriptor(
                 new TilesetDescriptorOptions.Builder()
                         .styleURI(metadata.styleUri)
-                        .minZoom((byte) metadata.minZoom.intValue())
-                        .maxZoom((byte) metadata.maxZoom.intValue())
+                        .minZoom((byte) metadata.minZoom)
+                        .maxZoom((byte) metadata.maxZoom)
                         .build()
         );
 
@@ -365,7 +368,7 @@ public class AerialMapPlugin extends Plugin {
         return 0;
     }
 
-    private String validateOfflineDownloadParams(String regionId, String styleUri, JSArray boundsInput, Integer minZoom, Integer maxZoom) {
+    private String validateOfflineDownloadParams(String regionId, String styleUri, JSArray boundsInput, int minZoom, int maxZoom) {
         if (regionId == null || regionId.trim().isEmpty()) {
             return "regionId é obrigatório.";
         }
@@ -375,7 +378,7 @@ public class AerialMapPlugin extends Plugin {
         if (boundsInput == null || boundsInput.length() < 4) {
             return "bounds deve conter [west, south, east, north].";
         }
-        if (minZoom == null || maxZoom == null || minZoom < 0 || maxZoom < 0 || minZoom > maxZoom) {
+        if (minZoom < 0 || maxZoom < 0 || minZoom > maxZoom) {
             return "minZoom/maxZoom inválidos.";
         }
         return null;
