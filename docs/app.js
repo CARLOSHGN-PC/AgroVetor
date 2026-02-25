@@ -13160,9 +13160,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (App.state.useNativeAerialMap) {
                             await this.loadContoursOfflineSafe();
                             await App.state.aerialMapProvider.initMap();
-                            if (App.state.geoJsonData) {
-                                await App.state.aerialMapProvider.loadTalhoes(App.state.geoJsonData);
-                            }
+                            await this.syncNativeTalhoes();
                             this.watchUserPosition();
                             logAereoOffline('init:done:native', { hasContours: Boolean(App.state.geoJsonData?.features?.length) });
                             return;
@@ -13261,9 +13259,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const loaded = await this._loadContoursFromStorage(key);
                     if (loaded) {
                         this.loadShapesOnMap();
-                        if (App.state.useNativeAerialMap && App.state.aerialMapProvider) {
-                            await App.state.aerialMapProvider.loadTalhoes(App.state.geoJsonData);
-                        }
+                        await this.syncNativeTalhoes();
                         return;
                     }
 
@@ -13273,15 +13269,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     App.state.geoJsonData = null;
+                    await this.syncNativeTalhoes();
                     App.ui.showAlert('Contornos offline não encontrados. Conecte-se para baixar novamente.', 'warning', 7000);
                     logAereoOffline('contours:load:missing', { key, online: navigator.onLine });
                 } catch (error) {
                     logAereoOfflineError('contours:load:error', error, { key });
                     App.state.geoJsonData = null;
+                    await this.syncNativeTalhoes();
                     App.ui.showAlert('Não foi possível carregar os contornos offline. Baixe novamente quando estiver online.', 'warning', 8000);
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
                 }
+            },
+
+            async syncNativeTalhoes() {
+                if (!App.state.useNativeAerialMap || !App.state.aerialMapProvider) return;
+
+                const geojson = App.state.geoJsonData || {
+                    type: 'FeatureCollection',
+                    features: []
+                };
+
+                await App.state.aerialMapProvider.loadTalhoes(geojson);
             },
 
             watchUserPosition() {
