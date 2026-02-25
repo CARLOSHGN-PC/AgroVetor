@@ -726,6 +726,7 @@ document.addEventListener('DOMContentLoaded', () => {
             trapNotifications: [],
             unreadNotificationCount: 0,
             notifiedTrapIds: new Set(JSON.parse(sessionStorage.getItem('notifiedTrapIds')) || []),
+            invalidTrapDateLogKeys: new Set(),
             trapPlacementMode: null,
             trapPlacementData: null,
             locationWatchId: null,
@@ -2247,6 +2248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.trapNotifications = [];
                 App.state.unreadNotificationCount = 0;
                 App.state.notifiedTrapIds = new Set();
+                App.state.invalidTrapDateLogKeys = new Set();
                 App.state.riskViewActive = false;
                 App.state.plantio = [];
                 App.state.clima = [];
@@ -2506,7 +2508,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const unsubscribe = onSnapshot(q, (querySnapshot) => {
                     const data = [];
-                    querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
+                    querySnapshot.forEach((doc) => {
+                        const item = { id: doc.id, ...doc.data() };
+                        if (collectionName === 'armadilhas' && App.mapModule?.parseTrapDate) {
+                            item._installDateNormalized = App.mapModule.parseTrapDate(item.dataInstalacao);
+                        }
+                        data.push(item);
+                    });
                     App.state[collectionName] = data;
 
                     if (collectionName === 'armadilhas') {
@@ -11570,8 +11578,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 dataToSync = { ...dataToSync, syncStatus: 'synced', syncedAt };
                             }
                             // Handle trap installation date conversion
-                            if (write.collection === 'armadilhas' && typeof write.data.dataInstalacao === 'string') {
-                                dataToSync = { ...dataToSync, dataInstalacao: Timestamp.fromDate(new Date(write.data.dataInstalacao)) };
+                            if (write.collection === 'armadilhas') {
+                                const parsedInstallDate = App.mapModule?.parseTrapDate
+                                    ? App.mapModule.parseTrapDate(write.data.dataInstalacao)
+                                    : new Date(write.data.dataInstalacao);
+                                if (parsedInstallDate && !isNaN(parsedInstallDate.getTime())) {
+                                    dataToSync = { ...dataToSync, dataInstalacao: Timestamp.fromDate(parsedInstallDate) };
+                                }
                             }
                             // Handle trap collection date conversion
                             if (write.collection === 'armadilhas' && typeof write.data.dataColeta === 'string') {
@@ -12369,8 +12382,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (traps.length > 1) {
                                 // Ordenar para encontrar a mais recente
                                 traps.sort((a, b) => {
-                                    const dateA = a.dataInstalacao?.toDate ? a.dataInstalacao.toDate() : new Date(a.dataInstalacao);
-                                    const dateB = b.dataInstalacao?.toDate ? b.dataInstalacao.toDate() : new Date(b.dataInstalacao);
+                                    const dateA = App.mapModule.parseTrapDate(a._installDateNormalized || a.dataInstalacao) || new Date(0);
+                                    const dateB = App.mapModule.parseTrapDate(b._installDateNormalized || b.dataInstalacao) || new Date(0);
                                     return dateB - dateA;
                                 });
 
@@ -14067,19 +14080,100 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
-            addOrUpdateTrapMarker(trap) {
-                if (!trap.dataInstalacao || !App.state.mapboxMap) return;
+            logInvalidTrapDate(trap, context = 'geral') {
+                const trapId = trap?.id || 'sem-id';
+                const logKey = `${context}:${trapId}`;
+                if (App.state.invalidTrapDateLogKeys.has(logKey)) return;
+                App.state.invalidTrapDateLogKeys.add(logKey);
 
-                // Lida com ambos os Timestamps do Firebase (que têm .toDate()) e Date objects/ISO strings (que não têm)
-                const installDate = typeof trap.dataInstalacao.toDate === 'function'
-                    ? trap.dataInstalacao.toDate()
-                    : new Date(trap.dataInstalacao);
+                console.warn('[MONITORAMENTO_AEREO][ARMADILHA] dataInstalacao inválida', {
+                    context,
+                    trapId,
+                    talhao: trap?.talhaoNome,
+                    rawDataInstalacao: trap?.dataInstalacao
+                });
+            },
+
+            parseTrapDate(value) {
+                if (!value) return null;
+
+                if (value instanceof Date) {
+                    return isNaN(value.getTime()) ? null : value;
+                }
+
+                if (typeof value.toDate === 'function') {
+                    const parsed = value.toDate();
+                    return parsed instanceof Date && !isNaN(parsed.getTime()) ? parsed : null;
+                }
+
+                if (typeof value === 'object') {
+                    const hasSeconds = Number.isFinite(value.seconds) || Number.isFinite(value._seconds);
+                    if (hasSeconds) {
+                        const seconds = Number.isFinite(value.seconds) ? value.seconds : value._seconds;
+                        const parsed = new Date(Number(seconds) * 1000);
+                        return isNaN(parsed.getTime()) ? null : parsed;
+                    }
+                }
+
+                if (typeof value === 'number' && Number.isFinite(value)) {
+                    const timestamp = value >= 1e12 ? value : value * 1000;
+                    const parsed = new Date(timestamp);
+                    return isNaN(parsed.getTime()) ? null : parsed;
+                }
+
+                if (typeof value === 'string') {
+                    const trimmed = value.trim();
+                    if (!trimmed) return null;
+
+                    const parsedGeneric = new Date(trimmed);
+                    if (!isNaN(parsedGeneric.getTime())) {
+                        return parsedGeneric;
+                    }
+
+                    const ptBrMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+                    if (ptBrMatch) {
+                        const [, day, month, year, hours = '00', minutes = '00', seconds = '00'] = ptBrMatch;
+                        const parsedPtBr = new Date(
+                            Number(year),
+                            Number(month) - 1,
+                            Number(day),
+                            Number(hours),
+                            Number(minutes),
+                            Number(seconds)
+                        );
+
+                        if (
+                            parsedPtBr.getFullYear() === Number(year)
+                            && parsedPtBr.getMonth() === Number(month) - 1
+                            && parsedPtBr.getDate() === Number(day)
+                            && !isNaN(parsedPtBr.getTime())
+                        ) {
+                            return parsedPtBr;
+                        }
+                    }
+                }
+
+                return null;
+            },
+
+            addOrUpdateTrapMarker(trap) {
+                if (!App.state.mapboxMap || !Number.isFinite(trap?.latitude) || !Number.isFinite(trap?.longitude)) return;
+
+                const installDate = trap._installDateNormalized || this.parseTrapDate(trap.dataInstalacao);
+                const isInvalidInstallDate = !installDate;
+                if (isInvalidInstallDate) {
+                    this.logInvalidTrapDate(trap, 'addOrUpdateTrapMarker');
+                }
 
                 const now = new Date();
-                const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
+                const diasDesdeInstalacao = isInvalidInstallDate
+                    ? null
+                    : Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
 
                 let color = '#388e3c'; // Verde (Normal)
-                if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
+                if (isInvalidInstallDate) {
+                    color = '#757575'; // Cinza (Data inválida)
+                } else if (diasDesdeInstalacao >= 5 && diasDesdeInstalacao <= 7) {
                     color = '#f57c00'; // Amarelo (Atenção)
                 } else if (diasDesdeInstalacao > 7) {
                     color = '#d32f2f'; // Vermelho (Atrasado)
@@ -14097,10 +14191,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 el.style.alignItems = 'center';
                 el.style.cursor = 'pointer';
                 el.innerHTML = '<i class="fas fa-bug" style="color: white; font-size: 16px;"></i>';
-                el.title = `Armadilha instalada em ${installDate.toLocaleDateString()}`;
+                el.title = isInvalidInstallDate
+                    ? 'Armadilha com data de instalação inválida'
+                    : `Armadilha instalada em ${installDate.toLocaleDateString()}`;
 
                 if (App.state.mapboxTrapMarkers[trap.id]) {
-                    App.state.mapboxTrapMarkers[trap.id].getElement().style.backgroundColor = color;
+                    const existingEl = App.state.mapboxTrapMarkers[trap.id].getElement();
+                    existingEl.style.backgroundColor = color;
+                    existingEl.title = el.title;
                 } else {
                     const marker = new mapboxgl.Marker(el)
                         .setLngLat([trap.longitude, trap.latitude])
@@ -14419,12 +14517,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trap = App.state.armadilhas.find(t => t.id === trapId);
                     if (!trap) return;
 
-                    const installDate = typeof trap.dataInstalacao.toDate === 'function'
-                        ? trap.dataInstalacao.toDate()
-                        : new Date(trap.dataInstalacao);
+                    const installDate = trap._installDateNormalized || this.parseTrapDate(trap.dataInstalacao);
 
-                    if (isNaN(installDate.getTime())) {
-                        throw new Error("A data de instalação da armadilha é inválida.");
+                    if (!installDate) {
+                        this.logInvalidTrapDate(trap, 'showTrapInfo');
+                        App.ui.showAlert("Não foi possível abrir os detalhes: a data de instalação desta armadilha está corrompida ou em formato incompatível.", "warning", 5000);
+                        return;
                     }
 
                     const collectionDate = new Date(installDate);
@@ -14506,21 +14604,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 let newNotificationsForBell = [];
                 
                 activeTraps.forEach(trap => {
-                    if (!trap.dataInstalacao) {
+                    const installDate = trap._installDateNormalized || this.parseTrapDate(trap.dataInstalacao);
+                    if (!installDate) {
+                        this.logInvalidTrapDate(trap, 'checkTrapStatusAndNotify');
                         return;
                     }
 
-                    // Lida com ambos os Timestamps do Firebase (que têm .toDate()) e Date objects/ISO strings (que não têm)
-                    const installDate = typeof trap.dataInstalacao.toDate === 'function'
-                        ? trap.dataInstalacao.toDate()
-                        : new Date(trap.dataInstalacao);
                     const now = new Date();
-
-                    if (isNaN(installDate.getTime())) {
-                        console.error(`Armadilha ${trap.id} com data de instalação inválida.`);
-                        return;
-                    }
-
                     const diasDesdeInstalacao = Math.floor((now - installDate) / (1000 * 60 * 60 * 24));
 
                     let notification = null;
