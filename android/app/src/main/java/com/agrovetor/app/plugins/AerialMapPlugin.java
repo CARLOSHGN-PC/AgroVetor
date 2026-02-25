@@ -12,6 +12,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.Map;
@@ -131,18 +132,46 @@ public class AerialMapPlugin extends Plugin {
     public void listOfflineRegions(PluginCall call) {
         JSArray regions = new JSArray();
 
+        if (AerialMapSessionStore.offlineRegions == null) {
+            JSObject result = new JSObject();
+            result.put("regions", regions);
+            call.resolve(result);
+            return;
+        }
+
         for (Map.Entry<String, OfflineRegionMetadata> entry : AerialMapSessionStore.offlineRegions.entrySet()) {
             OfflineRegionMetadata region = entry.getValue();
+            if (region == null) {
+                android.util.Log.e("AerialMapPlugin", "Offline region inválida: metadado nulo.");
+                continue;
+            }
+
             JSObject item = new JSObject();
             item.put("regionId", region.regionId);
             item.put("regionName", region.regionName);
             item.put("styleUri", region.styleUri);
+
             JSArray bounds = new JSArray();
-            bounds.put(region.bounds[0]);
-            bounds.put(region.bounds[1]);
-            bounds.put(region.bounds[2]);
-            bounds.put(region.bounds[3]);
-            item.put("bounds", bounds);
+            if (region.bounds == null || region.bounds.length < 4) {
+                android.util.Log.e("AerialMapPlugin", "Offline region com bounds inválido para regionId=" + region.regionId);
+            } else {
+                try {
+                    bounds.put(region.bounds[0]);
+                    bounds.put(region.bounds[1]);
+                    bounds.put(region.bounds[2]);
+                    bounds.put(region.bounds[3]);
+                } catch (JSONException e) {
+                    android.util.Log.e("AerialMapPlugin", "Erro ao montar bounds para regionId=" + region.regionId, e);
+                }
+            }
+
+            try {
+                item.put("bounds", bounds);
+            } catch (JSONException e) {
+                android.util.Log.e("AerialMapPlugin", "Erro ao anexar bounds para regionId=" + region.regionId, e);
+                continue;
+            }
+
             item.put("minZoom", region.minZoom);
             item.put("maxZoom", region.maxZoom);
             item.put("createdAt", region.createdAt);
