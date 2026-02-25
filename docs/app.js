@@ -10,6 +10,7 @@ import CalculationService from './js/lib/CalculationService.js';
 import { perfLogger } from './js/lib/PerfLogger.js';
 import VirtualList from './js/lib/VirtualList.js';
 import { appDiagnostics } from './js/lib/AppDiagnostics.js';
+import { createAerialMapProvider } from './js/mapProviders/MapProviderFactory.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     perfLogger.start('App Boot');
@@ -707,6 +708,8 @@ document.addEventListener('DOMContentLoaded', () => {
             adminAction: null, // Stores a function to be executed after admin password confirmation
             expandedChart: null,
             mapboxMap: null,
+            aerialMapProvider: null,
+            useNativeAerialMap: false,
             mapboxMapInitPromise: null,
             mapboxMapInitializing: false,
             mapboxMapIsLoaded: false,
@@ -13138,15 +13141,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 App.state.mapboxMapInitPromise = (async () => {
-                    if (typeof mapboxgl === 'undefined') {
+                    App.state.aerialMapProvider = createAerialMapProvider({ app: App });
+                    App.state.useNativeAerialMap = App.state.aerialMapProvider?.kind === 'android-native';
+
+                    if (!App.state.useNativeAerialMap && typeof mapboxgl === 'undefined') {
                         console.error("Mapbox GL JS não está carregado.");
                         App.ui.showAlert("Erro ao carregar a biblioteca do mapa.", "error");
                         return;
                     }
 
-                    logAereoOffline('init:start', { native: isCapacitorNative(), online: navigator.onLine });
+                    logAereoOffline('init:start', {
+                        native: isCapacitorNative(),
+                        online: navigator.onLine,
+                        provider: App.state.aerialMapProvider?.kind || 'desconhecido'
+                    });
 
                     try {
+                        if (App.state.useNativeAerialMap) {
+                            await this.loadContoursOfflineSafe();
+                            await App.state.aerialMapProvider.initMap();
+                            if (App.state.geoJsonData) {
+                                await App.state.aerialMapProvider.loadTalhoes(App.state.geoJsonData);
+                            }
+                            this.watchUserPosition();
+                            logAereoOffline('init:done:native', { hasContours: Boolean(App.state.geoJsonData?.features?.length) });
+                            return;
+                        }
+
                         await this._initMapInstanceSafe();
                         await this.loadBaseLayerOfflineSafe();
                         await this.loadContoursOfflineSafe();
@@ -13154,8 +13175,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.loadTraps();
                         logAereoOffline('init:done', { hasMap: Boolean(App.state.mapboxMap), hasContours: Boolean(App.state.geoJsonData?.features?.length) });
                     } catch (e) {
-                        logAereoOfflineError('init:error', e);
-                        App.ui.showAlert("Não foi possível carregar o mapa.", "error");
+                        if (App.state.useNativeAerialMap) {
+                            logAereoOfflineError('init:native:fallback', e);
+                            App.state.useNativeAerialMap = false;
+                            App.state.aerialMapProvider = createAerialMapProvider({ app: App });
+                            await this._initMapInstanceSafe();
+                            await this.loadBaseLayerOfflineSafe();
+                            await this.loadContoursOfflineSafe();
+                            this.watchUserPosition();
+                            this.loadTraps();
+                            App.ui.showAlert('Falha no mapa nativo. Retornando para modo web.', 'warning', 5000);
+                        } else {
+                            logAereoOfflineError('init:error', e);
+                            App.ui.showAlert("Não foi possível carregar o mapa.", "error");
+                        }
                     } finally {
                         App.state.mapboxMapInitPromise = null;
                     }
@@ -13228,6 +13261,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const loaded = await this._loadContoursFromStorage(key);
                     if (loaded) {
                         this.loadShapesOnMap();
+                        if (App.state.useNativeAerialMap && App.state.aerialMapProvider) {
+                            await App.state.aerialMapProvider.loadTalhoes(App.state.geoJsonData);
+                        }
                         return;
                     }
 
@@ -13874,7 +13910,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            startOfflineMapDownload(feature) {
+            async startOfflineMapDownload(feature) {
+                if (App.state.useNativeAerialMap && App.state.aerialMapProvider) {
+                    const bbox = turf.bbox(feature);
+                    try {
+                        await App.state.aerialMapProvider.downloadOfflineRegion({
+                            regionId: `talhao-${feature.id || Date.now()}`,
+                            regionName: feature.properties?.AGV_TALHAO || 'Talhão',
+                            bounds: bbox,
+                            minZoom: 12,
+                            maxZoom: 16,
+                            styleUri: 'mapbox://styles/mapbox/standard-satellite'
+                        });
+                        App.ui.showAlert('Download offline nativo iniciado.', 'info');
+                    } catch (error) {
+                        logAereoOfflineError('native-offline:download:error', error);
+                        App.ui.showAlert('Falha no download offline nativo. Tente novamente.', 'warning');
+                    }
+                    return;
+                }
+
                 const ZOOM_LEVELS = [14, 15, 16]; // Limite de zoom offline para evitar pacotes gigantes
                 const MAX_TILES_PER_PACK = 6000;
                 const infoBox = App.elements.monitoramentoAereo.infoBox;
