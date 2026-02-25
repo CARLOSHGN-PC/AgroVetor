@@ -42,9 +42,6 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private static final String TALHOES_HIGHLIGHT_LAYER = "native-talhoes-highlight";
     private static final String TALHOES_BORDER_LAYER = "native-talhoes-border";
 
-    public static final String EXTRA_OPEN_OFFLINE = "openOffline";
-    public static final String EXTRA_OFFLINE_REGION_ID = "offlineRegionId";
-
     private static WeakReference<NativeAerialMapActivity> activeInstance = new WeakReference<>(null);
 
     private MapView mapView;
@@ -68,32 +65,16 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
 
         mapView = findViewById(R.id.nativeAerialMapView);
 
-        boolean openOffline = getIntent().getBooleanExtra(EXTRA_OPEN_OFFLINE, false);
-        String offlineRegionId = getIntent().getStringExtra(EXTRA_OFFLINE_REGION_ID);
-
-        if (openOffline || !isNetworkAvailable()) {
-            Log.i(TAG, "abrindo em modo offline");
-            if (offlineRegionId != null && !offlineRegionId.trim().isEmpty()) {
-                Log.i(TAG, "região offline encontrada: " + offlineRegionId);
-            } else {
-                Log.w(TAG, "região offline não encontrada no intent; tentando usando estado persistido");
-            }
-        } else {
-            Log.i(TAG, "fallback online");
+        if (!isNetworkAvailable()) {
+            Log.i(TAG, "Sem internet: tentando abrir mapa com dados offline disponíveis.");
         }
 
-        try {
-            mapView.getMapboxMap().loadStyleUri(AerialMapSessionStore.styleUri, style -> {
-                Log.i(TAG, "style pack carregado");
-                Log.i(TAG, "tile region carregada");
-                setupTalhoes(style);
-                applyHighlight(style, AerialMapSessionStore.highlightedTalhaoId);
-                setupCamera();
-            });
-        } catch (Exception error) {
-            Log.e(TAG, "erro detalhado de abertura do mapa", error);
-            AerialMapPlugin.notifyError("Não foi possível carregar o mapa", error.getMessage());
-        }
+        mapView.getMapboxMap().loadStyleUri(AerialMapSessionStore.styleUri, style -> {
+            Log.i(TAG, "Estilo carregado com sucesso (online/offline)");
+            setupTalhoes(style);
+            applyHighlight(style, AerialMapSessionStore.highlightedTalhaoId);
+            setupCamera();
+        });
 
         gesturesPlugin = (GesturesPlugin) mapView.getPlugin(Plugin.MAPBOX_GESTURES_PLUGIN_ID);
         if (gesturesPlugin != null) {
