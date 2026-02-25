@@ -8,11 +8,11 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.agrovetor.app.R;
 import com.agrovetor.app.plugins.AerialMapPlugin;
-import com.mapbox.common.MapboxOptions;
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.Point;
 import com.mapbox.maps.MapView;
+import com.mapbox.maps.plugin.Plugin;
 import com.mapbox.maps.QueriedRenderedFeature;
 import com.mapbox.maps.RenderedQueryGeometry;
 import com.mapbox.maps.Style;
@@ -21,6 +21,7 @@ import com.mapbox.maps.extension.style.expressions.generated.Expression;
 import com.mapbox.maps.extension.style.layers.generated.FillLayer;
 import com.mapbox.maps.extension.style.layers.generated.LineLayer;
 import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource;
+import com.mapbox.maps.plugin.gestures.GesturesPlugin;
 import com.mapbox.maps.plugin.gestures.OnMapClickListener;
 import com.mapbox.maps.RenderedQueryOptions;
 
@@ -35,20 +36,23 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private static final String TALHOES_BORDER_LAYER = "native-talhoes-border";
 
     private MapView mapView;
+    @Nullable private GesturesPlugin gesturesPlugin;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_aerial_map);
 
-        MapboxOptions.accessToken = getString(R.string.mapbox_access_token);
         mapView = findViewById(R.id.nativeAerialMapView);
         mapView.getMapboxMap().loadStyleUri(AerialMapSessionStore.styleUri, style -> {
             setupTalhoes(style);
             setupCamera();
         });
 
-        mapView.getGesturesPlugin().addOnMapClickListener(this);
+        gesturesPlugin = (GesturesPlugin) mapView.getPlugin(Plugin.MAPBOX_GESTURES_PLUGIN_ID);
+        if (gesturesPlugin != null) {
+            gesturesPlugin.addOnMapClickListener(this);
+        }
     }
 
     private void setupCamera() {
@@ -93,9 +97,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
             if (queried == null || queried.isEmpty()) return;
 
             Feature feature = queried.get(0).getQueriedFeature().getFeature();
-            if (feature != null) {
-                AerialMapPlugin.notifyTalhaoClick(feature.toJson());
-            }
+            AerialMapPlugin.notifyTalhaoClick(feature.toJson());
         });
         return true;
     }
@@ -125,8 +127,8 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
 
     @Override
     protected void onDestroy() {
-        if (mapView != null) {
-            mapView.getGesturesPlugin().removeOnMapClickListener(this);
+        if (gesturesPlugin != null) {
+            gesturesPlugin.removeOnMapClickListener(this);
         }
         super.onDestroy();
     }
