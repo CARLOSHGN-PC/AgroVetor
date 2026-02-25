@@ -14,6 +14,7 @@ public class AerialOfflineRegionStore {
     private static final String TAG = "AerialOfflineRegionStore";
     private static final String PREF_NAME = "agrovetor_aerial_offline";
     private static final String KEY_REGIONS = "regions_json";
+    private static final String KEY_LAST_USED_REGION_ID = "last_used_offline_region_id";
 
     private final SharedPreferences preferences;
 
@@ -68,13 +69,50 @@ public class AerialOfflineRegionStore {
         return saveAll(regions);
     }
 
+    public synchronized boolean setLastUsedOfflineRegionId(String regionId) {
+        return preferences.edit().putString(KEY_LAST_USED_REGION_ID, regionId).commit();
+    }
+
+    public synchronized String getLastUsedOfflineRegionId() {
+        return preferences.getString(KEY_LAST_USED_REGION_ID, null);
+    }
+
+    public synchronized OfflineRegionMetadata findLastUsedReadyRegion() {
+        String lastUsedRegionId = getLastUsedOfflineRegionId();
+        if (lastUsedRegionId == null || lastUsedRegionId.trim().isEmpty()) {
+            return null;
+        }
+
+        OfflineRegionMetadata metadata = findByRegionId(lastUsedRegionId);
+        if (metadata == null || !"ready".equals(metadata.status)) {
+            return null;
+        }
+
+        return metadata;
+    }
+
+    public synchronized OfflineRegionMetadata findAnyReadyRegion() {
+        List<OfflineRegionMetadata> regions = readAll();
+        for (OfflineRegionMetadata region : regions) {
+            if ("ready".equals(region.status)) {
+                return region;
+            }
+        }
+        return null;
+    }
+
     public synchronized boolean remove(String regionId) {
         List<OfflineRegionMetadata> regions = readAll();
         boolean changed = regions.removeIf(region -> regionId.equals(region.regionId));
         if (!changed) {
             return true;
         }
-        return saveAll(regions);
+        boolean removed = saveAll(regions);
+        String lastUsed = getLastUsedOfflineRegionId();
+        if (removed && regionId.equals(lastUsed)) {
+            setLastUsedOfflineRegionId(null);
+        }
+        return removed;
     }
 
     private boolean saveAll(List<OfflineRegionMetadata> regions) {
