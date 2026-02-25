@@ -181,7 +181,112 @@ document.addEventListener('DOMContentLoaded', () => {
     const getContourCacheKey = () => `company:${App.state.currentUser?.companyId || 'anon'}:default`;
 
     const isPlainObject = (value) => Object.prototype.toString.call(value) === '[object Object]';
+    const FIRESTORE_DATE_FIELDS = new Set(['dataInstalacao', 'dataColeta']);
+
+    const parseDateLikeValue = (value) => {
+        if (!value) return null;
+
+        if (value instanceof Date) {
+            return isNaN(value.getTime()) ? null : value;
+        }
+
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            const timestamp = value >= 1e12 ? value : value * 1000;
+            const parsedNumber = new Date(timestamp);
+            return isNaN(parsedNumber.getTime()) ? null : parsedNumber;
+        }
+
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed) return null;
+
+            const parsedGeneric = new Date(trimmed);
+            if (!isNaN(parsedGeneric.getTime())) return parsedGeneric;
+
+            const ptBrMatch = trimmed.match(/^((\d{2})\/(\d{2})\/(\d{4}))(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+            if (ptBrMatch) {
+                const [, , day, month, year, hours = '00', minutes = '00', seconds = '00'] = ptBrMatch;
+                const parsedPtBr = new Date(
+                    Number(year),
+                    Number(month) - 1,
+                    Number(day),
+                    Number(hours),
+                    Number(minutes),
+                    Number(seconds)
+                );
+                if (
+                    parsedPtBr.getFullYear() === Number(year)
+                    && parsedPtBr.getMonth() === Number(month) - 1
+                    && parsedPtBr.getDate() === Number(day)
+                    && !isNaN(parsedPtBr.getTime())
+                ) {
+                    return parsedPtBr;
+                }
+            }
+        }
+
+        return null;
+    };
+
+    const toFirestoreTimestampIfNeeded = (value) => {
+        if (value == null) return value;
+
+        if (value instanceof Timestamp) return value;
+
+        if (typeof value?.toDate === 'function') {
+            const fromToDate = value.toDate();
+            if (fromToDate instanceof Date && !isNaN(fromToDate.getTime())) {
+                return Timestamp.fromDate(fromToDate);
+            }
+        }
+
+        if (value instanceof Date) {
+            return isNaN(value.getTime()) ? value : Timestamp.fromDate(value);
+        }
+
+        if (typeof value === 'object') {
+            const seconds = Number.isFinite(value.seconds) ? Number(value.seconds) : Number(value._seconds);
+            const nanoseconds = Number.isFinite(value.nanoseconds)
+                ? Number(value.nanoseconds)
+                : (Number.isFinite(value._nanoseconds) ? Number(value._nanoseconds) : 0);
+
+            if (Number.isFinite(seconds)) {
+                const millis = (seconds * 1000) + Math.floor((Number.isFinite(nanoseconds) ? nanoseconds : 0) / 1e6);
+                return Timestamp.fromMillis(millis);
+            }
+        }
+
+        const parsedDate = parseDateLikeValue(value);
+        if (parsedDate) return Timestamp.fromDate(parsedDate);
+
+        return value;
+    };
+
+    const rehydrateFirestoreTypes = (payload, parentKey = null) => {
+        if (FIRESTORE_DATE_FIELDS.has(parentKey)) {
+            return toFirestoreTimestampIfNeeded(payload);
+        }
+
+        if (Array.isArray(payload)) {
+            return payload.map(item => rehydrateFirestoreTypes(item, parentKey));
+        }
+
+        if (isPlainObject(payload)) {
+            const hydrated = {};
+            Object.entries(payload).forEach(([key, value]) => {
+                hydrated[key] = rehydrateFirestoreTypes(value, key);
+            });
+            return hydrated;
+        }
+
+        return payload;
+    };
+
     const sanitizeFirestoreData = (value) => {
+        if (value instanceof Date || value instanceof Timestamp || typeof value?.toDate === 'function') {
+            return value;
+        }
+
         if (Array.isArray(value)) {
             return value
                 .map(item => sanitizeFirestoreData(item))
@@ -2647,14 +2752,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
             async addDocument(collectionName, data) {
-                const sanitizedData = sanitizeFirestoreData(data);
+                const hydratedData = rehydrateFirestoreTypes(data);
+                const sanitizedData = sanitizeFirestoreData(hydratedData);
                 return await addDoc(collection(db, collectionName), { ...sanitizedData, createdAt: serverTimestamp() });
             },
             async setDocument(collectionName, docId, data) {
-                return await setDoc(doc(db, collectionName, docId), sanitizeFirestoreData(data), { merge: true });
+                const hydratedData = rehydrateFirestoreTypes(data);
+                return await setDoc(doc(db, collectionName, docId), sanitizeFirestoreData(hydratedData), { merge: true });
             },
             async updateDocument(collectionName, docId, data) {
-                return await updateDoc(doc(db, collectionName, docId), sanitizeFirestoreData(data));
+                const hydratedData = rehydrateFirestoreTypes(data);
+                return await updateDoc(doc(db, collectionName, docId), sanitizeFirestoreData(hydratedData));
             },
             async deleteDocument(collectionName, docId) {
                 return await deleteDoc(doc(db, collectionName, docId));
@@ -11577,18 +11685,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const syncedAt = new Date().toISOString();
                                 dataToSync = { ...dataToSync, syncStatus: 'synced', syncedAt };
                             }
-                            // Handle trap installation date conversion
                             if (write.collection === 'armadilhas') {
-                                const parsedInstallDate = App.mapModule?.parseTrapDate
-                                    ? App.mapModule.parseTrapDate(write.data.dataInstalacao)
-                                    : new Date(write.data.dataInstalacao);
-                                if (parsedInstallDate && !isNaN(parsedInstallDate.getTime())) {
-                                    dataToSync = { ...dataToSync, dataInstalacao: Timestamp.fromDate(parsedInstallDate) };
-                                }
-                            }
-                            // Handle trap collection date conversion
-                            if (write.collection === 'armadilhas' && typeof write.data.dataColeta === 'string') {
-                                dataToSync = { ...dataToSync, dataColeta: Timestamp.fromDate(new Date(write.data.dataColeta)) };
+                                dataToSync = rehydrateFirestoreTypes(dataToSync);
                             }
 
                             const syncWrite = async () => {
@@ -14107,53 +14205,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (typeof value === 'object') {
-                    const hasSeconds = Number.isFinite(value.seconds) || Number.isFinite(value._seconds);
-                    if (hasSeconds) {
-                        const seconds = Number.isFinite(value.seconds) ? value.seconds : value._seconds;
-                        const parsed = new Date(Number(seconds) * 1000);
+                    const seconds = Number.isFinite(value.seconds) ? Number(value.seconds) : Number(value._seconds);
+                    if (Number.isFinite(seconds)) {
+                        const nanoseconds = Number.isFinite(value.nanoseconds)
+                            ? Number(value.nanoseconds)
+                            : (Number.isFinite(value._nanoseconds) ? Number(value._nanoseconds) : 0);
+                        const millis = (seconds * 1000) + Math.floor((Number.isFinite(nanoseconds) ? nanoseconds : 0) / 1e6);
+                        const parsed = new Date(millis);
                         return isNaN(parsed.getTime()) ? null : parsed;
                     }
                 }
 
-                if (typeof value === 'number' && Number.isFinite(value)) {
-                    const timestamp = value >= 1e12 ? value : value * 1000;
-                    const parsed = new Date(timestamp);
-                    return isNaN(parsed.getTime()) ? null : parsed;
-                }
-
-                if (typeof value === 'string') {
-                    const trimmed = value.trim();
-                    if (!trimmed) return null;
-
-                    const parsedGeneric = new Date(trimmed);
-                    if (!isNaN(parsedGeneric.getTime())) {
-                        return parsedGeneric;
-                    }
-
-                    const ptBrMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
-                    if (ptBrMatch) {
-                        const [, day, month, year, hours = '00', minutes = '00', seconds = '00'] = ptBrMatch;
-                        const parsedPtBr = new Date(
-                            Number(year),
-                            Number(month) - 1,
-                            Number(day),
-                            Number(hours),
-                            Number(minutes),
-                            Number(seconds)
-                        );
-
-                        if (
-                            parsedPtBr.getFullYear() === Number(year)
-                            && parsedPtBr.getMonth() === Number(month) - 1
-                            && parsedPtBr.getDate() === Number(day)
-                            && !isNaN(parsedPtBr.getTime())
-                        ) {
-                            return parsedPtBr;
-                        }
-                    }
-                }
-
-                return null;
+                return parseDateLikeValue(value);
             },
 
             addOrUpdateTrapMarker(trap) {
