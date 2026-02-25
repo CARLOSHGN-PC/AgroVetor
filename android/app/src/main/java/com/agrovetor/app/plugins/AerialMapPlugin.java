@@ -1,6 +1,10 @@
 package com.agrovetor.app.plugins;
 
+import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -52,27 +56,60 @@ public class AerialMapPlugin extends Plugin {
         for (OfflineRegionMetadata metadata : regionStore.readAll()) {
             AerialMapSessionStore.offlineRegions.put(metadata.regionId, metadata);
         }
+        AerialMapSessionStore.lastUsedOfflineRegionId = regionStore.getLastUsedOfflineRegionId();
     }
 
     @PluginMethod
     public void openMap(PluginCall call) {
-        String styleUri = call.getString("styleUri", AerialMapSessionStore.styleUri);
+        String requestedStyleUri = call.getString("styleUri", AerialMapSessionStore.styleUri);
         JSArray center = call.getArray("center");
         Double zoomValue = call.getDouble("zoom", null);
+        String requestedOfflineRegionId = call.getString("offlineRegionId", null);
         double zoom = zoomValue != null ? zoomValue : AerialMapSessionStore.zoom;
 
-        AerialMapSessionStore.styleUri = styleUri;
-        if (center != null && center.length() == 2) {
-            AerialMapSessionStore.center = new double[]{center.optDouble(0), center.optDouble(1)};
+        boolean networkAvailable = isNetworkAvailable();
+        boolean openedOffline = false;
+        OfflineRegionMetadata selectedOfflineRegion = null;
+
+        if (!networkAvailable) {
+            Log.i(TAG, "abrindo em modo offline (cold start suportado)");
+            selectedOfflineRegion = selectOfflineRegionForOfflineOpen(requestedOfflineRegionId);
+            if (selectedOfflineRegion == null) {
+                String message = "Região offline não baixada. Conecte-se à internet para baixar uma região antes de usar offline.";
+                Log.e(TAG, "região offline não encontrada para abertura offline");
+                notifyError("Região offline não baixada", message);
+                call.reject(message);
+                return;
+            }
+
+            openedOffline = true;
+            Log.i(TAG, "região offline encontrada: " + selectedOfflineRegion.regionId);
+            applyOfflineRegionToSession(selectedOfflineRegion);
+            regionStore.setLastUsedOfflineRegionId(selectedOfflineRegion.regionId);
+            AerialMapSessionStore.lastUsedOfflineRegionId = selectedOfflineRegion.regionId;
+        } else {
+            Log.i(TAG, "fallback online: conectividade disponível");
+            AerialMapSessionStore.styleUri = requestedStyleUri;
+            if (center != null && center.length() == 2) {
+                AerialMapSessionStore.center = new double[]{center.optDouble(0), center.optDouble(1)};
+            }
+            AerialMapSessionStore.zoom = zoom;
         }
-        AerialMapSessionStore.zoom = zoom;
 
         Intent intent = new Intent(getContext(), NativeAerialMapActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        intent.putExtra(NativeAerialMapActivity.EXTRA_OPEN_OFFLINE, openedOffline);
+        if (selectedOfflineRegion != null) {
+            intent.putExtra(NativeAerialMapActivity.EXTRA_OFFLINE_REGION_ID, selectedOfflineRegion.regionId);
+        }
         getActivity().startActivity(intent);
 
         JSObject result = new JSObject();
         result.put("status", "opened");
+        result.put("openedOffline", openedOffline);
+        if (selectedOfflineRegion != null) {
+            result.put("offlineRegionId", selectedOfflineRegion.regionId);
+        }
         call.resolve(result);
     }
 
@@ -176,6 +213,9 @@ public class AerialMapPlugin extends Plugin {
 
         JSObject result = new JSObject();
         result.put("regions", regions);
+        String lastUsedRegionId = regionStore.getLastUsedOfflineRegionId();
+        result.put("lastUsedOfflineRegionId", lastUsedRegionId);
+        AerialMapSessionStore.lastUsedOfflineRegionId = lastUsedRegionId;
         call.resolve(result);
     }
 
@@ -216,6 +256,7 @@ public class AerialMapPlugin extends Plugin {
 
                 boolean metadataRemoved = regionStore.remove(regionId);
                 AerialMapSessionStore.offlineRegions.remove(regionId);
+                AerialMapSessionStore.lastUsedOfflineRegionId = regionStore.getLastUsedOfflineRegionId();
 
                 JSObject result = new JSObject();
                 result.put("regionId", regionId);
@@ -297,6 +338,8 @@ public class AerialMapPlugin extends Plugin {
             metadata.updatedAt = System.currentTimeMillis();
             metadata.errorMessage = null;
             persistRegion(metadata);
+            regionStore.setLastUsedOfflineRegionId(metadata.regionId);
+            AerialMapSessionStore.lastUsedOfflineRegionId = metadata.regionId;
 
             JSObject payload = metadata.toJSObject();
             payload.put("progress", 100);
@@ -495,6 +538,54 @@ public class AerialMapPlugin extends Plugin {
             return (double) zoom;
         }
         return zoom;
+    }
+
+
+    private void applyOfflineRegionToSession(@NonNull OfflineRegionMetadata metadata) {
+        AerialMapSessionStore.styleUri = metadata.styleUri;
+        if (metadata.bounds != null && metadata.bounds.length >= 4) {
+            double west = metadata.bounds[0];
+            double south = metadata.bounds[1];
+            double east = metadata.bounds[2];
+            double north = metadata.bounds[3];
+            AerialMapSessionStore.center = new double[]{(west + east) / 2.0, (south + north) / 2.0};
+        }
+        AerialMapSessionStore.zoom = metadata.minZoom != null ? metadata.minZoom.doubleValue() : AerialMapSessionStore.zoom;
+    }
+
+    private OfflineRegionMetadata selectOfflineRegionForOfflineOpen(String requestedOfflineRegionId) {
+        if (requestedOfflineRegionId != null && !requestedOfflineRegionId.trim().isEmpty()) {
+            OfflineRegionMetadata requested = regionStore.findByRegionId(requestedOfflineRegionId);
+            if (requested != null && "ready".equals(requested.status)) {
+                return requested;
+            }
+            Log.w(TAG, "Região solicitada não está pronta para uso offline: " + requestedOfflineRegionId);
+        }
+
+        OfflineRegionMetadata lastUsed = regionStore.findLastUsedReadyRegion();
+        if (lastUsed != null) {
+            return lastUsed;
+        }
+
+        return regionStore.findAnyReadyRegion();
+    }
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager = (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connectivityManager == null) {
+            return false;
+        }
+
+        Network network = connectivityManager.getActiveNetwork();
+        if (network == null) {
+            return false;
+        }
+
+        NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+        return capabilities != null &&
+                (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
     }
 
     public static void notifyTalhaoClick(String featureJson) {
