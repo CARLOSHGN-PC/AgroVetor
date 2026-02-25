@@ -30,7 +30,8 @@ public class AerialMapPlugin extends Plugin {
     public void openMap(PluginCall call) {
         String styleUri = call.getString("styleUri", AerialMapSessionStore.styleUri);
         JSArray center = call.getArray("center");
-        Double zoom = call.getDouble("zoom", AerialMapSessionStore.zoom);
+        Double zoomValue = call.getDouble("zoom", null);
+        double zoom = zoomValue != null ? zoomValue : AerialMapSessionStore.zoom;
 
         AerialMapSessionStore.styleUri = styleUri;
         if (center != null && center.length() == 2) {
@@ -132,7 +133,7 @@ public class AerialMapPlugin extends Plugin {
     public void listOfflineRegions(PluginCall call) {
         JSArray regions = new JSArray();
 
-        if (AerialMapSessionStore.offlineRegions == null) {
+        if (AerialMapSessionStore.offlineRegions.isEmpty()) {
             JSObject result = new JSObject();
             result.put("regions", regions);
             call.resolve(result);
@@ -165,12 +166,7 @@ public class AerialMapPlugin extends Plugin {
                 }
             }
 
-            try {
-                item.put("bounds", bounds);
-            } catch (JSONException e) {
-                android.util.Log.e("AerialMapPlugin", "Erro ao anexar bounds para regionId=" + region.regionId, e);
-                continue;
-            }
+            item.put("bounds", bounds);
 
             item.put("minZoom", region.minZoom);
             item.put("maxZoom", region.maxZoom);
