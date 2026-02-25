@@ -123,7 +123,19 @@ document.addEventListener('DOMContentLoaded', () => {
         worker.postMessage({ type: 'PARSE_SHP_BUFFER', payload: arrayBuffer });
     });
 
-    const OFFLINE_DB_VERSION = 9;
+    const OFFLINE_DB_VERSION = 10;
+    const MASTER_DATA_COLLECTIONS = [
+        'fazendas',
+        'personnel',
+        'frentesDePlantio',
+        'tipos_servico',
+        'operacoes',
+        'produtos',
+        'operacao_produtos',
+        'ordens_servico',
+        'frota',
+        'armadilhas'
+    ];
 
     const isCapacitorNative = () => Boolean(window.Capacitor && Capacitor.isNativePlatform?.());
     const isAereoOfflineDebugEnabled = () => Boolean(window.DEBUG_AEREO_OFFLINE || localStorage.getItem('DEBUG_AEREO_OFFLINE') === '1');
@@ -618,6 +630,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         contoursIndex.createIndex('updatedAt', 'updatedAt', { unique: false });
                         db.createObjectStore('contours_geojson');
                     }
+                    if (oldVersion < 10) {
+                        const masterStore = db.createObjectStore('master_data', { keyPath: 'key' });
+                        masterStore.createIndex('collection_company', ['collection', 'companyId'], { unique: true });
+                        masterStore.createIndex('collection', 'collection', { unique: false });
+                        masterStore.createIndex('companyId', 'companyId', { unique: false });
+                        masterStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+                    }
                 },
             });
         },
@@ -660,6 +679,42 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 logBootError('INDEXEDDB:error', error, { operation: 'delete', storeName, key });
                 throw error;
+            }
+        },
+        async upsertMasterData(collection, companyId, items) {
+            try {
+                const db = await this.dbPromise;
+                const tx = db.transaction('master_data', 'readwrite');
+                const store = tx.objectStore('master_data');
+                const timestamp = new Date().toISOString();
+                await store.put({
+                    key: `${collection}:${companyId || 'global'}`,
+                    collection,
+                    companyId: companyId || null,
+                    items: Array.isArray(items) ? items : [],
+                    count: Array.isArray(items) ? items.length : 0,
+                    updatedAt: timestamp,
+                });
+                await tx.done;
+                console.info('[MasterDataSync]', { source: 'remote', collection, companyId: companyId || null, count: Array.isArray(items) ? items.length : 0, updatedAt: timestamp });
+                return timestamp;
+            } catch (error) {
+                console.error('[MasterDataSync] Falha ao salvar cache local', { collection, companyId: companyId || null, error: error?.message || error });
+                throw error;
+            }
+        },
+        async getMasterData(collection, companyId) {
+            try {
+                const db = await this.dbPromise;
+                const key = `${collection}:${companyId || 'global'}`;
+                const cached = await db.get('master_data', key);
+                if (cached) {
+                    console.info('[OfflineCadastros]', { source: 'local', collection, companyId: companyId || null, count: cached?.items?.length || 0, updatedAt: cached.updatedAt || null });
+                }
+                return cached || null;
+            } catch (error) {
+                console.error('[OfflineCadastros] Falha ao ler cache local', { collection, companyId: companyId || null, error: error?.message || error });
+                return null;
             }
         },
     };
@@ -785,6 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
             users: [],
             companies: [],
             cachedSubscribedModules: [],
+            masterDataSyncStatus: {},
             globalConfigs: {}, // NOVO: Para armazenar configurações globais como feature flags
             companyConfig: {},
             registros: [],
@@ -2602,7 +2658,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (!companyId && !isSuperAdmin) return;
 
-                // console.log(`Subscribing to ${collectionName}...`);
+                const applyCollectionData = async (items, source = 'remote', extra = {}) => {
+                    const normalized = Array.isArray(items) ? items : [];
+                    App.state[collectionName] = normalized;
+
+                    if (MASTER_DATA_COLLECTIONS.includes(collectionName) && !isSuperAdmin && companyId) {
+                        try {
+                            await App.offlineDB.upsertMasterData(collectionName, companyId, normalized);
+                        } catch (error) {
+                            console.warn('[MasterDataSync] Falha ao persistir snapshot remoto', { collectionName, companyId, error: error?.message || error });
+                        }
+                    }
+
+                    if (collectionName === 'armadilhas') {
+                        if (App.state.mapboxMap) App.mapModule.loadTraps();
+                        App.mapModule.checkTrapStatusAndNotify();
+                    }
+
+                    if (source !== 'remote') {
+                        console.info('[OfflineCombos]', {
+                            source,
+                            collectionName,
+                            companyId: companyId || null,
+                            count: normalized.length,
+                            ...extra,
+                        });
+                    }
+
+                    App.ui.renderSpecificContent(collectionName);
+                };
 
                 let q;
                 if (isSuperAdmin) {
@@ -2611,7 +2695,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      q = query(collection(db, collectionName), where("companyId", "==", companyId));
                 }
 
-                const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                const unsubscribe = onSnapshot(q, async (querySnapshot) => {
                     const data = [];
                     querySnapshot.forEach((doc) => {
                         const item = { id: doc.id, ...doc.data() };
@@ -2620,22 +2704,83 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         data.push(item);
                     });
-                    App.state[collectionName] = data;
-
-                    if (collectionName === 'armadilhas') {
-                        if (App.state.mapboxMap) App.mapModule.loadTraps();
-                        App.mapModule.checkTrapStatusAndNotify();
-                    }
-                    App.ui.renderSpecificContent(collectionName);
-                }, (error) => {
+                    await applyCollectionData(data, 'remote', { cacheEvent: 'snapshot' });
+                }, async (error) => {
                     console.error(`Erro ao ouvir a coleção ${collectionName}: `, error);
+                    const canUseLocal = MASTER_DATA_COLLECTIONS.includes(collectionName) && !isSuperAdmin && companyId;
+                    if (!canUseLocal) return;
+                    const cached = await App.offlineDB.getMasterData(collectionName, companyId);
+                    if (cached?.items?.length) {
+                        await applyCollectionData(cached.items, 'local-fallback', {
+                            reason: 'snapshot-error',
+                            updatedAt: cached.updatedAt || null,
+                        });
+                    } else {
+                        console.warn('[OfflineCombos] Sem cache local para fallback', {
+                            collectionName,
+                            companyId,
+                            reason: 'snapshot-error',
+                        });
+                    }
                 });
 
                 this.collectionSubscriptions[collectionName] = unsubscribe;
-                // Add to global list for cleanup on logout
                 App.state.unsubscribeListeners.push(unsubscribe);
+
+                if (!navigator.onLine && MASTER_DATA_COLLECTIONS.includes(collectionName) && !isSuperAdmin && companyId) {
+                    const cached = await App.offlineDB.getMasterData(collectionName, companyId);
+                    if (cached?.items) {
+                        await applyCollectionData(cached.items, 'local-offline', {
+                            updatedAt: cached.updatedAt || null,
+                            reason: cached.items.length === 0 ? 'empty-cache' : 'offline-startup',
+                        });
+                    }
+                }
             },
 
+            async syncMasterData(force = false) {
+                const companyId = App.state.currentUser?.companyId;
+                const isSuperAdmin = App.state.currentUser?.role === 'super-admin';
+                if (!companyId || isSuperAdmin || !navigator.onLine) {
+                    return;
+                }
+
+                const now = Date.now();
+                const throttleMs = force ? 0 : (10 * 60 * 1000);
+                const cacheState = App.state.masterDataSyncStatus || {};
+
+                for (const collectionName of MASTER_DATA_COLLECTIONS) {
+                    const lastSyncAt = cacheState[collectionName]?.lastSyncAt || 0;
+                    if (!force && now - lastSyncAt < throttleMs) {
+                        continue;
+                    }
+
+                    try {
+                        const q = query(collection(db, collectionName), where('companyId', '==', companyId));
+                        const snapshot = await getDocs(q);
+                        const items = [];
+                        snapshot.forEach((itemDoc) => {
+                            const item = { id: itemDoc.id, ...itemDoc.data() };
+                            if (collectionName === 'armadilhas' && App.mapModule?.parseTrapDate) {
+                                item._installDateNormalized = App.mapModule.parseTrapDate(item.dataInstalacao);
+                            }
+                            items.push(item);
+                        });
+                        const updatedAt = await App.offlineDB.upsertMasterData(collectionName, companyId, items);
+                        App.state.masterDataSyncStatus[collectionName] = {
+                            lastSyncAt: Date.now(),
+                            updatedAt,
+                            count: items.length,
+                        };
+                    } catch (error) {
+                        console.warn('[MasterDataSync] Falha durante sincronização de cadastro-base', {
+                            collectionName,
+                            companyId,
+                            error: error?.message || error,
+                        });
+                    }
+                }
+            },
             listenToCoreData() {
                 perfLogger.start('listenToCoreData');
                 this.cleanupListeners();
@@ -2663,8 +2808,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
                 // Core Collections loaded on startup
-                const coreCollections = ['users', 'fazendas', 'personnel', 'frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico'];
+                const coreCollections = ['users', 'fazendas', 'personnel', 'frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'frota', 'armadilhas'];
                 coreCollections.forEach(col => this.subscribeTo(col));
+                if (navigator.onLine) {
+                    this.syncMasterData(false).catch((error) => {
+                        console.warn('[MasterDataSync] Falha na pré-carga online', error?.message || error);
+                    });
+                }
 
                 if (isSuperAdmin) {
                     // Tratamento especial para Clima (Super Admin também não deve carregar tudo por padrão)
@@ -4110,6 +4260,47 @@ document.addEventListener('DOMContentLoaded', () => {
                     subBadge.classList.toggle('status-pending', status !== 'preenchido');
                 }
             },
+            getTalhoesByFazenda(farmId, { onlyActive = true } = {}) {
+                const farm = (App.state.fazendas || []).find(f => String(f.id) === String(farmId));
+                if (!farm || !Array.isArray(farm.talhoes)) {
+                    console.warn('[OfflineCombos]', {
+                        collection: 'talhoes',
+                        source: navigator.onLine ? 'remote-state' : 'local-state',
+                        farmId: farmId || null,
+                        reason: farm ? 'fazenda-sem-talhoes' : 'fazenda-nao-encontrada',
+                        isOnline: navigator.onLine,
+                    });
+                    return [];
+                }
+
+                const filtered = farm.talhoes.filter(t => {
+                    if (!onlyActive) return true;
+                    if (typeof t.ativo === 'boolean') return t.ativo;
+                    return t.status !== 'inativo';
+                });
+
+                console.info('[OfflineCombos]', {
+                    collection: 'talhoes',
+                    source: navigator.onLine ? 'remote-state' : 'local-state',
+                    companyId: App.state.currentUser?.companyId || null,
+                    farmId: farmId || null,
+                    count: filtered.length,
+                    totalFarmTalhoes: farm.talhoes.length,
+                    filter: { onlyActive },
+                    cachedAt: new Date().toISOString(),
+                });
+
+                return filtered;
+            },
+            resolveFazendaName(farmId) {
+                const farm = (App.state.fazendas || []).find(f => String(f.id) === String(farmId));
+                if (!farm) return '';
+                return [farm.code, farm.name].filter(Boolean).join(' - ');
+            },
+            resolveTalhaoName(farmId, talhaoId) {
+                const talhao = this.getTalhoesByFazenda(farmId, { onlyActive: false }).find(t => String(t.id) === String(talhaoId));
+                return talhao?.name || '';
+            },
             updateQualidadeTalhaoOptions(selectEl, farmId, includeAll = false, preserveValue = true) {
                 if (!selectEl) return;
                 const currentValue = preserveValue ? selectEl.value : '';
@@ -4117,13 +4308,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectEl.innerHTML = firstOption;
 
                 if (farmId) {
-                    const farm = App.state.fazendas.find(f => String(f.id) === String(farmId));
-                    if (farm && farm.talhoes) {
-                        farm.talhoes
-                            .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
-                            .forEach(talhao => {
-                                selectEl.innerHTML += `<option value="${talhao.id}">${talhao.name}</option>`;
-                            });
+                    const talhoes = App.actions.getTalhoesByFazenda(farmId, { onlyActive: true });
+                    talhoes
+                        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+                        .forEach(talhao => {
+                            selectEl.innerHTML += `<option value="${talhao.id}">${talhao.name}</option>`;
+                        });
+
+                    if (talhoes.length === 0) {
+                        console.warn('[OfflineCombos]', {
+                            collection: 'talhoes',
+                            source: navigator.onLine ? 'remote-state' : 'local-cache',
+                            companyId: App.state.currentUser?.companyId || null,
+                            farmId,
+                            reason: 'empty-after-filter',
+                        });
+                        App.ui.showAlert('Sem dados de talhões salvos offline para esta fazenda. Conecte-se para atualizar os cadastros.', 'info', 6000);
                     }
                 }
                 selectEl.value = currentValue;
@@ -4131,8 +4331,9 @@ document.addEventListener('DOMContentLoaded', () => {
             updateQualidadeVariedade() {
                 const els = App.elements.qualidadePlantio;
                 if (!els.fazenda || !els.talhao || !els.variedade) return;
-                const farm = App.state.fazendas.find(f => String(f.id) === String(els.fazenda.value));
-                const talhao = farm?.talhoes?.find(t => String(t.id) === String(els.talhao.value));
+                const talhao = App.actions
+                    .getTalhoesByFazenda(els.fazenda.value, { onlyActive: false })
+                    .find(t => String(t.id) === String(els.talhao.value));
                 const variedade = talhao?.variedade || '';
                 const normalizedVariedade = variedade ? variedade.toUpperCase() : '';
                 const hasTalhao = Boolean(els.talhao.value);
@@ -8690,16 +8891,18 @@ document.addEventListener('DOMContentLoaded', () => {
             buildQualidadeBaseFromForm() {
                 const els = App.elements.qualidadePlantio;
                 const farm = App.state.fazendas.find(f => String(f.id) === String(els.fazenda.value));
-                const talhao = farm?.talhoes?.find(t => String(t.id) === String(els.talhao.value));
+                const talhao = App.actions
+                    .getTalhoesByFazenda(els.fazenda.value, { onlyActive: false })
+                    .find(t => String(t.id) === String(els.talhao.value));
                 const variedade = (els.variedade.value || talhao?.variedade || '').toUpperCase();
                 const frente = App.state.frentesDePlantio.find(item => item.id === els.frentePlantio?.value);
 
                 return {
                     tipoPlantio: els.tipoPlantio.value,
                     fazendaId: farm?.id || '',
-                    fazendaNome: farm?.name || '',
+                    fazendaNome: farm?.name || App.actions.resolveFazendaName(els.fazenda.value) || '',
                     talhaoId: talhao?.id || '',
-                    talhaoNome: talhao?.name || '',
+                    talhaoNome: talhao?.name || App.actions.resolveTalhaoName(els.fazenda.value, els.talhao.value) || '',
                     variedadeNome: variedade,
                     data: els.data.value,
                     tipoInspecao: els.tipoInspecao.value,
