@@ -6,6 +6,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.agrovetor.app.aerial.AerialMapSessionStore;
+import com.agrovetor.app.aerial.AerialMapboxRuntime;
 import com.agrovetor.app.aerial.AerialOfflineRegionStore;
 import com.agrovetor.app.aerial.NativeAerialMapActivity;
 import com.agrovetor.app.aerial.OfflineRegionMetadata;
@@ -35,7 +36,7 @@ import java.lang.reflect.Method;
 
 @CapacitorPlugin(name = "AerialMap")
 public class AerialMapPlugin extends Plugin {
-    private static final String TAG = "AerialMapPlugin";
+    private static final String TAG = "AerialOfflineDebug";
     private static AerialMapPlugin instance;
 
     private AerialOfflineRegionStore regionStore;
@@ -46,12 +47,17 @@ public class AerialMapPlugin extends Plugin {
     public void load() {
         instance = this;
         regionStore = new AerialOfflineRegionStore(getContext());
-        tileStore = TileStore.create();
-        offlineManager = new OfflineManager();
+        tileStore = AerialMapboxRuntime.getTileStore(getContext());
+        offlineManager = AerialMapboxRuntime.getOfflineManager(getContext());
 
+        int readyCount = 0;
         for (OfflineRegionMetadata metadata : regionStore.readAll()) {
             AerialMapSessionStore.offlineRegions.put(metadata.regionId, metadata);
+            if ("ready".equals(metadata.status)) {
+                readyCount++;
+            }
         }
+        Log.i(TAG, "Plugin load concluído. Regiões persistidas=" + AerialMapSessionStore.offlineRegions.size() + ", ready=" + readyCount);
     }
 
     @PluginMethod
@@ -68,7 +74,7 @@ public class AerialMapPlugin extends Plugin {
         AerialMapSessionStore.zoom = zoom;
 
         Intent intent = new Intent(getContext(), NativeAerialMapActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         getActivity().startActivity(intent);
 
         JSObject result = new JSObject();
@@ -169,10 +175,16 @@ public class AerialMapPlugin extends Plugin {
         JSArray regions = new JSArray();
 
         AerialMapSessionStore.offlineRegions.clear();
+        int readyCount = 0;
         for (OfflineRegionMetadata region : regionsList) {
             AerialMapSessionStore.offlineRegions.put(region.regionId, region);
             regions.put(region.toJSObject());
+            if ("ready".equals(region.status)) {
+                readyCount++;
+            }
         }
+
+        Log.i(TAG, "listOfflineRegions: total=" + regionsList.size() + ", ready=" + readyCount);
 
         JSObject result = new JSObject();
         result.put("regions", regions);
@@ -233,6 +245,26 @@ public class AerialMapPlugin extends Plugin {
                 call.resolve(result);
             });
         });
+    }
+
+    @PluginMethod
+    public void getOfflineStatus(PluginCall call) {
+        List<OfflineRegionMetadata> regions = regionStore.readAll();
+        JSArray regionsPayload = new JSArray();
+        int readyCount = 0;
+        for (OfflineRegionMetadata metadata : regions) {
+            regionsPayload.put(metadata.toJSObject());
+            if ("ready".equals(metadata.status)) {
+                readyCount++;
+            }
+        }
+
+        JSObject result = new JSObject();
+        result.put("regions", regionsPayload);
+        result.put("total", regions.size());
+        result.put("ready", readyCount);
+        result.put("styleUri", AerialMapSessionStore.styleUri);
+        call.resolve(result);
     }
 
     private void runOfflineDownload(@NonNull OfflineRegionMetadata metadata) {
