@@ -4308,12 +4308,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectEl.innerHTML = firstOption;
 
                 if (farmId) {
-                    const talhoes = App.actions.getTalhoesByFazenda(farmId, { onlyActive: true });
+                    const getTalhoes = typeof App.actions.getTalhoesByFazenda === 'function'
+                        ? App.actions.getTalhoesByFazenda
+                        : null;
+                    const talhoes = getTalhoes ? (getTalhoes(farmId, { onlyActive: true }) || []) : [];
                     talhoes
                         .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
                         .forEach(talhao => {
                             selectEl.innerHTML += `<option value="${talhao.id}">${talhao.name}</option>`;
                         });
+
+                    if (!getTalhoes) {
+                        console.warn('[OfflineCombos]', {
+                            collection: 'talhoes',
+                            source: navigator.onLine ? 'remote-state' : 'local-cache',
+                            companyId: App.state.currentUser?.companyId || null,
+                            farmId,
+                            reason: 'missing-actions-getTalhoesByFazenda',
+                        });
+                    }
 
                     if (talhoes.length === 0) {
                         console.warn('[OfflineCombos]', {
@@ -8848,6 +8861,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return parsed;
             },
+            getTalhoesByFazenda(farmId, options = {}) {
+                if (!farmId) return [];
+                if (typeof App.ui.getTalhoesByFazenda !== 'function') return [];
+                return App.ui.getTalhoesByFazenda(farmId, options) || [];
+            },
+            resolveFazendaName(farmId) {
+                if (!farmId) return '';
+                if (typeof App.ui.resolveFazendaName !== 'function') return '';
+                return App.ui.resolveFazendaName(farmId) || '';
+            },
+            resolveTalhaoName(farmId, talhaoId) {
+                if (!farmId || !talhaoId) return '';
+                if (typeof App.ui.resolveTalhaoName !== 'function') return '';
+                return App.ui.resolveTalhaoName(farmId, talhaoId) || '';
+            },
             getQualidadeIndicadores(tipoPlantio = '', includeAll = false) {
                 const indicadores = {
                     Man: [
@@ -8891,18 +8919,26 @@ document.addEventListener('DOMContentLoaded', () => {
             buildQualidadeBaseFromForm() {
                 const els = App.elements.qualidadePlantio;
                 const farm = App.state.fazendas.find(f => String(f.id) === String(els.fazenda.value));
-                const talhao = App.actions
-                    .getTalhoesByFazenda(els.fazenda.value, { onlyActive: false })
-                    .find(t => String(t.id) === String(els.talhao.value));
+                const getTalhoes = typeof App.actions.getTalhoesByFazenda === 'function'
+                    ? App.actions.getTalhoesByFazenda
+                    : null;
+                const resolveFazendaName = typeof App.actions.resolveFazendaName === 'function'
+                    ? App.actions.resolveFazendaName
+                    : null;
+                const resolveTalhaoName = typeof App.actions.resolveTalhaoName === 'function'
+                    ? App.actions.resolveTalhaoName
+                    : null;
+                const talhoes = getTalhoes ? (getTalhoes(els.fazenda.value, { onlyActive: false }) || []) : [];
+                const talhao = talhoes.find(t => String(t.id) === String(els.talhao.value));
                 const variedade = (els.variedade.value || talhao?.variedade || '').toUpperCase();
                 const frente = App.state.frentesDePlantio.find(item => item.id === els.frentePlantio?.value);
 
                 return {
                     tipoPlantio: els.tipoPlantio.value,
                     fazendaId: farm?.id || '',
-                    fazendaNome: farm?.name || App.actions.resolveFazendaName(els.fazenda.value) || '',
+                    fazendaNome: farm?.name || (resolveFazendaName ? (resolveFazendaName(els.fazenda.value) || '') : ''),
                     talhaoId: talhao?.id || '',
-                    talhaoNome: talhao?.name || App.actions.resolveTalhaoName(els.fazenda.value, els.talhao.value) || '',
+                    talhaoNome: talhao?.name || (resolveTalhaoName ? (resolveTalhaoName(els.fazenda.value, els.talhao.value) || '') : ''),
                     variedadeNome: variedade,
                     data: els.data.value,
                     tipoInspecao: els.tipoInspecao.value,
