@@ -174,7 +174,7 @@ public class AerialMapPlugin extends Plugin {
         if (instance == null) return;
         try {
             JSObject payload = new JSObject();
-            payload.put("feature", new JSObject(new JSONObject(featureJson)));
+            payload.put("feature", new JSONObject(featureJson));
             instance.notifyListeners("talhaoClick", payload, true);
         } catch (Exception ignored) {
         }
