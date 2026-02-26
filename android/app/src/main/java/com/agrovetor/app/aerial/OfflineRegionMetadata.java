@@ -87,12 +87,6 @@ public class OfflineRegionMetadata {
         if (errorMessage != null) {
             item.put("errorMessage", errorMessage);
         }
-        if (talhoesGeoJson != null) {
-            item.put("talhoesGeoJson", talhoesGeoJson);
-        }
-        if (armadilhasGeoJson != null) {
-            item.put("armadilhasGeoJson", armadilhasGeoJson);
-        }
         return item;
     }
 }
