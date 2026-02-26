@@ -14258,12 +14258,23 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
 
+            isAndroidNativeAerialModuleAvailable() {
+                const cap = window?.Capacitor;
+                const isAndroidNative = Boolean(cap?.isNativePlatform?.() && cap?.getPlatform?.() === 'android');
+                if (!isAndroidNative) return false;
+
+                return Boolean(cap?.Plugins?.AerialMap || cap?.registerPlugin);
+            },
+
             updateAndroidOfflineButtonsVisibility() {
-                const isAndroidNative = App.state.aerialMapProvider?.kind === 'android-native';
+                const providerKind = App.state.aerialMapProvider?.kind || null;
+                const shouldShowOfflineButtons = providerKind === 'android-native' || this.isAndroidNativeAerialModuleAvailable();
+                console.info('[Perfil][Aéreo Offline] provider kind:', providerKind);
+
                 const { downloadAllAerialTilesBtn, updateAllAerialTilesBtn, removeAllAerialTilesBtn } = App.elements.userMenu;
                 [downloadAllAerialTilesBtn, updateAllAerialTilesBtn, removeAllAerialTilesBtn].forEach((btn) => {
                     if (!btn) return;
-                    btn.style.display = isAndroidNative ? 'flex' : 'none';
+                    btn.style.display = shouldShowOfflineButtons ? 'flex' : 'none';
                 });
             },
 
