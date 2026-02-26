@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="mapbox_access_token" translatable="false" tools:ignore="UnusedResources">COLE_AQUI_O_TOKEN_PK</string>
+    <string name="mapbox_access_token" translatable="false" tools:ignore="UnusedResources">pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w</string>
 </resources>
