@@ -10,11 +10,13 @@ import android.os.Looper;
 import android.util.Log;
 import android.widget.FrameLayout;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.agrovetor.app.R;
 import com.agrovetor.app.plugins.AerialMapPlugin;
+import com.mapbox.common.TileStore;
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.Point;
@@ -108,11 +110,61 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         AerialMapboxRuntime.configureMapbox(getApplicationContext(), accessToken);
         MapInitOptions mapInitOptions = new MapInitOptions(getApplicationContext());
         mapView = new MapView(this, mapInitOptions);
+        applyTileStoreToMapView(mapView);
         mapContainer.addView(mapView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
         Log.i(TAG, "MapView criado com MapInitOptions após configurar runtime global do Mapbox");
+    }
+
+    private void applyTileStoreToMapView(@NonNull MapView targetMapView) {
+        TileStore tileStore = AerialMapboxRuntime.getTileStore(getApplicationContext());
+        Log.i(TAG, "Tentando aplicar TileStore persistente ao MapView por reflection");
+
+        boolean tileStoreApplied = invokeMapboxMapMethod(targetMapView, "setTileStore", new Class<?>[]{TileStore.class}, tileStore);
+        boolean usageModeApplied = applyTileStoreUsageMode(targetMapView);
+
+        if (tileStoreApplied && usageModeApplied) {
+            Log.i(TAG, "TileStore aplicado com sucesso ao MapView (setTileStore + setTileStoreUsageMode)");
+        } else if (tileStoreApplied) {
+            Log.i(TAG, "TileStore aplicado ao MapView; setTileStoreUsageMode indisponível nesta versão do SDK");
+        } else {
+            Log.w(TAG, "Não foi possível aplicar TileStore ao MapView com a API disponível em runtime; fallback seguro mantido");
+        }
+    }
+
+    private boolean applyTileStoreUsageMode(@NonNull MapView targetMapView) {
+        try {
+            Class<?> usageModeClass = Class.forName("com.mapbox.maps.TileStoreUsageMode");
+            Object readAndUpdate = Enum.valueOf((Class<Enum>) usageModeClass.asSubclass(Enum.class), "READ_AND_UPDATE");
+            return invokeMapboxMapMethod(targetMapView, "setTileStoreUsageMode", new Class<?>[]{usageModeClass}, readAndUpdate);
+        } catch (ClassNotFoundException classNotFoundException) {
+            Log.i(TAG, "TileStoreUsageMode indisponível no SDK atual; seguindo sem setTileStoreUsageMode");
+            return false;
+        } catch (IllegalArgumentException illegalArgumentException) {
+            Log.w(TAG, "Enum READ_AND_UPDATE não disponível em TileStoreUsageMode; seguindo fallback seguro", illegalArgumentException);
+            return false;
+        }
+    }
+
+    private boolean invokeMapboxMapMethod(@NonNull MapView targetMapView,
+                                          @NonNull String methodName,
+                                          @NonNull Class<?>[] parameterTypes,
+                                          @Nullable Object argument) {
+        Object mapboxMap = targetMapView.getMapboxMap();
+        try {
+            Method method = mapboxMap.getClass().getMethod(methodName, parameterTypes);
+            method.invoke(mapboxMap, argument);
+            Log.i(TAG, "Método aplicado por reflection com sucesso: " + methodName);
+            return true;
+        } catch (NoSuchMethodException noSuchMethodException) {
+            Log.i(TAG, "Método não disponível no runtime do SDK: " + methodName);
+            return false;
+        } catch (Exception reflectionError) {
+            Log.w(TAG, "Falha ao aplicar método por reflection: " + methodName, reflectionError);
+            return false;
+        }
     }
 
     @Override

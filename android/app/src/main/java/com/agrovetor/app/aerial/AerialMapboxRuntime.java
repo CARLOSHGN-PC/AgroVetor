@@ -7,9 +7,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.mapbox.common.TileStore;
-import com.mapbox.maps.MapboxOptions;
 import com.mapbox.maps.OfflineManager;
-import com.mapbox.maps.TileStoreUsageMode;
 
 import java.io.File;
 public final class AerialMapboxRuntime {
@@ -64,13 +62,13 @@ public final class AerialMapboxRuntime {
         String normalizedToken = accessToken == null ? "" : accessToken.trim();
         if (TextUtils.isEmpty(normalizedToken)) {
             Log.e(TAG, "Access token Mapbox vazio ao configurar runtime.");
+        } else {
+            Log.i(TAG, "Access token Mapbox recebido para configuração do runtime");
         }
 
-        TileStore singletonStore = getTileStore(context);
-        MapboxOptions.accessToken = normalizedToken;
-        MapboxOptions.mapsOptions.tileStore = singletonStore;
-        MapboxOptions.mapsOptions.tileStoreUsageMode = TileStoreUsageMode.READ_AND_UPDATE;
-        Log.i(TAG, "MapboxOptions configurado com TileStore singleton persistente e mode=READ_AND_UPDATE");
+        getTileStore(context);
+        getOfflineManager(context);
+        Log.i(TAG, "Runtime Mapbox inicializado sem dependência de MapboxOptions; TileStore e OfflineManager prontos");
     }
 
     private static TileStore createTileStore() {
