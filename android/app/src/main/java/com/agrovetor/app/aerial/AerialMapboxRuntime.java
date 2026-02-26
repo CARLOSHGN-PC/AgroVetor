@@ -7,8 +7,8 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.mapbox.common.TileStore;
+import com.mapbox.maps.MapboxOptions;
 import com.mapbox.maps.OfflineManager;
-import com.mapbox.maps.ResourceOptions;
 import com.mapbox.maps.TileStoreUsageMode;
 
 import java.io.File;
@@ -59,23 +59,18 @@ public final class AerialMapboxRuntime {
         return offlineManager;
     }
 
-    @NonNull
-    public static ResourceOptions createResourceOptions(@NonNull Context context, @NonNull String accessToken) {
+    public static void configureMapbox(@NonNull Context context, @NonNull String accessToken) {
         init(context);
         String normalizedToken = accessToken == null ? "" : accessToken.trim();
         if (TextUtils.isEmpty(normalizedToken)) {
-            Log.e(TAG, "Access token Mapbox vazio ao criar ResourceOptions.");
+            Log.e(TAG, "Access token Mapbox vazio ao configurar runtime.");
         }
 
         TileStore singletonStore = getTileStore(context);
-        ResourceOptions options = new ResourceOptions.Builder()
-                .accessToken(normalizedToken)
-                .tileStore(singletonStore)
-                .tileStoreUsageMode(TileStoreUsageMode.READ_AND_UPDATE)
-                .build();
-
-        Log.i(TAG, "ResourceOptions criado com TileStore singleton persistente e mode=READ_AND_UPDATE");
-        return options;
+        MapboxOptions.accessToken = normalizedToken;
+        MapboxOptions.mapsOptions.tileStore = singletonStore;
+        MapboxOptions.mapsOptions.tileStoreUsageMode = TileStoreUsageMode.READ_AND_UPDATE;
+        Log.i(TAG, "MapboxOptions configurado com TileStore singleton persistente e mode=READ_AND_UPDATE");
     }
 
     private static TileStore createTileStore() {
@@ -96,15 +91,8 @@ public final class AerialMapboxRuntime {
     }
 
     private static OfflineManager createOfflineManager() {
-        try {
-            OfflineManager manager = OfflineManager.class.getDeclaredConstructor(Context.class).newInstance(appContext);
-            Log.i(TAG, "OfflineManager singleton criado com contexto da aplicação");
-            return manager;
-        } catch (Exception firstError) {
-            Log.w(TAG, "OfflineManager(Context) indisponível, tentando construtor padrão: " + firstError.getMessage());
-            OfflineManager manager = new OfflineManager();
-            Log.i(TAG, "OfflineManager singleton criado com construtor padrão");
-            return manager;
-        }
+        OfflineManager manager = new OfflineManager();
+        Log.i(TAG, "OfflineManager singleton criado com construtor padrão");
+        return manager;
     }
 }
