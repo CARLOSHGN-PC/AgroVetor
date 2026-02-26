@@ -13499,6 +13499,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.mapboxMapInitPromise = (async () => {
                     App.state.aerialMapProvider = createAerialMapProvider({ app: App });
                     App.state.useNativeAerialMap = App.state.aerialMapProvider?.kind === 'android-native';
+                    console.info('[AEREO_OFFLINE] init provider inicial:', {
+                        providerKind: App.state.aerialMapProvider?.kind || null,
+                        useNativeAerialMap: App.state.useNativeAerialMap
+                    });
                     this.updateAndroidOfflineButtonsVisibility();
 
                     if (!App.state.useNativeAerialMap && typeof mapboxgl === 'undefined') {
@@ -13534,19 +13538,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     } catch (e) {
                         if (App.state.useNativeAerialMap) {
                             logAereoOfflineError('init:native:fallback', e);
+                            console.warn('[AEREO_OFFLINE] fallback do provider nativo para web detectado.');
                             App.state.useNativeAerialMap = false;
                             App.state.aerialMapProvider = createAerialMapProvider({ app: App });
+                            this.updateAndroidOfflineButtonsVisibility();
                             await this._initMapInstanceSafe();
                             await this.loadBaseLayerOfflineSafe();
                             await this.loadContoursOfflineSafe();
                             this.watchUserPosition();
                             this.loadTraps();
+                            console.info('[AEREO_OFFLINE] estado final após fallback:', {
+                                fallback: true,
+                                useNativeAerialMap: App.state.useNativeAerialMap,
+                                providerKind: App.state.aerialMapProvider?.kind || null
+                            });
                             App.ui.showAlert('Falha no mapa nativo. Retornando para modo web.', 'warning', 5000);
                         } else {
                             logAereoOfflineError('init:error', e);
                             App.ui.showAlert("Não foi possível carregar o mapa.", "error");
                         }
                     } finally {
+                        console.info('[AEREO_OFFLINE] estado final do provider:', {
+                            fallback: !App.state.useNativeAerialMap,
+                            useNativeAerialMap: App.state.useNativeAerialMap,
+                            providerKind: App.state.aerialMapProvider?.kind || null
+                        });
                         App.state.mapboxMapInitPromise = null;
                     }
                 })();
@@ -14319,6 +14335,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async downloadAllAerialTiles() {
                 if (!(App.state.useNativeAerialMap && App.state.aerialMapProvider)) {
+                    console.warn('[AEREO_OFFLINE] bloqueado: downloadAllAerialTiles requer Android nativo.', {
+                        useNativeAerialMap: App.state.useNativeAerialMap,
+                        providerKind: App.state.aerialMapProvider?.kind || null
+                    });
                     App.ui.showAlert('Este recurso está disponível apenas no Android nativo.', 'warning');
                     return;
                 }
@@ -14336,6 +14356,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async updateAllAerialTiles() {
                 if (!(App.state.useNativeAerialMap && App.state.aerialMapProvider)) {
+                    console.warn('[AEREO_OFFLINE] bloqueado: updateAllAerialTiles requer Android nativo.', {
+                        useNativeAerialMap: App.state.useNativeAerialMap,
+                        providerKind: App.state.aerialMapProvider?.kind || null
+                    });
                     App.ui.showAlert('Este recurso está disponível apenas no Android nativo.', 'warning');
                     return;
                 }
@@ -14352,6 +14376,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async removeAllAerialTiles() {
                 if (!(App.state.useNativeAerialMap && App.state.aerialMapProvider)) {
+                    console.warn('[AEREO_OFFLINE] bloqueado: removeAllAerialTiles requer Android nativo.', {
+                        useNativeAerialMap: App.state.useNativeAerialMap,
+                        providerKind: App.state.aerialMapProvider?.kind || null
+                    });
                     App.ui.showAlert('Este recurso está disponível apenas no Android nativo.', 'warning');
                     return;
                 }
