@@ -327,14 +327,18 @@ public class AerialMapPlugin extends Plugin {
             }
 
             TileRegion region = tileExpected.getValue();
-            Log.i(TAG, "Tile region concluída para " + metadata.regionId + ", id=" + region.getId() + " styleUri=" + metadata.styleUri);
+            Log.i(TAG, "Tile region concluída para " + metadata.regionId + ", id=" + region.getId() + " styleUri=" + metadata.styleUri + " stylePackId=" + metadata.stylePackId + " tileRegionId=" + metadata.tileRegionId);
             metadata.status = "ready";
             metadata.updatedAt = System.currentTimeMillis();
             metadata.errorMessage = null;
+            Log.i(TAG, "Marcando região como ready após validação de download completo: regionId=" + metadata.regionId + " stylePackId=" + metadata.stylePackId + " tileRegionId=" + metadata.tileRegionId + " styleUri=" + metadata.styleUri);
             if (!persistRegion(metadata)) {
+                Log.e(TAG, "Falha ao persistir status ready. regionId=" + metadata.regionId + " stylePackId=" + metadata.stylePackId + " tileRegionId=" + metadata.tileRegionId);
                 markDownloadFailed(metadata, "Falha ao persistir status ready após concluir style pack + tile region.");
                 return;
             }
+
+            Log.i(TAG, "Região offline pronta e persistida com sucesso: regionId=" + metadata.regionId + " stylePackId=" + metadata.stylePackId + " tileRegionId=" + metadata.tileRegionId + " styleUri=" + metadata.styleUri);
 
             JSObject payload = metadata.toJSObject();
             payload.put("progress", 100);

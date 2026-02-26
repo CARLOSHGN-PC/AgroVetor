@@ -22,6 +22,7 @@ import com.mapbox.geojson.Point;
 import com.mapbox.maps.CameraOptions;
 import com.mapbox.maps.MapInitOptions;
 import com.mapbox.maps.MapView;
+import com.mapbox.maps.OfflineManager;
 import com.mapbox.maps.QueriedRenderedFeature;
 import com.mapbox.maps.RenderedQueryGeometry;
 import com.mapbox.maps.RenderedQueryOptions;
@@ -41,9 +42,12 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class NativeAerialMapActivity extends AppCompatActivity implements OnMapClickListener {
     private static final String TAG = "AerialOfflineDebug";
@@ -76,6 +80,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private boolean styleLoading;
     private int styleAttemptIndex;
     private List<String> styleFallbackChain = Collections.emptyList();
+    private RuntimeOfflineSnapshot runtimeOfflineSnapshot = RuntimeOfflineSnapshot.empty();
     @Nullable
     private String pendingTalhoesGeoJson;
 
@@ -89,12 +94,10 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         subscribeMapLoadingErrors();
 
         boolean networkAvailable = isNetworkAvailable();
-        List<OfflineRegionMetadata> readyRegions = logOfflineRegions(networkAvailable);
+        List<OfflineRegionMetadata> metadataRegions = readOfflineMetadata(networkAvailable);
 
         pendingTalhoesGeoJson = AerialMapSessionStore.talhoesGeoJson;
-        styleFallbackChain = buildStyleFallbackChain(readyRegions);
-        styleAttemptIndex = 0;
-        loadStyleWithFallback();
+        prepareStyleFallbackAndLoad(networkAvailable, metadataRegions);
 
         gesturesPlugin = (GesturesPlugin) mapView.getPlugin(Plugin.MAPBOX_GESTURES_PLUGIN_ID);
         if (gesturesPlugin != null) {
@@ -107,7 +110,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         FrameLayout mapContainer = findViewById(R.id.nativeAerialMapContainer);
         String accessToken = getString(R.string.mapbox_access_token);
         AerialMapboxRuntime.configureMapbox(getApplicationContext(), accessToken);
-        MapInitOptions mapInitOptions = new MapInitOptions(getApplicationContext());
+        MapInitOptions mapInitOptions = new MapInitOptions(this);
         mapView = new MapView(this, mapInitOptions);
         mapContainer.addView(mapView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -237,8 +240,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     }
 
     private String buildDetailedFailureReason(String reasonType, String styleUri) {
-        AerialOfflineRegionStore regionStore = new AerialOfflineRegionStore(getApplicationContext());
-        List<OfflineRegionMetadata> regions = regionStore.readAll();
+        List<OfflineRegionMetadata> regions = new AerialOfflineRegionStore(getApplicationContext()).readAll();
         boolean readyRegionExists = false;
         boolean matchingStylePack = false;
         boolean matchingTileRegion = false;
@@ -249,10 +251,10 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
             }
             readyRegionExists = true;
             if (styleUri.equals(region.styleUri)) {
-                if (region.stylePackId != null && !region.stylePackId.trim().isEmpty()) {
+                if (runtimeOfflineSnapshot.stylePackIds.contains(region.stylePackId)) {
                     matchingStylePack = true;
                 }
-                if (region.tileRegionId != null && !region.tileRegionId.trim().isEmpty()) {
+                if (runtimeOfflineSnapshot.tileRegionIds.contains(region.tileRegionId)) {
                     matchingTileRegion = true;
                 }
             }
@@ -262,44 +264,228 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
             return reasonType + ": mapa sem região ready persistida";
         }
         if (!matchingStylePack) {
-            return reasonType + ": style pack ausente para styleUri=" + styleUri;
+            return reasonType + ": style pack real ausente para styleUri=" + styleUri;
         }
         if (!matchingTileRegion) {
-            return reasonType + ": tile region ausente para styleUri=" + styleUri;
+            return reasonType + ": tile region real ausente para styleUri=" + styleUri;
         }
-        return reasonType + ": map loading error para styleUri=" + styleUri + " (TileStore já aplicado na criação do MapView)";
+        return reasonType + ": map loading error para styleUri=" + styleUri + " (stylePacksReais=" + runtimeOfflineSnapshot.stylePackIds.size() + ", tileRegionsReais=" + runtimeOfflineSnapshot.tileRegionIds.size() + ")";
     }
 
-    private List<String> buildStyleFallbackChain(List<OfflineRegionMetadata> readyRegions) {
+    private List<String> buildStyleFallbackChain(boolean networkAvailable, List<OfflineRegionMetadata> candidateRegions) {
         Set<String> chain = new LinkedHashSet<>();
         if (AerialMapSessionStore.styleUri != null && !AerialMapSessionStore.styleUri.trim().isEmpty()) {
             chain.add(AerialMapSessionStore.styleUri);
         }
 
-        for (OfflineRegionMetadata region : readyRegions) {
+        for (OfflineRegionMetadata region : candidateRegions) {
             if (region.styleUri != null && !region.styleUri.trim().isEmpty()) {
                 chain.add(region.styleUri);
             }
         }
 
-        chain.add("mapbox://styles/mapbox/standard-satellite");
+        if (networkAvailable) {
+            chain.add("mapbox://styles/mapbox/standard-satellite");
+        }
         return new ArrayList<>(chain);
     }
 
-    private List<OfflineRegionMetadata> logOfflineRegions(boolean networkAvailable) {
+    private List<OfflineRegionMetadata> readOfflineMetadata(boolean networkAvailable) {
         AerialOfflineRegionStore regionStore = new AerialOfflineRegionStore(getApplicationContext());
         List<OfflineRegionMetadata> regions = regionStore.readAll();
-        List<OfflineRegionMetadata> readyRegions = new ArrayList<>();
+        int readyCount = 0;
         for (OfflineRegionMetadata region : regions) {
             if ("ready".equals(region.status)) {
-                readyRegions.add(region);
+                readyCount++;
                 Log.i(TAG, "Offline ready region: id=" + region.regionId + " styleUri=" + region.styleUri + " stylePackId=" + region.stylePackId + " tileRegionId=" + region.tileRegionId);
             } else {
                 Log.i(TAG, "Offline region: id=" + region.regionId + " status=" + region.status + " stylePackId=" + region.stylePackId + " tileRegionId=" + region.tileRegionId + " styleUri=" + region.styleUri);
             }
         }
-        Log.i(TAG, "Abertura do mapa: online=" + networkAvailable + " totalRegioes=" + regions.size() + " ready=" + readyRegions.size() + " styleSessao=" + AerialMapSessionStore.styleUri);
-        return readyRegions;
+        Log.i(TAG, "Abertura do mapa: online=" + networkAvailable + " totalRegioesMetadata=" + regions.size() + " readyMetadata=" + readyCount + " styleSessao=" + AerialMapSessionStore.styleUri);
+        return regions;
+    }
+
+    private void prepareStyleFallbackAndLoad(boolean networkAvailable, List<OfflineRegionMetadata> metadataRegions) {
+        Thread worker = new Thread(() -> {
+            RuntimeOfflineSnapshot snapshot = RuntimeOfflineSnapshot.resolve(getApplicationContext());
+            List<OfflineRegionMetadata> readyRegions = new ArrayList<>();
+            List<OfflineRegionMetadata> validRuntimeRegions = new ArrayList<>();
+            for (OfflineRegionMetadata region : metadataRegions) {
+                if (!"ready".equals(region.status)) {
+                    continue;
+                }
+                readyRegions.add(region);
+                if (snapshot.contains(region.stylePackId, region.tileRegionId)) {
+                    validRuntimeRegions.add(region);
+                }
+            }
+
+            runOnUiThread(() -> {
+                runtimeOfflineSnapshot = snapshot;
+                Log.i(TAG, "Diagnóstico offline runtime: stylePacksReais=" + snapshot.stylePackIds.size()
+                        + " tileRegionsReais=" + snapshot.tileRegionIds.size()
+                        + " readyMetadata=" + readyRegions.size()
+                        + " readyValidasRuntime=" + validRuntimeRegions.size());
+
+                if (!networkAvailable && readyRegions.isEmpty()) {
+                    String reason = "sem metadata ready";
+                    Log.e(TAG, "Falha na abertura offline: " + reason);
+                    AerialMapPlugin.notifyError("Falha ao abrir mapa offline", reason);
+                    return;
+                }
+
+                if (!networkAvailable && validRuntimeRegions.isEmpty()) {
+                    String reason = "sem style pack real ou tile region real para metadata ready";
+                    Log.e(TAG, "Falha na abertura offline: " + reason + " stylePacksReais=" + snapshot.stylePackIds + " tileRegionsReais=" + snapshot.tileRegionIds);
+                    AerialMapPlugin.notifyError("Falha ao abrir mapa offline", reason);
+                    return;
+                }
+
+                List<OfflineRegionMetadata> styleCandidates = networkAvailable ? readyRegions : validRuntimeRegions;
+                styleFallbackChain = buildStyleFallbackChain(networkAvailable, styleCandidates);
+                styleAttemptIndex = 0;
+                Log.i(TAG, "Style fallback chain final (online=" + networkAvailable + "): " + styleFallbackChain);
+                loadStyleWithFallback();
+            });
+        });
+        worker.setName("offline-runtime-validation");
+        worker.start();
+    }
+
+    private static final class RuntimeOfflineSnapshot {
+        private final Set<String> stylePackIds;
+        private final Set<String> tileRegionIds;
+
+        private RuntimeOfflineSnapshot(Set<String> stylePackIds, Set<String> tileRegionIds) {
+            this.stylePackIds = stylePackIds;
+            this.tileRegionIds = tileRegionIds;
+        }
+
+        private boolean contains(@Nullable String stylePackId, @Nullable String tileRegionId) {
+            return stylePackId != null && tileRegionId != null && stylePackIds.contains(stylePackId) && tileRegionIds.contains(tileRegionId);
+        }
+
+        private static RuntimeOfflineSnapshot empty() {
+            return new RuntimeOfflineSnapshot(Collections.emptySet(), Collections.emptySet());
+        }
+
+        private static RuntimeOfflineSnapshot resolve(Context context) {
+            Set<String> stylePacks = getStylePackIds(context);
+            Set<String> tileRegions = getTileRegionIds(context);
+            return new RuntimeOfflineSnapshot(stylePacks, tileRegions);
+        }
+
+        private static Set<String> getStylePackIds(Context context) {
+            Set<String> ids = new HashSet<>();
+            try {
+                OfflineManager manager = AerialMapboxRuntime.getOfflineManager(context);
+                Method method = manager.getClass().getMethod("getAllStylePacks", Class.forName("com.mapbox.maps.StylePacksCallback"));
+                CountDownLatch latch = new CountDownLatch(1);
+                Class<?> callbackClass = Class.forName("com.mapbox.maps.StylePacksCallback");
+                Object callback = Proxy.newProxyInstance(callbackClass.getClassLoader(), new Class[]{callbackClass}, (proxy, callbackMethod, args) -> {
+                    if (args != null && args.length > 0) {
+                        ids.addAll(extractStylePackIds(args[0]));
+                    }
+                    latch.countDown();
+                    return null;
+                });
+                method.invoke(manager, callback);
+                latch.await(3, TimeUnit.SECONDS);
+            } catch (Exception error) {
+                Log.w(TAG, "Falha ao listar style packs reais no runtime", error);
+            }
+            return ids;
+        }
+
+        private static Set<String> getTileRegionIds(Context context) {
+            Set<String> ids = new HashSet<>();
+            try {
+                Object store = AerialMapboxRuntime.getTileStore(context);
+                Method method = store.getClass().getMethod("getAllTileRegions", Class.forName("com.mapbox.common.TileRegionsCallback"));
+                CountDownLatch latch = new CountDownLatch(1);
+                Class<?> callbackClass = Class.forName("com.mapbox.common.TileRegionsCallback");
+                Object callback = Proxy.newProxyInstance(callbackClass.getClassLoader(), new Class[]{callbackClass}, (proxy, callbackMethod, args) -> {
+                    if (args != null && args.length > 0) {
+                        ids.addAll(extractTileRegionIds(args[0]));
+                    }
+                    latch.countDown();
+                    return null;
+                });
+                method.invoke(store, callback);
+                latch.await(3, TimeUnit.SECONDS);
+            } catch (Exception error) {
+                Log.w(TAG, "Falha ao listar tile regions reais no runtime", error);
+            }
+            return ids;
+        }
+
+        @SuppressWarnings("unchecked")
+        private static Set<String> extractStylePackIds(Object callbackArg) {
+            Set<String> ids = new HashSet<>();
+            List<Object> items = extractListFromExpected(callbackArg);
+            for (Object item : items) {
+                String id = readStringGetter(item, "getStyleURI", "getStyleUri");
+                if (id != null && !id.trim().isEmpty()) {
+                    ids.add(id);
+                }
+            }
+            return ids;
+        }
+
+        private static Set<String> extractTileRegionIds(Object callbackArg) {
+            Set<String> ids = new HashSet<>();
+            List<Object> items = extractListFromExpected(callbackArg);
+            for (Object item : items) {
+                String id = readStringGetter(item, "getId");
+                if (id != null && !id.trim().isEmpty()) {
+                    ids.add(id);
+                }
+            }
+            return ids;
+        }
+
+        @SuppressWarnings("unchecked")
+        private static List<Object> extractListFromExpected(Object callbackArg) {
+            if (callbackArg == null) {
+                return Collections.emptyList();
+            }
+            if (callbackArg instanceof List<?>) {
+                return (List<Object>) callbackArg;
+            }
+            try {
+                Method isValue = callbackArg.getClass().getMethod("isValue");
+                Object value = isValue.invoke(callbackArg);
+                if (value instanceof Boolean && !((Boolean) value)) {
+                    return Collections.emptyList();
+                }
+                Method getValue = callbackArg.getClass().getMethod("getValue");
+                Object list = getValue.invoke(callbackArg);
+                if (list instanceof List<?>) {
+                    return (List<Object>) list;
+                }
+            } catch (Exception ignored) {
+            }
+            return Collections.emptyList();
+        }
+
+        @Nullable
+        private static String readStringGetter(Object target, String... names) {
+            if (target == null) {
+                return null;
+            }
+            for (String name : names) {
+                try {
+                    Method method = target.getClass().getMethod(name);
+                    Object value = method.invoke(target);
+                    if (value instanceof String) {
+                        return (String) value;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            return null;
+        }
     }
 
     private void setupTalhoes(Style style, @Nullable String geojson) {
