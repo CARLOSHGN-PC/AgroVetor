@@ -21,6 +21,9 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AerialOfflinePackageManager {
     private static final String TAG = "AerialOfflinePackage";
@@ -68,6 +71,111 @@ public class AerialOfflinePackageManager {
             metadata.hasStylePack = true;
             startTileDownload(metadata, descriptor, listener);
         });
+    }
+
+    public void removePackage(@NonNull OfflineRegionMetadata metadata, @NonNull Listener listener) {
+        metadata.status = AerialOfflinePackageStatus.REMOVING;
+        metadata.errorMessage = null;
+        listener.onProgress(metadata, 0);
+
+        Thread worker = new Thread(() -> {
+            AtomicBoolean hadError = new AtomicBoolean(false);
+            StringBuilder errors = new StringBuilder();
+
+            boolean tileRemoved = removeTileRegionSync(metadata.tileRegionId, metadata.packageId);
+            listener.onProgress(metadata, 40);
+            if (!tileRemoved) {
+                hadError.set(true);
+                errors.append("Falha ao remover tile region");
+            }
+
+            boolean styleRemoved = removeStylePackSync(metadata.stylePackId, metadata.styleUri);
+            listener.onProgress(metadata, 80);
+            if (!styleRemoved) {
+                hadError.set(true);
+                if (errors.length() > 0) {
+                    errors.append("; ");
+                }
+                errors.append("Falha ao remover style pack");
+            }
+
+            metadata.hasTileRegion = false;
+            metadata.hasStylePack = false;
+            metadata.status = hadError.get() ? AerialOfflinePackageStatus.ERROR : AerialOfflinePackageStatus.REMOVED;
+            metadata.errorMessage = hadError.get() ? errors.toString() : null;
+
+            listener.onProgress(metadata, 100);
+            listener.onFinished(metadata);
+        });
+
+        worker.setName("offline-remove-" + metadata.packageId);
+        worker.start();
+    }
+
+    private boolean removeStylePackSync(String stylePackId, String styleUri) {
+        String id = (stylePackId != null && !stylePackId.trim().isEmpty()) ? stylePackId : styleUri;
+        if (id == null || id.trim().isEmpty()) {
+            return true;
+        }
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean success = new AtomicBoolean(false);
+        try {
+            Method method = offlineManager.getClass().getMethod("removeStylePack", String.class, Class.forName("com.mapbox.common.StylePackErrorCallback"));
+            Class<?> callbackClass = Class.forName("com.mapbox.common.StylePackErrorCallback");
+            Object callback = java.lang.reflect.Proxy.newProxyInstance(callbackClass.getClassLoader(), new Class[]{callbackClass}, (proxy, callbackMethod, args) -> {
+                Object error = args != null && args.length > 0 ? args[0] : null;
+                if (error == null) {
+                    success.set(true);
+                } else {
+                    Log.w(TAG, "removeStylePack retornou erro id=" + id + " erro=" + error);
+                }
+                latch.countDown();
+                return null;
+            });
+            method.invoke(offlineManager, id, callback);
+            latch.await(4, TimeUnit.SECONDS);
+            return success.get();
+        } catch (NoSuchMethodException e) {
+            Log.w(TAG, "removeStylePack indisponível no runtime, assumindo sucesso id=" + id);
+            return true;
+        } catch (Exception error) {
+            Log.e(TAG, "Falha ao remover style pack id=" + id, error);
+            return false;
+        }
+    }
+
+    private boolean removeTileRegionSync(String tileRegionId, String fallbackId) {
+        String id = (tileRegionId != null && !tileRegionId.trim().isEmpty()) ? tileRegionId : fallbackId;
+        if (id == null || id.trim().isEmpty()) {
+            return true;
+        }
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean success = new AtomicBoolean(false);
+        try {
+            Method method = tileStore.getClass().getMethod("removeTileRegion", String.class, Class.forName("com.mapbox.common.TileRegionErrorCallback"));
+            Class<?> callbackClass = Class.forName("com.mapbox.common.TileRegionErrorCallback");
+            Object callback = java.lang.reflect.Proxy.newProxyInstance(callbackClass.getClassLoader(), new Class[]{callbackClass}, (proxy, callbackMethod, args) -> {
+                Object error = args != null && args.length > 0 ? args[0] : null;
+                if (error == null) {
+                    success.set(true);
+                } else {
+                    Log.w(TAG, "removeTileRegion retornou erro id=" + id + " erro=" + error);
+                }
+                latch.countDown();
+                return null;
+            });
+            method.invoke(tileStore, id, callback);
+            latch.await(4, TimeUnit.SECONDS);
+            return success.get();
+        } catch (NoSuchMethodException e) {
+            Log.w(TAG, "removeTileRegion indisponível no runtime, assumindo sucesso id=" + id);
+            return true;
+        } catch (Exception error) {
+            Log.e(TAG, "Falha ao remover tile region id=" + id, error);
+            return false;
+        }
     }
 
     private void startTileDownload(@NonNull OfflineRegionMetadata metadata, @NonNull TilesetDescriptor descriptor, @NonNull Listener listener) {

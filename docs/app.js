@@ -13514,6 +13514,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 await App.state.aerialMapProvider.loadTalhoes(App.state.geoJsonData);
                             }
                             this.watchUserPosition();
+                            this.loadTraps();
                             logAereoOffline('init:done:native', { hasContours: Boolean(App.state.geoJsonData?.features?.length) });
                             return;
                         }
@@ -13613,6 +13614,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.loadShapesOnMap();
                         if (App.state.useNativeAerialMap && App.state.aerialMapProvider) {
                             await App.state.aerialMapProvider.loadTalhoes(App.state.geoJsonData);
+                            this.loadTraps();
                         }
                         return;
                     }
@@ -14225,9 +14227,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="label">Área Total</span>
                         <span class="value">${Number.isFinite(areaHa) ? areaHa.toFixed(2).replace('.',',') : '0,00'} ha</span>
                     </div>
-                    <div class="info-box-actions" style="padding: 10px 20px 20px 20px;">
+                    <div class="info-box-actions" style="padding: 10px 20px 20px 20px; display: grid; gap: 8px;">
                         <button class="btn-download-map save" style="width: 100%;">
-                            <i class="fas fa-cloud-download-alt"></i> Baixar Mapa Offline
+                            <i class="fas fa-cloud-download-alt"></i> Preparar Pacote Offline
+                        </button>
+                        <button class="btn-update-offline" style="width: 100%;">
+                            <i class="fas fa-sync"></i> Atualizar Pacote
+                        </button>
+                        <button class="btn-open-offline" style="width: 100%;">
+                            <i class="fas fa-map"></i> Abrir Offline
+                        </button>
+                        <button class="btn-remove-offline" style="width: 100%; background: var(--color-danger); color: #fff;">
+                            <i class="fas fa-trash"></i> Remover Pacote
+                        </button>
+                        <button class="btn-list-offline" style="width: 100%;">
+                            <i class="fas fa-list"></i> Listar Pacotes
                         </button>
                     </div>
                     <div class="download-progress-container" style="display: none; padding: 0 20px 20px 20px;">
@@ -14236,10 +14250,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
 
+                const packageId = `talhao-${feature.id || Date.now()}`;
                 const downloadBtn = contentEl.querySelector('.btn-download-map');
-                if (downloadBtn) {
-                    downloadBtn.onclick = () => this.startOfflineMapDownload(feature);
-                }
+                const updateBtn = contentEl.querySelector('.btn-update-offline');
+                const openBtn = contentEl.querySelector('.btn-open-offline');
+                const removeBtn = contentEl.querySelector('.btn-remove-offline');
+                const listBtn = contentEl.querySelector('.btn-list-offline');
+
+                if (downloadBtn) downloadBtn.onclick = () => this.startOfflineMapDownload(feature, false);
+                if (updateBtn) updateBtn.onclick = () => this.startOfflineMapDownload(feature, true);
+                if (openBtn) openBtn.onclick = () => this.openNativeOfflinePackage(packageId);
+                if (removeBtn) removeBtn.onclick = () => this.removeNativeOfflinePackage(packageId);
+                if (listBtn) listBtn.onclick = () => this.listNativeOfflinePackages();
 
                 this.hideTrapInfo();
                 App.elements.monitoramentoAereo.infoBox.classList.add('visible');
@@ -14248,6 +14270,61 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log('infoBoxVisibleAfter=', App.elements.monitoramentoAereo.infoBox.classList.contains('visible'));
                     console.groupEnd();
                 }
+            },
+
+            buildOfflineTrapsFeatureCollection() {
+                const features = (App.state.armadilhas || [])
+                    .filter(trap => trap?.status === 'Ativa' && Number.isFinite(trap?.longitude) && Number.isFinite(trap?.latitude))
+                    .map(trap => ({
+                        type: 'Feature',
+                        id: String(trap.id),
+                        properties: {
+                            id: String(trap.id),
+                            talhaoId: String(trap.talhaoId || ''),
+                            talhaoNome: trap.talhaoNome || '',
+                            fazendaNome: trap.fazendaNome || '',
+                            status: trap.status || ''
+                        },
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [trap.longitude, trap.latitude]
+                        }
+                    }));
+
+                return { type: 'FeatureCollection', features };
+            },
+
+            async listNativeOfflinePackages() {
+                if (!App.state.useNativeAerialMap || !App.state.aerialMapProvider) return;
+                try {
+                    const regions = await App.state.aerialMapProvider.listOfflinePackages();
+                    const lines = regions.map(r => `${r.regionId} - ${r.status}`).join('\n');
+                    App.ui.showAlert(lines || 'Nenhum pacote offline salvo.', 'info', 6000);
+                } catch (error) {
+                    App.ui.showAlert('Falha ao listar pacotes offline.', 'warning');
+                }
+            },
+
+            async openNativeOfflinePackage(packageId) {
+                if (!App.state.useNativeAerialMap || !App.state.aerialMapProvider) return;
+                try {
+                    await App.state.aerialMapProvider.openOfflinePackage(packageId);
+                    App.ui.showAlert('Pacote offline aberto.', 'success');
+                } catch (error) {
+                    App.ui.showAlert('Falha ao abrir pacote offline.', 'warning');
+                }
+            },
+
+            async removeNativeOfflinePackage(packageId) {
+                if (!App.state.useNativeAerialMap || !App.state.aerialMapProvider) return;
+                App.ui.showConfirmationModal('Deseja remover este pacote offline?', async () => {
+                    try {
+                        await App.state.aerialMapProvider.removeOfflinePackage({ packageId });
+                        App.ui.showAlert('Pacote offline removido.', 'success');
+                    } catch (error) {
+                        App.ui.showAlert('Falha ao remover pacote offline.', 'warning');
+                    }
+                });
             },
 
             tileMath: {
@@ -14260,19 +14337,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async startOfflineMapDownload(feature) {
+            async startOfflineMapDownload(feature, update = false) {
                 if (App.state.useNativeAerialMap && App.state.aerialMapProvider) {
                     const bbox = turf.bbox(feature);
                     try {
-                        await App.state.aerialMapProvider.downloadOfflineRegion({
+                        const payload = {
                             regionId: `talhao-${feature.id || Date.now()}`,
                             regionName: feature.properties?.AGV_TALHAO || 'Talhão',
                             bounds: bbox,
                             minZoom: 12,
                             maxZoom: 16,
-                            styleUri: 'mapbox://styles/mapbox/standard-satellite'
-                        });
-                        App.ui.showAlert('Download offline nativo iniciado.', 'info');
+                            styleUri: 'mapbox://styles/mapbox/standard-satellite',
+                            talhoesGeoJson: JSON.stringify(App.state.geoJsonData),
+                            armadilhasGeoJson: JSON.stringify(this.buildOfflineTrapsFeatureCollection())
+                        };
+                        if (update) {
+                            await App.state.aerialMapProvider.updateOfflinePackage(payload);
+                            App.ui.showAlert('Atualização do pacote offline iniciada.', 'info');
+                        } else {
+                            await App.state.aerialMapProvider.prepareOfflinePackage(payload);
+                            App.ui.showAlert('Preparação do pacote offline iniciada.', 'info');
+                        }
                     } catch (error) {
                         logAereoOfflineError('native-offline:download:error', error);
                         App.ui.showAlert('Falha no download offline nativo. Tente novamente.', 'warning');
@@ -14407,6 +14492,13 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             loadTraps() {
+                if (App.state.useNativeAerialMap && App.state.aerialMapProvider) {
+                    App.state.aerialMapProvider.loadArmadilhas(this.buildOfflineTrapsFeatureCollection()).catch((e) => {
+                        console.warn('Falha ao carregar armadilhas no mapa nativo', e);
+                    });
+                    return;
+                }
+
                 Object.values(App.state.mapboxTrapMarkers).forEach(marker => marker.remove());
                 App.state.mapboxTrapMarkers = {};
 

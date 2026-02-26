@@ -29,6 +29,7 @@ import com.mapbox.maps.RenderedQueryOptions;
 import com.mapbox.maps.ScreenCoordinate;
 import com.mapbox.maps.Style;
 import com.mapbox.maps.extension.style.expressions.generated.Expression;
+import com.mapbox.maps.extension.style.layers.generated.CircleLayer;
 import com.mapbox.maps.extension.style.layers.generated.FillLayer;
 import com.mapbox.maps.extension.style.layers.generated.LineLayer;
 import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource;
@@ -55,6 +56,8 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private static final String TALHOES_FILL_LAYER = "native-talhoes-fill";
     private static final String TALHOES_HIGHLIGHT_LAYER = "native-talhoes-highlight";
     private static final String TALHOES_BORDER_LAYER = "native-talhoes-border";
+    private static final String ARMADILHAS_SOURCE = "native-armadilhas-source";
+    private static final String ARMADILHAS_LAYER = "native-armadilhas-layer";
 
     private static WeakReference<NativeAerialMapActivity> activeInstance = new WeakReference<>(null);
 
@@ -73,6 +76,10 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private LineLayer talhoesBorderLayer;
     @Nullable
     private Style talhoesStyle;
+    @Nullable
+    private GeoJsonSource armadilhasSource;
+    @Nullable
+    private CircleLayer armadilhasLayer;
 
     @Nullable
     private Object mapLoadingErrorCancelable;
@@ -83,6 +90,8 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private RuntimeOfflineSnapshot runtimeOfflineSnapshot = RuntimeOfflineSnapshot.empty();
     @Nullable
     private String pendingTalhoesGeoJson;
+    @Nullable
+    private String pendingArmadilhasGeoJson;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -97,6 +106,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         List<OfflineRegionMetadata> metadataRegions = readOfflineMetadata(networkAvailable);
 
         pendingTalhoesGeoJson = AerialMapSessionStore.talhoesGeoJson;
+        pendingArmadilhasGeoJson = AerialMapSessionStore.armadilhasGeoJson;
         prepareStyleFallbackAndLoad(networkAvailable, metadataRegions);
 
         gesturesPlugin = (GesturesPlugin) mapView.getPlugin(Plugin.MAPBOX_GESTURES_PLUGIN_ID);
@@ -187,6 +197,25 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         current.runOnUiThread(() -> current.mapView.getMapboxMap().getStyle(style -> current.applyHighlight(style, talhaoId)));
     }
 
+
+    public static void reloadArmadilhasIfVisible(String geojson) {
+        NativeAerialMapActivity current = activeInstance.get();
+        AerialMapSessionStore.armadilhasGeoJson = geojson;
+
+        if (current == null || current.mapView == null) {
+            return;
+        }
+
+        current.runOnUiThread(() -> {
+            current.pendingArmadilhasGeoJson = geojson;
+            if (!current.styleReady) {
+                Log.i(TAG, "Armadilhas recebidas antes do style pronto. Aplicação será postergada.");
+                return;
+            }
+            current.mapView.getMapboxMap().getStyle(style -> current.setupArmadilhas(style, geojson));
+        });
+    }
+
     private void setupCamera() {
         mapView.getMapboxMap().setCamera(new CameraOptions.Builder()
                 .center(Point.fromLngLat(AerialMapSessionStore.center[0], AerialMapSessionStore.center[1]))
@@ -219,6 +248,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
             AerialMapSessionStore.styleUri = styleUri;
             Log.i(TAG, "Style carregado com sucesso. styleUri=" + styleUri);
             setupTalhoes(style, pendingTalhoesGeoJson != null ? pendingTalhoesGeoJson : AerialMapSessionStore.talhoesGeoJson);
+            setupArmadilhas(style, pendingArmadilhasGeoJson != null ? pendingArmadilhasGeoJson : AerialMapSessionStore.armadilhasGeoJson);
             applyHighlight(style, AerialMapSessionStore.highlightedTalhaoId);
             setupCamera();
         });
@@ -500,6 +530,8 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
                 talhoesFillLayer = null;
                 talhoesHighlightLayer = null;
                 talhoesBorderLayer = null;
+                armadilhasSource = null;
+                armadilhasLayer = null;
                 talhoesStyle = style;
             }
 
@@ -539,6 +571,37 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         }
     }
 
+
+    private void setupArmadilhas(Style style, @Nullable String geojson) {
+        if (geojson == null || geojson.trim().isEmpty()) {
+            return;
+        }
+
+        try {
+            FeatureCollection featureCollection = FeatureCollection.fromJson(geojson);
+            if (armadilhasSource == null) {
+                armadilhasSource = new GeoJsonSource.Builder(ARMADILHAS_SOURCE)
+                        .featureCollection(featureCollection)
+                        .build();
+                armadilhasSource.bindTo(style);
+            } else {
+                armadilhasSource.featureCollection(featureCollection);
+            }
+
+            if (armadilhasLayer == null) {
+                armadilhasLayer = new CircleLayer(ARMADILHAS_LAYER, ARMADILHAS_SOURCE)
+                        .circleColor(Expression.rgb(220.0, 53.0, 69.0))
+                        .circleRadius(6.0)
+                        .circleStrokeColor(Expression.rgb(255.0, 255.0, 255.0))
+                        .circleStrokeWidth(1.5);
+                armadilhasLayer.bindTo(style);
+            }
+        } catch (Exception error) {
+            Log.e(TAG, "Falha ao desenhar armadilhas", error);
+            AerialMapPlugin.notifyError("Falha ao desenhar armadilhas no mapa nativo", error.getMessage());
+        }
+    }
+
     private void applyHighlight(Style style, String talhaoId) {
         try {
             if (talhoesStyle != style || talhoesHighlightLayer == null) {
@@ -564,14 +627,23 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     public boolean onMapClick(@androidx.annotation.NonNull Point point) {
         ScreenCoordinate screenPoint = mapView.getMapboxMap().pixelForCoordinate(point);
         RenderedQueryGeometry geometry = new RenderedQueryGeometry(screenPoint);
-        RenderedQueryOptions options = new RenderedQueryOptions(Collections.singletonList(TALHOES_FILL_LAYER), null);
 
-        mapView.getMapboxMap().queryRenderedFeatures(geometry, options, queryFeatures -> {
-            List<QueriedRenderedFeature> queried = extractQueriedFeatures(queryFeatures);
-            if (queried == null || queried.isEmpty()) return;
+        RenderedQueryOptions trapOptions = new RenderedQueryOptions(Collections.singletonList(ARMADILHAS_LAYER), null);
+        mapView.getMapboxMap().queryRenderedFeatures(geometry, trapOptions, trapQuery -> {
+            List<QueriedRenderedFeature> trapResults = extractQueriedFeatures(trapQuery);
+            if (trapResults != null && !trapResults.isEmpty()) {
+                Feature feature = trapResults.get(0).getQueriedFeature().getFeature();
+                AerialMapPlugin.notifyTrapClick(feature.toJson());
+                return;
+            }
 
-            Feature feature = queried.get(0).getQueriedFeature().getFeature();
-            AerialMapPlugin.notifyTalhaoClick(feature.toJson());
+            RenderedQueryOptions talhaoOptions = new RenderedQueryOptions(Collections.singletonList(TALHOES_FILL_LAYER), null);
+            mapView.getMapboxMap().queryRenderedFeatures(geometry, talhaoOptions, talhaoQuery -> {
+                List<QueriedRenderedFeature> talhaoResults = extractQueriedFeatures(talhaoQuery);
+                if (talhaoResults == null || talhaoResults.isEmpty()) return;
+                Feature feature = talhaoResults.get(0).getQueriedFeature().getFeature();
+                AerialMapPlugin.notifyTalhaoClick(feature.toJson());
+            });
         });
         return true;
     }
