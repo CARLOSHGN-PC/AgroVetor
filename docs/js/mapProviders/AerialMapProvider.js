@@ -14,7 +14,6 @@ export class AerialMapProvider {
 
     async setBaseMap() {}
     async loadTalhoes() {}
-    async loadArmadilhas() {}
     async highlightTalhao() {}
     async fitBounds() {}
     async enableSelectionMode() {}
@@ -22,32 +21,12 @@ export class AerialMapProvider {
     async setCamera() {}
     async destroy() {}
 
-    async prepareOfflinePackage() {
-        throw new Error('prepareOfflinePackage não suportado para este provider.');
-    }
-
-    async updateOfflinePackage() {
-        throw new Error('updateOfflinePackage não suportado para este provider.');
-    }
-
-    async openOfflinePackage() {
-        throw new Error('openOfflinePackage não suportado para este provider.');
-    }
-
     async downloadOfflineRegion() {
         throw new Error('downloadOfflineRegion não suportado para este provider.');
     }
 
-    async listOfflinePackages() {
-        return [];
-    }
-
     async listOfflineRegions() {
         return [];
-    }
-
-    async removeOfflinePackage() {
-        return false;
     }
 
     async removeOfflineRegion() {

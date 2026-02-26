@@ -8,7 +8,6 @@ public final class AerialOfflinePackageStatus {
     public static final String INCOMPLETE = "incomplete";
     public static final String ERROR = "error";
     public static final String REMOVING = "removing";
-    public static final String REMOVED = "removed";
     public static final String UPDATE_AVAILABLE = "update_available";
 
     private AerialOfflinePackageStatus() {
