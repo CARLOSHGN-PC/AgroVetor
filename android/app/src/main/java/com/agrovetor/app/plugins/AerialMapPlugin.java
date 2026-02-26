@@ -148,6 +148,8 @@ public class AerialMapPlugin extends Plugin {
                 boundsInput.optDouble(3)
         };
 
+        Log.i(TAG, "Solicitação de download offline: regionId=" + regionId + " styleUri=" + styleUri + " minZoom=" + minZoom + " maxZoom=" + maxZoom);
+
         OfflineRegionMetadata metadata = new OfflineRegionMetadata(
                 regionId,
                 regionName != null ? regionName : regionId,
@@ -280,9 +282,10 @@ public class AerialMapPlugin extends Plugin {
         }
 
         StylePackLoadOptions stylePackLoadOptions = new StylePackLoadOptions.Builder()
+                .acceptExpired(true)
                 .build();
 
-        Log.i(TAG, "Iniciando download de style pack para região " + metadata.regionId);
+        Log.i(TAG, "Iniciando download de style pack para região " + metadata.regionId + " styleUri=" + metadata.styleUri + " stylePackId=" + metadata.stylePackId);
         offlineManager.loadStylePack(metadata.styleUri, stylePackLoadOptions, styleProgress -> {
             emitOfflineProgress(metadata, calculateProgress(styleProgress, null));
         }, styleExpected -> {
@@ -292,7 +295,7 @@ public class AerialMapPlugin extends Plugin {
                 return;
             }
 
-            Log.i(TAG, "Style pack concluído para região " + metadata.regionId);
+            Log.i(TAG, "Style pack concluído para região " + metadata.regionId + " stylePackId=" + metadata.stylePackId + " styleUri=" + metadata.styleUri);
             startTileRegionDownload(metadata, descriptor);
         });
     }
@@ -313,7 +316,7 @@ public class AerialMapPlugin extends Plugin {
                 .networkRestriction(com.mapbox.common.NetworkRestriction.NONE)
                 .build();
 
-        Log.i(TAG, "Iniciando download de tile region para " + metadata.regionId);
+        Log.i(TAG, "Iniciando download de tile region para " + metadata.regionId + " tileRegionId=" + metadata.tileRegionId + " styleUri=" + metadata.styleUri);
         tileStore.loadTileRegion(metadata.tileRegionId, tileRegionLoadOptions, tileProgress -> {
             emitOfflineProgress(metadata, calculateProgress(null, tileProgress));
         }, tileExpected -> {
@@ -324,11 +327,14 @@ public class AerialMapPlugin extends Plugin {
             }
 
             TileRegion region = tileExpected.getValue();
-            Log.i(TAG, "Tile region concluída para " + metadata.regionId + ", id=" + region.getId());
+            Log.i(TAG, "Tile region concluída para " + metadata.regionId + ", id=" + region.getId() + " styleUri=" + metadata.styleUri);
             metadata.status = "ready";
             metadata.updatedAt = System.currentTimeMillis();
             metadata.errorMessage = null;
-            persistRegion(metadata);
+            if (!persistRegion(metadata)) {
+                markDownloadFailed(metadata, "Falha ao persistir status ready após concluir style pack + tile region.");
+                return;
+            }
 
             JSObject payload = metadata.toJSObject();
             payload.put("progress", 100);

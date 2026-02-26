@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -18,12 +19,14 @@ import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.Point;
 import com.mapbox.maps.CameraOptions;
+import com.mapbox.maps.MapInitOptions;
 import com.mapbox.maps.MapView;
 import com.mapbox.maps.QueriedRenderedFeature;
 import com.mapbox.maps.RenderedQueryGeometry;
 import com.mapbox.maps.RenderedQueryOptions;
-import com.mapbox.maps.Style;
+import com.mapbox.maps.ResourceOptions;
 import com.mapbox.maps.ScreenCoordinate;
+import com.mapbox.maps.Style;
 import com.mapbox.maps.extension.style.expressions.generated.Expression;
 import com.mapbox.maps.extension.style.layers.generated.FillLayer;
 import com.mapbox.maps.extension.style.layers.generated.LineLayer;
@@ -82,15 +85,14 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         Log.i(TAG, "NativeAerialMapActivity.onCreate");
         setContentView(R.layout.activity_aerial_map);
 
-        mapView = findViewById(R.id.nativeAerialMapView);
-        AerialMapboxRuntime.applyTileStoreToMapboxMap(mapView.getMapboxMap(), getApplicationContext());
+        createMapViewWithOfflineRuntime();
         subscribeMapLoadingErrors();
 
         boolean networkAvailable = isNetworkAvailable();
-        logOfflineRegions(networkAvailable);
+        List<OfflineRegionMetadata> readyRegions = logOfflineRegions(networkAvailable);
 
         pendingTalhoesGeoJson = AerialMapSessionStore.talhoesGeoJson;
-        styleFallbackChain = buildStyleFallbackChain();
+        styleFallbackChain = buildStyleFallbackChain(readyRegions);
         styleAttemptIndex = 0;
         loadStyleWithFallback();
 
@@ -101,11 +103,27 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         }
     }
 
+    private void createMapViewWithOfflineRuntime() {
+        FrameLayout mapContainer = findViewById(R.id.nativeAerialMapContainer);
+        String accessToken = getString(R.string.mapbox_access_token);
+        ResourceOptions resourceOptions = AerialMapboxRuntime.createResourceOptions(getApplicationContext(), accessToken);
+        MapInitOptions mapInitOptions = new MapInitOptions(getApplicationContext(), resourceOptions);
+        mapView = new MapView(this, mapInitOptions);
+        mapContainer.addView(mapView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+        Log.i(TAG, "MapView criado com MapInitOptions e TileStore aplicado na inicialização");
+    }
+
     @Override
     protected void onStart() {
         super.onStart();
         Log.i(TAG, "NativeAerialMapActivity.onStart");
         activeInstance = new WeakReference<>(this);
+        if (mapView != null) {
+            mapView.onStart();
+        }
     }
 
     @Override
@@ -114,6 +132,9 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         NativeAerialMapActivity current = activeInstance.get();
         if (current == this) {
             activeInstance = new WeakReference<>(null);
+        }
+        if (mapView != null) {
+            mapView.onStop();
         }
         super.onStop();
     }
@@ -184,8 +205,8 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
 
         mainHandler.postDelayed(() -> {
             if (!styleReady && styleLoading) {
-                Log.w(TAG, "Timeout carregando styleUri=" + styleUri + ". Tentando fallback.");
-                proceedToNextStyleOrFail("Timeout no carregamento do estilo");
+                Log.e(TAG, "Timeout no loadStyleUri. styleUri=" + styleUri);
+                proceedToNextStyleOrFail("timeout", styleUri);
             }
         }, 9000);
 
@@ -200,8 +221,9 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         });
     }
 
-    private void proceedToNextStyleOrFail(String reason) {
+    private void proceedToNextStyleOrFail(String reasonType, String styleUri) {
         styleLoading = false;
+        String reason = buildDetailedFailureReason(reasonType, styleUri);
         styleAttemptIndex += 1;
         if (styleAttemptIndex < styleFallbackChain.size()) {
             String next = styleFallbackChain.get(styleAttemptIndex);
@@ -214,16 +236,48 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         AerialMapPlugin.notifyError("Falha ao carregar mapa offline", reason + " | styles tentados=" + styleFallbackChain);
     }
 
-    private List<String> buildStyleFallbackChain() {
+    private String buildDetailedFailureReason(String reasonType, String styleUri) {
+        AerialOfflineRegionStore regionStore = new AerialOfflineRegionStore(getApplicationContext());
+        List<OfflineRegionMetadata> regions = regionStore.readAll();
+        boolean readyRegionExists = false;
+        boolean matchingStylePack = false;
+        boolean matchingTileRegion = false;
+
+        for (OfflineRegionMetadata region : regions) {
+            if (!"ready".equals(region.status)) {
+                continue;
+            }
+            readyRegionExists = true;
+            if (styleUri.equals(region.styleUri)) {
+                if (region.stylePackId != null && !region.stylePackId.trim().isEmpty()) {
+                    matchingStylePack = true;
+                }
+                if (region.tileRegionId != null && !region.tileRegionId.trim().isEmpty()) {
+                    matchingTileRegion = true;
+                }
+            }
+        }
+
+        if (!readyRegionExists) {
+            return reasonType + ": mapa sem região ready persistida";
+        }
+        if (!matchingStylePack) {
+            return reasonType + ": style pack ausente para styleUri=" + styleUri;
+        }
+        if (!matchingTileRegion) {
+            return reasonType + ": tile region ausente para styleUri=" + styleUri;
+        }
+        return reasonType + ": map loading error para styleUri=" + styleUri + " (TileStore já aplicado na criação do MapView)";
+    }
+
+    private List<String> buildStyleFallbackChain(List<OfflineRegionMetadata> readyRegions) {
         Set<String> chain = new LinkedHashSet<>();
         if (AerialMapSessionStore.styleUri != null && !AerialMapSessionStore.styleUri.trim().isEmpty()) {
             chain.add(AerialMapSessionStore.styleUri);
         }
 
-        AerialOfflineRegionStore regionStore = new AerialOfflineRegionStore(getApplicationContext());
-        List<OfflineRegionMetadata> regions = regionStore.readAll();
-        for (OfflineRegionMetadata region : regions) {
-            if ("ready".equals(region.status) && region.styleUri != null && !region.styleUri.trim().isEmpty()) {
+        for (OfflineRegionMetadata region : readyRegions) {
+            if (region.styleUri != null && !region.styleUri.trim().isEmpty()) {
                 chain.add(region.styleUri);
             }
         }
@@ -232,17 +286,20 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         return new ArrayList<>(chain);
     }
 
-    private void logOfflineRegions(boolean networkAvailable) {
+    private List<OfflineRegionMetadata> logOfflineRegions(boolean networkAvailable) {
         AerialOfflineRegionStore regionStore = new AerialOfflineRegionStore(getApplicationContext());
         List<OfflineRegionMetadata> regions = regionStore.readAll();
-        int readyCount = 0;
+        List<OfflineRegionMetadata> readyRegions = new ArrayList<>();
         for (OfflineRegionMetadata region : regions) {
             if ("ready".equals(region.status)) {
-                readyCount++;
+                readyRegions.add(region);
+                Log.i(TAG, "Offline ready region: id=" + region.regionId + " styleUri=" + region.styleUri + " stylePackId=" + region.stylePackId + " tileRegionId=" + region.tileRegionId);
+            } else {
+                Log.i(TAG, "Offline region: id=" + region.regionId + " status=" + region.status + " stylePackId=" + region.stylePackId + " tileRegionId=" + region.tileRegionId + " styleUri=" + region.styleUri);
             }
-            Log.i(TAG, "Offline region: id=" + region.regionId + " status=" + region.status + " stylePackId=" + region.stylePackId + " tileRegionId=" + region.tileRegionId + " styleUri=" + region.styleUri);
         }
-        Log.i(TAG, "Abertura do mapa: online=" + networkAvailable + " totalRegioes=" + regions.size() + " ready=" + readyCount + " styleSessao=" + AerialMapSessionStore.styleUri);
+        Log.i(TAG, "Abertura do mapa: online=" + networkAvailable + " totalRegioes=" + regions.size() + " ready=" + readyRegions.size() + " styleSessao=" + AerialMapSessionStore.styleUri);
+        return readyRegions;
     }
 
     private void setupTalhoes(Style style, @Nullable String geojson) {
@@ -387,7 +444,8 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
                             if (args != null && args.length > 0 && args[0] != null) {
                                 String details = String.valueOf(args[0]);
                                 Log.e(TAG, "MapLoadingError recebido: " + details);
-                                proceedToNextStyleOrFail("MapLoadingError: " + details);
+                                String failingStyleUri = styleFallbackChain.isEmpty() ? "<none>" : styleFallbackChain.get(Math.min(styleAttemptIndex, styleFallbackChain.size() - 1));
+                                proceedToNextStyleOrFail("map_loading_error", failingStyleUri);
                             }
                             return null;
                         }
@@ -417,6 +475,9 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
             mapLoadingErrorCancelable = null;
         }
         mainHandler.removeCallbacksAndMessages(null);
+        if (mapView != null) {
+            mapView.onDestroy();
+        }
         super.onDestroy();
     }
 }
