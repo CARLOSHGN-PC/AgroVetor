@@ -1008,6 +1008,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 username: document.getElementById('userMenuUsername'),
                 changePasswordBtn: document.getElementById('changePasswordBtn'),
                 manualSyncBtn: document.getElementById('manualSyncBtn'),
+                downloadAllAerialTilesBtn: document.getElementById('btnDownloadAllAerialTiles'),
+                updateAllAerialTilesBtn: document.getElementById('btnUpdateAllAerialTiles'),
+                removeAllAerialTilesBtn: document.getElementById('btnRemoveAllAerialTiles'),
                 themeButtons: document.querySelectorAll('.theme-button')
             },
             confirmationModal: {
@@ -6653,6 +6656,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cpModal = App.elements.changePasswordModal;
                 if (App.elements.userMenu.changePasswordBtn) App.elements.userMenu.changePasswordBtn.addEventListener('click', () => cpModal.overlay.classList.add('show'));
                 if (App.elements.userMenu.manualSyncBtn) App.elements.userMenu.manualSyncBtn.addEventListener('click', () => App.actions.forceTokenRefresh(true));
+                if (App.elements.userMenu.downloadAllAerialTilesBtn) App.elements.userMenu.downloadAllAerialTilesBtn.addEventListener('click', () => App.mapModule.downloadAllAerialTiles());
+                if (App.elements.userMenu.updateAllAerialTilesBtn) App.elements.userMenu.updateAllAerialTilesBtn.addEventListener('click', () => App.mapModule.updateAllAerialTiles());
+                if (App.elements.userMenu.removeAllAerialTilesBtn) App.elements.userMenu.removeAllAerialTilesBtn.addEventListener('click', () => App.mapModule.removeAllAerialTiles());
                 if (cpModal.closeBtn) cpModal.closeBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
                 if (cpModal.cancelBtn) cpModal.cancelBtn.addEventListener('click', () => cpModal.overlay.classList.remove('show'));
                 if (cpModal.saveBtn) cpModal.saveBtn.addEventListener('click', () => App.actions.changePassword());
@@ -13493,6 +13499,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.mapboxMapInitPromise = (async () => {
                     App.state.aerialMapProvider = createAerialMapProvider({ app: App });
                     App.state.useNativeAerialMap = App.state.aerialMapProvider?.kind === 'android-native';
+                    this.updateAndroidOfflineButtonsVisibility();
 
                     if (!App.state.useNativeAerialMap && typeof mapboxgl === 'undefined') {
                         console.error("Mapbox GL JS não está carregado.");
@@ -14247,6 +14254,103 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (DEBUG_MAP) {
                     console.log('infoBoxVisibleAfter=', App.elements.monitoramentoAereo.infoBox.classList.contains('visible'));
                     console.groupEnd();
+                }
+            },
+
+
+            updateAndroidOfflineButtonsVisibility() {
+                const isAndroidNative = App.state.aerialMapProvider?.kind === 'android-native';
+                const { downloadAllAerialTilesBtn, updateAllAerialTilesBtn, removeAllAerialTilesBtn } = App.elements.userMenu;
+                [downloadAllAerialTilesBtn, updateAllAerialTilesBtn, removeAllAerialTilesBtn].forEach((btn) => {
+                    if (!btn) return;
+                    btn.style.display = isAndroidNative ? 'flex' : 'none';
+                });
+            },
+
+            buildOfflineBatchPayload() {
+                if (!App.state.geoJsonData?.features?.length) {
+                    throw new Error('Não há talhões carregados para preparar o offline.');
+                }
+
+                const bounds = turf.bbox(App.state.geoJsonData);
+                const companyId = App.state.currentCompanyId || null;
+                const farmId = App.elements.monitoramentoAereo.mapFarmSearchInput?.dataset?.farmId || null;
+                const talhoesGeoJson = JSON.stringify(App.state.geoJsonData);
+                const traps = (App.state.armadilhas || [])
+                    .filter((trap) => Number.isFinite(Number(trap.longitude)) && Number.isFinite(Number(trap.latitude)))
+                    .map((trap) => ({
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [Number(trap.longitude), Number(trap.latitude)]
+                        },
+                        properties: {
+                            id: trap.id || null,
+                            talhaoNome: trap.talhaoNome || null,
+                            status: trap.status || null
+                        }
+                    }));
+
+                return {
+                    regionId: `monitoramento-aereo-${companyId || 'global'}`,
+                    packageId: `monitoramento-aereo-${companyId || 'global'}`,
+                    regionName: 'Monitoramento Aéreo (Todos os Tiles)',
+                    styleUri: 'mapbox://styles/mapbox/standard-satellite',
+                    bounds,
+                    minZoom: 12,
+                    maxZoom: 16,
+                    companyId,
+                    farmId,
+                    talhoesGeoJson,
+                    armadilhasGeoJson: JSON.stringify({ type: 'FeatureCollection', features: traps })
+                };
+            },
+
+            async downloadAllAerialTiles() {
+                if (!(App.state.useNativeAerialMap && App.state.aerialMapProvider)) {
+                    App.ui.showAlert('Este recurso está disponível apenas no Android nativo.', 'warning');
+                    return;
+                }
+
+                try {
+                    const payload = this.buildOfflineBatchPayload();
+                    App.ui.showAlert('Iniciando download offline do Monitoramento Aéreo...', 'info');
+                    await App.state.aerialMapProvider.downloadOfflineBatch(payload);
+                    App.ui.showAlert('Download em lote iniciado. Baixando mapa offline em segundo plano.', 'info');
+                } catch (error) {
+                    logAereoOfflineError('native-offline:batch:download:error', error);
+                    App.ui.showAlert(`Erro ao preparar offline: ${error?.message || 'falha inesperada.'}`, 'warning');
+                }
+            },
+
+            async updateAllAerialTiles() {
+                if (!(App.state.useNativeAerialMap && App.state.aerialMapProvider)) {
+                    App.ui.showAlert('Este recurso está disponível apenas no Android nativo.', 'warning');
+                    return;
+                }
+                try {
+                    const payload = this.buildOfflineBatchPayload();
+                    App.ui.showAlert('Atualizando tiles offline do Monitoramento Aéreo...', 'info');
+                    await App.state.aerialMapProvider.updateOfflineBatch(payload);
+                    App.ui.showAlert('Atualização em lote iniciada.', 'info');
+                } catch (error) {
+                    logAereoOfflineError('native-offline:batch:update:error', error);
+                    App.ui.showAlert(`Erro ao atualizar offline: ${error?.message || 'falha inesperada.'}`, 'warning');
+                }
+            },
+
+            async removeAllAerialTiles() {
+                if (!(App.state.useNativeAerialMap && App.state.aerialMapProvider)) {
+                    App.ui.showAlert('Este recurso está disponível apenas no Android nativo.', 'warning');
+                    return;
+                }
+                try {
+                    const payload = this.buildOfflineBatchPayload();
+                    await App.state.aerialMapProvider.removeOfflineBatch({ regionId: payload.regionId });
+                    App.ui.showAlert('Tiles offline removidos com sucesso.', 'success');
+                } catch (error) {
+                    logAereoOfflineError('native-offline:batch:remove:error', error);
+                    App.ui.showAlert(`Erro ao remover offline: ${error?.message || 'falha inesperada.'}`, 'warning');
                 }
             },
 

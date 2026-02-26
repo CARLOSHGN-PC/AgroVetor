@@ -38,6 +38,14 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         if (!this._progressListener) {
             this._progressListener = await plugin.addListener('offlineDownloadProgress', (payload) => {
                 console.info('[AerialNativeMap] download progress', payload);
+                const status = payload?.status;
+                if (status === 'ready') {
+                    this.app?.ui?.showAlert('Download offline concluído.', 'success');
+                } else if (status === 'downloading') {
+                    this.app?.ui?.showAlert('Baixando mapa offline...', 'info', 1800);
+                } else if (status === 'error') {
+                    this.app?.ui?.showAlert('Erro ao preparar offline.', 'warning');
+                }
             });
         }
 
@@ -77,6 +85,21 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
     async removeOfflineRegion(payload) {
         const plugin = this._ensurePlugin();
         return plugin.removeOfflineRegion(payload);
+    }
+
+    async downloadOfflineBatch(config) {
+        const plugin = this._ensurePlugin();
+        return plugin.prepareOfflinePackage(config);
+    }
+
+    async updateOfflineBatch(config) {
+        const plugin = this._ensurePlugin();
+        return plugin.updateOfflinePackage(config);
+    }
+
+    async removeOfflineBatch(payload) {
+        const plugin = this._ensurePlugin();
+        return plugin.removeOfflinePackage(payload);
     }
 
     async destroy() {
