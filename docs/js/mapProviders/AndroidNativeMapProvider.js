@@ -8,6 +8,7 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         this.kind = 'android-native';
         this.plugin = null;
         this._clickListener = null;
+        this._trapClickListener = null;
         this._progressListener = null;
     }
 
@@ -35,6 +36,15 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
             });
         }
 
+        if (!this._trapClickListener) {
+            this._trapClickListener = await plugin.addListener('trapClick', (payload) => {
+                const trapId = payload?.feature?.properties?.id || payload?.feature?.id;
+                if (trapId && this.app?.mapModule?.showTrapInfo) {
+                    this.app.mapModule.showTrapInfo(String(trapId));
+                }
+            });
+        }
+
         if (!this._progressListener) {
             this._progressListener = await plugin.addListener('offlineDownloadProgress', (payload) => {
                 console.info('[AerialNativeMap] download progress', payload);
@@ -53,6 +63,11 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         return plugin.loadTalhoes({ geojson: JSON.stringify(geojson) });
     }
 
+    async loadArmadilhas(geojson) {
+        const plugin = this._ensurePlugin();
+        return plugin.loadArmadilhas({ geojson: JSON.stringify(geojson) });
+    }
+
     async highlightTalhao(talhaoId) {
         const plugin = this._ensurePlugin();
         return plugin.highlightTalhao({ talhaoId: String(talhaoId) });
@@ -63,15 +78,41 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         return plugin.setCamera(camera);
     }
 
+    async prepareOfflinePackage(config) {
+        const plugin = this._ensurePlugin();
+        return plugin.prepareOfflinePackage(config);
+    }
+
+    async updateOfflinePackage(config) {
+        const plugin = this._ensurePlugin();
+        return plugin.updateOfflinePackage(config);
+    }
+
+    async openOfflinePackage(packageId) {
+        const plugin = this._ensurePlugin();
+        return plugin.openOfflinePackage({ packageId });
+    }
+
     async downloadOfflineRegion(config) {
         const plugin = this._ensurePlugin();
         return plugin.downloadOfflineRegion(config);
+    }
+
+    async listOfflinePackages() {
+        const plugin = this._ensurePlugin();
+        const response = await plugin.listOfflinePackages();
+        return response?.regions || [];
     }
 
     async listOfflineRegions() {
         const plugin = this._ensurePlugin();
         const response = await plugin.listOfflineRegions();
         return response?.regions || [];
+    }
+
+    async removeOfflinePackage(payload) {
+        const plugin = this._ensurePlugin();
+        return plugin.removeOfflinePackage(payload);
     }
 
     async removeOfflineRegion(payload) {
@@ -83,6 +124,10 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         if (this._clickListener) {
             await this._clickListener.remove();
             this._clickListener = null;
+        }
+        if (this._trapClickListener) {
+            await this._trapClickListener.remove();
+            this._trapClickListener = null;
         }
         if (this._progressListener) {
             await this._progressListener.remove();

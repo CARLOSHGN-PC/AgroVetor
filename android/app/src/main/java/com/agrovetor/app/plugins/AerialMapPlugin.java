@@ -81,6 +81,7 @@ public class AerialMapPlugin extends Plugin {
         }
         AerialMapSessionStore.styleUri = metadata.styleUri;
         AerialMapSessionStore.talhoesGeoJson = metadata.talhoesGeoJson;
+        AerialMapSessionStore.armadilhasGeoJson = metadata.armadilhasGeoJson;
         openMap(call);
     }
 
@@ -94,6 +95,20 @@ public class AerialMapPlugin extends Plugin {
 
         AerialMapSessionStore.talhoesGeoJson = geojson;
         NativeAerialMapActivity.reloadTalhoesIfVisible(geojson);
+        call.resolve();
+    }
+
+
+    @PluginMethod
+    public void loadArmadilhas(PluginCall call) {
+        String geojson = call.getString("geojson");
+        if (geojson == null || geojson.isEmpty()) {
+            call.reject("GeoJSON é obrigatório.");
+            return;
+        }
+
+        AerialMapSessionStore.armadilhasGeoJson = geojson;
+        NativeAerialMapActivity.reloadArmadilhasIfVisible(geojson);
         call.resolve();
     }
 
@@ -224,14 +239,44 @@ public class AerialMapPlugin extends Plugin {
             call.reject("regionId é obrigatório.");
             return;
         }
-        boolean removed = regionStore.remove(regionId);
-        AerialMapSessionStore.offlineRegions.remove(regionId);
-        JSObject payload = new JSObject();
-        payload.put("regionId", regionId);
-        payload.put("removed", removed);
-        payload.put("status", removed ? "removed" : "failed");
-        notifyListeners("offlineDownloadProgress", payload, true);
-        call.resolve(payload);
+
+        OfflineRegionMetadata metadata = regionStore.findByRegionId(regionId);
+        if (metadata == null) {
+            call.reject("Pacote não encontrado: " + regionId);
+            return;
+        }
+
+        packageManager.removePackage(metadata, new AerialOfflinePackageManager.Listener() {
+            @Override
+            public void onProgress(OfflineRegionMetadata updated, int progress) {
+                JSObject payload = updated.toJSObject();
+                payload.put("progress", progress);
+                notifyListeners("offlineDownloadProgress", payload, true);
+            }
+
+            @Override
+            public void onFinished(OfflineRegionMetadata updated) {
+                boolean removed = AerialOfflinePackageStatus.REMOVED.equals(updated.status) && regionStore.remove(updated.regionId);
+                if (removed) {
+                    AerialMapSessionStore.offlineRegions.remove(updated.regionId);
+                }
+
+                JSObject payload = updated.toJSObject();
+                payload.put("progress", 100);
+                payload.put("removed", removed);
+                payload.put("status", removed ? "removed" : updated.status);
+                notifyListeners("offlineDownloadProgress", payload, true);
+
+                if (!removed) {
+                    String details = updated.errorMessage != null ? updated.errorMessage : "Falha ao remover metadados locais";
+                    notifyError("Falha na remoção do pacote offline", details);
+                    call.reject(details);
+                    return;
+                }
+
+                call.resolve(payload);
+            }
+        });
     }
 
     @PluginMethod
@@ -272,6 +317,16 @@ public class AerialMapPlugin extends Plugin {
             JSObject payload = new JSObject();
             payload.put("feature", new JSONObject(featureJson));
             instance.notifyListeners("talhaoClick", payload, true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void notifyTrapClick(String featureJson) {
+        if (instance == null) return;
+        try {
+            JSObject payload = new JSObject();
+            payload.put("feature", new JSONObject(featureJson));
+            instance.notifyListeners("trapClick", payload, true);
         } catch (Exception ignored) {
         }
     }
