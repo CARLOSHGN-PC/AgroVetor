@@ -24,7 +24,6 @@ import com.mapbox.maps.MapView;
 import com.mapbox.maps.QueriedRenderedFeature;
 import com.mapbox.maps.RenderedQueryGeometry;
 import com.mapbox.maps.RenderedQueryOptions;
-import com.mapbox.maps.ResourceOptions;
 import com.mapbox.maps.ScreenCoordinate;
 import com.mapbox.maps.Style;
 import com.mapbox.maps.extension.style.expressions.generated.Expression;
@@ -106,14 +105,14 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private void createMapViewWithOfflineRuntime() {
         FrameLayout mapContainer = findViewById(R.id.nativeAerialMapContainer);
         String accessToken = getString(R.string.mapbox_access_token);
-        ResourceOptions resourceOptions = AerialMapboxRuntime.createResourceOptions(getApplicationContext(), accessToken);
-        MapInitOptions mapInitOptions = new MapInitOptions(getApplicationContext(), resourceOptions);
+        AerialMapboxRuntime.configureMapbox(getApplicationContext(), accessToken);
+        MapInitOptions mapInitOptions = new MapInitOptions(getApplicationContext());
         mapView = new MapView(this, mapInitOptions);
         mapContainer.addView(mapView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
-        Log.i(TAG, "MapView criado com MapInitOptions e TileStore aplicado na inicialização");
+        Log.i(TAG, "MapView criado com MapInitOptions após configurar runtime global do Mapbox");
     }
 
     @Override
