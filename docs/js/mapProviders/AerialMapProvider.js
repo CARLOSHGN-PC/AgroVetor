@@ -32,4 +32,17 @@ export class AerialMapProvider {
     async removeOfflineRegion() {
         return false;
     }
+
+    async downloadOfflineBatch() {
+        throw new Error('downloadOfflineBatch não suportado para este provider.');
+    }
+
+    async updateOfflineBatch() {
+        throw new Error('updateOfflineBatch não suportado para este provider.');
+    }
+
+    async removeOfflineBatch() {
+        throw new Error('removeOfflineBatch não suportado para este provider.');
+    }
 }
+
