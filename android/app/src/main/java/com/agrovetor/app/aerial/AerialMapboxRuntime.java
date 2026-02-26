@@ -6,8 +6,11 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import com.mapbox.common.MapboxOptions;
 import com.mapbox.common.TileStore;
+import com.mapbox.maps.MapboxMapsOptions;
 import com.mapbox.maps.OfflineManager;
+import com.mapbox.maps.TileStoreUsageMode;
 
 import java.io.File;
 public final class AerialMapboxRuntime {
@@ -61,14 +64,19 @@ public final class AerialMapboxRuntime {
         init(context);
         String normalizedToken = accessToken == null ? "" : accessToken.trim();
         if (TextUtils.isEmpty(normalizedToken)) {
-            Log.e(TAG, "Access token Mapbox vazio ao configurar runtime.");
-        } else {
-            Log.i(TAG, "Access token Mapbox recebido para configuração do runtime");
+            throw new IllegalArgumentException("Access token Mapbox vazio ao configurar runtime.");
         }
 
-        getTileStore(context);
+        MapboxOptions.setAccessToken(normalizedToken);
+        Log.i(TAG, "Access token Mapbox configurado no runtime global");
+
+        TileStore runtimeTileStore = getTileStore(context);
+        MapboxMapsOptions.setTileStore(runtimeTileStore);
+        MapboxMapsOptions.setTileStoreUsageMode(TileStoreUsageMode.READ_AND_UPDATE);
+        Log.i(TAG, "TileStore e TileStoreUsageMode configurados no runtime global antes da criação do MapView");
+
         getOfflineManager(context);
-        Log.i(TAG, "Runtime Mapbox inicializado sem dependência de MapboxOptions; TileStore e OfflineManager prontos");
+        Log.i(TAG, "Runtime Mapbox v11 inicializado: token global, TileStore persistente e OfflineManager prontos");
     }
 
     private static TileStore createTileStore() {
