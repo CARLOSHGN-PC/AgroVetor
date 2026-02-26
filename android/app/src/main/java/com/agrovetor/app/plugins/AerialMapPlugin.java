@@ -3,10 +3,10 @@ package com.agrovetor.app.plugins;
 import android.content.Intent;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
-
 import com.agrovetor.app.aerial.AerialMapSessionStore;
-import com.agrovetor.app.aerial.AerialMapboxRuntime;
+import com.agrovetor.app.aerial.AerialOfflinePackageManager;
+import com.agrovetor.app.aerial.AerialOfflinePackageStatus;
+import com.agrovetor.app.aerial.AerialOfflinePackageValidator;
 import com.agrovetor.app.aerial.AerialOfflineRegionStore;
 import com.agrovetor.app.aerial.NativeAerialMapActivity;
 import com.agrovetor.app.aerial.OfflineRegionMetadata;
@@ -16,48 +16,28 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import com.mapbox.common.TileRegion;
-import com.mapbox.common.TileRegionLoadOptions;
-import com.mapbox.common.TileRegionLoadProgress;
-import com.mapbox.common.TileStore;
-import com.mapbox.common.TilesetDescriptor;
-import com.mapbox.geojson.Point;
-import com.mapbox.geojson.Polygon;
-import com.mapbox.maps.OfflineManager;
-import com.mapbox.maps.StylePackLoadOptions;
-import com.mapbox.maps.StylePackLoadProgress;
 
 import org.json.JSONObject;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.lang.reflect.Method;
 
 @CapacitorPlugin(name = "AerialMap")
 public class AerialMapPlugin extends Plugin {
-    private static final String TAG = "AerialOfflineDebug";
+    private static final String TAG = "AerialOfflinePackage";
     private static AerialMapPlugin instance;
 
     private AerialOfflineRegionStore regionStore;
-    private TileStore tileStore;
-    private OfflineManager offlineManager;
+    private AerialOfflinePackageManager packageManager;
+    private AerialOfflinePackageValidator validator;
 
     @Override
     public void load() {
         instance = this;
         regionStore = new AerialOfflineRegionStore(getContext());
-        tileStore = AerialMapboxRuntime.getTileStore(getContext());
-        offlineManager = AerialMapboxRuntime.getOfflineManager(getContext());
-
-        int readyCount = 0;
-        for (OfflineRegionMetadata metadata : regionStore.readAll()) {
-            AerialMapSessionStore.offlineRegions.put(metadata.regionId, metadata);
-            if ("ready".equals(metadata.status)) {
-                readyCount++;
-            }
-        }
-        Log.i(TAG, "Plugin load concluído. Regiões persistidas=" + AerialMapSessionStore.offlineRegions.size() + ", ready=" + readyCount);
+        packageManager = new AerialOfflinePackageManager(getContext());
+        validator = new AerialOfflinePackageValidator();
+        refreshSessionCache();
+        Log.i(TAG, "Plugin carregado. pacotes=" + AerialMapSessionStore.offlineRegions.size());
     }
 
     @PluginMethod
@@ -80,6 +60,28 @@ public class AerialMapPlugin extends Plugin {
         JSObject result = new JSObject();
         result.put("status", "opened");
         call.resolve(result);
+    }
+
+    @PluginMethod
+    public void openOfflinePackage(PluginCall call) {
+        String packageId = call.getString("packageId");
+        OfflineRegionMetadata metadata = regionStore.findByRegionId(packageId);
+        if (metadata == null) {
+            call.reject("Pacote não encontrado: " + packageId);
+            return;
+        }
+        AerialOfflinePackageValidator.ValidationResult result = validator.validate(getContext(), metadata);
+        if (!result.isReady()) {
+            call.reject(result.errorMessage);
+            return;
+        }
+        if (!AerialOfflinePackageStatus.READY.equals(metadata.status)) {
+            call.reject("Pacote offline não está pronto: " + metadata.status);
+            return;
+        }
+        AerialMapSessionStore.styleUri = metadata.styleUri;
+        AerialMapSessionStore.talhoesGeoJson = metadata.talhoesGeoJson;
+        openMap(call);
     }
 
     @PluginMethod
@@ -119,75 +121,92 @@ public class AerialMapPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void prepareOfflinePackage(PluginCall call) {
+        startOfflineDownload(call, false);
+    }
+
+    @PluginMethod
+    public void updateOfflinePackage(PluginCall call) {
+        startOfflineDownload(call, true);
+    }
+
+    @PluginMethod
     public void downloadOfflineRegion(PluginCall call) {
+        startOfflineDownload(call, true);
+    }
+
+    private void startOfflineDownload(PluginCall call, boolean upsert) {
         String regionId = call.getString("regionId");
-        String regionName = call.getString("regionName");
+        String regionName = call.getString("regionName", regionId);
         String styleUri = call.getString("styleUri", AerialMapSessionStore.styleUri);
         JSArray boundsInput = call.getArray("bounds");
-        Integer minZoomValue = call.getInt("minZoom", 12);
-        Integer maxZoomValue = call.getInt("maxZoom", 16);
-        int minZoom = minZoomValue != null ? minZoomValue : 12;
-        int maxZoom = maxZoomValue != null ? maxZoomValue : 16;
-
-        String validationError = validateOfflineDownloadParams(regionId, styleUri, boundsInput, minZoom, maxZoom);
-        if (validationError != null) {
-            call.reject(validationError);
+        if (regionId == null || regionId.trim().isEmpty() || styleUri == null || styleUri.trim().isEmpty() || boundsInput == null || boundsInput.length() < 4) {
+            call.reject("Parâmetros obrigatórios: regionId, styleUri, bounds[4].");
             return;
         }
-
         OfflineRegionMetadata existing = regionStore.findByRegionId(regionId);
-        if (existing != null && !"failed".equals(existing.status)) {
-            call.reject("regionId já existe: " + regionId);
+        if (existing != null && !upsert) {
+            call.reject("Pacote já existe: " + regionId);
             return;
         }
 
-        double[] bounds = new double[]{
-                boundsInput.optDouble(0),
-                boundsInput.optDouble(1),
-                boundsInput.optDouble(2),
-                boundsInput.optDouble(3)
-        };
+        OfflineRegionMetadata metadata = existing != null ? existing : new OfflineRegionMetadata(regionId, regionName, styleUri,
+                new double[]{boundsInput.optDouble(0), boundsInput.optDouble(1), boundsInput.optDouble(2), boundsInput.optDouble(3)},
+                call.getInt("minZoom", 12), call.getInt("maxZoom", 16), AerialOfflinePackageStatus.QUEUED);
 
-        Log.i(TAG, "Solicitação de download offline: regionId=" + regionId + " styleUri=" + styleUri + " minZoom=" + minZoom + " maxZoom=" + maxZoom);
+        metadata.packageId = call.getString("packageId", regionId);
+        metadata.regionName = regionName;
+        metadata.companyId = call.getString("companyId", null);
+        metadata.farmId = call.getString("farmId", null);
+        metadata.styleUri = styleUri;
+        metadata.stylePackId = call.getString("stylePackId", styleUri);
+        metadata.tileRegionId = call.getString("tileRegionId", regionId);
+        metadata.bounds = new double[]{boundsInput.optDouble(0), boundsInput.optDouble(1), boundsInput.optDouble(2), boundsInput.optDouble(3)};
+        metadata.minZoom = call.getInt("minZoom", 12);
+        metadata.maxZoom = call.getInt("maxZoom", 16);
+        metadata.talhoesGeoJson = call.getString("talhoesGeoJson", metadata.talhoesGeoJson);
+        metadata.armadilhasGeoJson = call.getString("armadilhasGeoJson", metadata.armadilhasGeoJson);
+        metadata.status = upsert && existing != null ? AerialOfflinePackageStatus.UPDATE_AVAILABLE : AerialOfflinePackageStatus.QUEUED;
+        metadata.errorMessage = null;
 
-        OfflineRegionMetadata metadata = new OfflineRegionMetadata(
-                regionId,
-                regionName != null ? regionName : regionId,
-                styleUri,
-                bounds,
-                minZoom,
-                maxZoom,
-                "queued"
-        );
-
-        if (!persistRegion(metadata)) {
-            call.reject("Falha ao persistir metadados offline antes do download.");
-            return;
-        }
-
-        emitOfflineProgress(metadata, 0);
+        persistMetadata(metadata);
         call.resolve(metadata.toJSObject());
 
-        runOfflineDownload(metadata);
+        packageManager.downloadPackage(metadata, new AerialOfflinePackageManager.Listener() {
+            @Override
+            public void onProgress(OfflineRegionMetadata updated, int progress) {
+                persistMetadata(updated);
+                JSObject payload = updated.toJSObject();
+                payload.put("progress", progress);
+                notifyListeners("offlineDownloadProgress", payload, true);
+            }
+
+            @Override
+            public void onFinished(OfflineRegionMetadata updated) {
+                persistMetadata(updated);
+                JSObject payload = updated.toJSObject();
+                payload.put("progress", 100);
+                notifyListeners("offlineDownloadProgress", payload, true);
+                if (updated.errorMessage != null) {
+                    notifyError("Falha no pacote offline", updated.errorMessage);
+                }
+            }
+        });
+    }
+
+    @PluginMethod
+    public void listOfflinePackages(PluginCall call) {
+        listOfflineRegions(call);
     }
 
     @PluginMethod
     public void listOfflineRegions(PluginCall call) {
         List<OfflineRegionMetadata> regionsList = regionStore.readAll();
         JSArray regions = new JSArray();
-
-        AerialMapSessionStore.offlineRegions.clear();
-        int readyCount = 0;
         for (OfflineRegionMetadata region : regionsList) {
-            AerialMapSessionStore.offlineRegions.put(region.regionId, region);
             regions.put(region.toJSObject());
-            if ("ready".equals(region.status)) {
-                readyCount++;
-            }
         }
-
-        Log.i(TAG, "listOfflineRegions: total=" + regionsList.size() + ", ready=" + readyCount);
-
+        refreshSessionCache();
         JSObject result = new JSObject();
         result.put("regions", regions);
         call.resolve(result);
@@ -195,58 +214,24 @@ public class AerialMapPlugin extends Plugin {
 
     @PluginMethod
     public void removeOfflineRegion(PluginCall call) {
-        String regionId = call.getString("regionId");
+        removeOfflinePackage(call);
+    }
+
+    @PluginMethod
+    public void removeOfflinePackage(PluginCall call) {
+        String regionId = call.getString("regionId", call.getString("packageId"));
         if (regionId == null || regionId.trim().isEmpty()) {
             call.reject("regionId é obrigatório.");
             return;
         }
-
-        OfflineRegionMetadata metadata = regionStore.findByRegionId(regionId);
-        if (metadata == null) {
-            JSObject result = new JSObject();
-            result.put("removed", false);
-            result.put("regionId", regionId);
-            result.put("message", "Região não encontrada.");
-            call.resolve(result);
-            return;
-        }
-
-        metadata.status = "removing";
-        metadata.updatedAt = System.currentTimeMillis();
-        persistRegion(metadata);
-        emitOfflineProgress(metadata, 0);
-
-        tileStore.removeTileRegion(metadata.tileRegionId, tileExpected -> {
-            boolean tileRemoved = tileExpected != null && tileExpected.isValue();
-            if (tileExpected != null && tileExpected.isError()) {
-                Log.e(TAG, "Falha ao remover tile region " + metadata.tileRegionId + ": " + tileExpected.getError());
-            }
-
-            offlineManager.removeStylePack(metadata.stylePackId, styleExpected -> {
-                boolean styleRemoved = styleExpected != null && styleExpected.isValue();
-                if (styleExpected != null && styleExpected.isError()) {
-                    Log.e(TAG, "Falha ao remover style pack " + metadata.stylePackId + ": " + styleExpected.getError());
-                }
-
-                boolean metadataRemoved = regionStore.remove(regionId);
-                AerialMapSessionStore.offlineRegions.remove(regionId);
-
-                JSObject result = new JSObject();
-                result.put("regionId", regionId);
-                result.put("removed", tileRemoved || styleRemoved || metadataRemoved);
-                result.put("tileRemoved", tileRemoved);
-                result.put("styleRemoved", styleRemoved);
-                result.put("metadataRemoved", metadataRemoved);
-
-                if (!metadataRemoved) {
-                    notifyError("Falha na remoção da região offline", "Remoção parcial: tile/style removidos, mas metadados persistidos.");
-                }
-
-                Boolean removedObj = result.getBool("removed");
-                emitRemovalCompleted(regionId, Boolean.TRUE.equals(removedObj));
-                call.resolve(result);
-            });
-        });
+        boolean removed = regionStore.remove(regionId);
+        AerialMapSessionStore.offlineRegions.remove(regionId);
+        JSObject payload = new JSObject();
+        payload.put("regionId", regionId);
+        payload.put("removed", removed);
+        payload.put("status", removed ? "removed" : "failed");
+        notifyListeners("offlineDownloadProgress", payload, true);
+        call.resolve(payload);
     }
 
     @PluginMethod
@@ -256,7 +241,7 @@ public class AerialMapPlugin extends Plugin {
         int readyCount = 0;
         for (OfflineRegionMetadata metadata : regions) {
             regionsPayload.put(metadata.toJSObject());
-            if ("ready".equals(metadata.status)) {
+            if (AerialOfflinePackageStatus.READY.equals(metadata.status)) {
                 readyCount++;
             }
         }
@@ -265,278 +250,20 @@ public class AerialMapPlugin extends Plugin {
         result.put("regions", regionsPayload);
         result.put("total", regions.size());
         result.put("ready", readyCount);
-        result.put("styleUri", AerialMapSessionStore.styleUri);
         call.resolve(result);
     }
 
-    private void runOfflineDownload(@NonNull OfflineRegionMetadata metadata) {
-        metadata.status = "downloading";
+    private void persistMetadata(OfflineRegionMetadata metadata) {
         metadata.updatedAt = System.currentTimeMillis();
-        persistRegion(metadata);
-        emitOfflineProgress(metadata, 0);
-
-        TilesetDescriptor descriptor = createTilesetDescriptorCompat(metadata);
-        if (descriptor == null) {
-            markDownloadFailed(metadata, "Não foi possível criar TilesetDescriptor para o download offline.");
-            return;
-        }
-
-        StylePackLoadOptions stylePackLoadOptions = new StylePackLoadOptions.Builder()
-                .acceptExpired(true)
-                .build();
-
-        Log.i(TAG, "Iniciando download de style pack para região " + metadata.regionId + " styleUri=" + metadata.styleUri + " stylePackId=" + metadata.stylePackId);
-        offlineManager.loadStylePack(metadata.styleUri, stylePackLoadOptions, styleProgress -> {
-            emitOfflineProgress(metadata, calculateProgress(styleProgress, null));
-        }, styleExpected -> {
-            if (styleExpected == null || styleExpected.isError()) {
-                String message = styleExpected == null ? "Falha desconhecida ao baixar style pack" : String.valueOf(styleExpected.getError());
-                markDownloadFailed(metadata, "Falha no style pack: " + message);
-                return;
-            }
-
-            Log.i(TAG, "Style pack concluído para região " + metadata.regionId + " stylePackId=" + metadata.stylePackId + " styleUri=" + metadata.styleUri);
-            startTileRegionDownload(metadata, descriptor);
-        });
+        regionStore.upsert(metadata);
+        AerialMapSessionStore.offlineRegions.put(metadata.regionId, metadata);
     }
 
-    private void startTileRegionDownload(@NonNull OfflineRegionMetadata metadata, @NonNull TilesetDescriptor descriptor) {
-        List<Point> ring = new ArrayList<>();
-        ring.add(Point.fromLngLat(metadata.bounds[0], metadata.bounds[1]));
-        ring.add(Point.fromLngLat(metadata.bounds[2], metadata.bounds[1]));
-        ring.add(Point.fromLngLat(metadata.bounds[2], metadata.bounds[3]));
-        ring.add(Point.fromLngLat(metadata.bounds[0], metadata.bounds[3]));
-        ring.add(Point.fromLngLat(metadata.bounds[0], metadata.bounds[1]));
-        Polygon polygon = Polygon.fromLngLats(Collections.singletonList(ring));
-
-        TileRegionLoadOptions tileRegionLoadOptions = new TileRegionLoadOptions.Builder()
-                .geometry(polygon)
-                .descriptors(Collections.singletonList(descriptor))
-                .acceptExpired(true)
-                .networkRestriction(com.mapbox.common.NetworkRestriction.NONE)
-                .build();
-
-        Log.i(TAG, "Iniciando download de tile region para " + metadata.regionId + " tileRegionId=" + metadata.tileRegionId + " styleUri=" + metadata.styleUri);
-        tileStore.loadTileRegion(metadata.tileRegionId, tileRegionLoadOptions, tileProgress -> {
-            emitOfflineProgress(metadata, calculateProgress(null, tileProgress));
-        }, tileExpected -> {
-            if (tileExpected == null || tileExpected.isError()) {
-                String message = tileExpected == null ? "Falha desconhecida ao baixar tile region" : String.valueOf(tileExpected.getError());
-                markDownloadFailed(metadata, "Falha na tile region: " + message);
-                return;
-            }
-
-            TileRegion region = tileExpected.getValue();
-            Log.i(TAG, "Tile region concluída para " + metadata.regionId + ", id=" + region.getId() + " styleUri=" + metadata.styleUri + " stylePackId=" + metadata.stylePackId + " tileRegionId=" + metadata.tileRegionId);
-            metadata.status = "ready";
-            metadata.updatedAt = System.currentTimeMillis();
-            metadata.errorMessage = null;
-            Log.i(TAG, "Marcando região como ready após validação de download completo: regionId=" + metadata.regionId + " stylePackId=" + metadata.stylePackId + " tileRegionId=" + metadata.tileRegionId + " styleUri=" + metadata.styleUri);
-            if (!persistRegion(metadata)) {
-                Log.e(TAG, "Falha ao persistir status ready. regionId=" + metadata.regionId + " stylePackId=" + metadata.stylePackId + " tileRegionId=" + metadata.tileRegionId);
-                markDownloadFailed(metadata, "Falha ao persistir status ready após concluir style pack + tile region.");
-                return;
-            }
-
-            Log.i(TAG, "Região offline pronta e persistida com sucesso: regionId=" + metadata.regionId + " stylePackId=" + metadata.stylePackId + " tileRegionId=" + metadata.tileRegionId + " styleUri=" + metadata.styleUri);
-
-            JSObject payload = metadata.toJSObject();
-            payload.put("progress", 100);
-            payload.put("status", "completed");
-            notifyListeners("offlineDownloadProgress", payload, true);
-        });
-    }
-
-    private void markDownloadFailed(OfflineRegionMetadata metadata, String errorMessage) {
-        metadata.status = "failed";
-        metadata.updatedAt = System.currentTimeMillis();
-        metadata.errorMessage = errorMessage;
-        persistRegion(metadata);
-
-        JSObject payload = metadata.toJSObject();
-        payload.put("status", "failed");
-        payload.put("progress", 0);
-        payload.put("message", errorMessage);
-        notifyListeners("offlineDownloadProgress", payload, true);
-        notifyError("Falha no download offline", errorMessage);
-    }
-
-    private void emitOfflineProgress(OfflineRegionMetadata metadata, int progress) {
-        JSObject payload = metadata.toJSObject();
-        payload.put("progress", progress);
-        notifyListeners("offlineDownloadProgress", payload, true);
-    }
-
-    private void emitRemovalCompleted(String regionId, boolean removed) {
-        JSObject payload = new JSObject();
-        payload.put("regionId", regionId);
-        payload.put("status", removed ? "removed" : "failed");
-        payload.put("progress", 100);
-        notifyListeners("offlineDownloadProgress", payload, true);
-    }
-
-    private boolean persistRegion(OfflineRegionMetadata metadata) {
-        metadata.updatedAt = System.currentTimeMillis();
-        boolean saved = regionStore.upsert(metadata);
-        if (saved) {
+    private void refreshSessionCache() {
+        AerialMapSessionStore.offlineRegions.clear();
+        for (OfflineRegionMetadata metadata : regionStore.readAll()) {
             AerialMapSessionStore.offlineRegions.put(metadata.regionId, metadata);
         }
-        return saved;
-    }
-
-    private int calculateProgress(StylePackLoadProgress styleProgress, TileRegionLoadProgress tileProgress) {
-        if (tileProgress != null) {
-            long required = tileProgress.getRequiredResourceCount();
-            long completed = tileProgress.getCompletedResourceCount();
-            if (required <= 0) {
-                return 0;
-            }
-            return (int) Math.min(100, (completed * 100) / required);
-        }
-
-        if (styleProgress != null) {
-            long required = styleProgress.getRequiredResourceCount();
-            long completed = styleProgress.getCompletedResourceCount();
-            if (required <= 0) {
-                return 0;
-            }
-            return (int) Math.min(90, (completed * 90) / required);
-        }
-
-        return 0;
-    }
-
-    private String validateOfflineDownloadParams(String regionId, String styleUri, JSArray boundsInput, int minZoom, int maxZoom) {
-        if (regionId == null || regionId.trim().isEmpty()) {
-            return "regionId é obrigatório.";
-        }
-        if (styleUri == null || styleUri.trim().isEmpty()) {
-            return "styleUri é obrigatório.";
-        }
-        if (boundsInput == null || boundsInput.length() < 4) {
-            return "bounds deve conter [west, south, east, north].";
-        }
-        if (minZoom < 0 || maxZoom < 0 || minZoom > maxZoom) {
-            return "minZoom/maxZoom inválidos.";
-        }
-        return null;
-    }
-
-    private TilesetDescriptor createTilesetDescriptorCompat(@NonNull OfflineRegionMetadata metadata) {
-        try {
-            Object options = buildTilesetDescriptorOptions(metadata);
-            if (options != null) {
-                Method method = offlineManager.getClass().getMethod("createTilesetDescriptor", options.getClass());
-                Object descriptorObj = method.invoke(offlineManager, options);
-                if (descriptorObj instanceof TilesetDescriptor) {
-                    return (TilesetDescriptor) descriptorObj;
-                }
-            }
-
-            for (Method method : offlineManager.getClass().getMethods()) {
-                if (!"createTilesetDescriptor".equals(method.getName())) {
-                    continue;
-                }
-
-                Class<?>[] params = method.getParameterTypes();
-                if (params.length == 4 && params[0] == String.class && isZoomType(params[1]) && isZoomType(params[2]) && isZoomType(params[3])) {
-                    Object descriptorObj = method.invoke(
-                            offlineManager,
-                            metadata.styleUri,
-                            castZoom(metadata.minZoom, params[1]),
-                            castZoom(metadata.maxZoom, params[2]),
-                            castZoom(1, params[3])
-                    );
-                    if (descriptorObj instanceof TilesetDescriptor) {
-                        return (TilesetDescriptor) descriptorObj;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Falha ao criar TilesetDescriptor", e);
-        }
-
-        return null;
-    }
-
-    private Object buildTilesetDescriptorOptions(@NonNull OfflineRegionMetadata metadata) {
-        String[] classNames = new String[]{
-                "com.mapbox.common.TilesetDescriptorOptions",
-                "com.mapbox.maps.TilesetDescriptorOptions"
-        };
-
-        for (String className : classNames) {
-            try {
-                Class<?> optionsClass = Class.forName(className);
-                Class<?> builderClass = Class.forName(className + "$Builder");
-                Object builder = builderClass.getDeclaredConstructor().newInstance();
-
-                invokeIfPresent(builderClass, builder, new String[]{"styleURI", "styleUri"}, metadata.styleUri);
-                invokeIfPresent(builderClass, builder, new String[]{"minZoom"}, metadata.minZoom.byteValue(), metadata.minZoom);
-                invokeIfPresent(builderClass, builder, new String[]{"maxZoom"}, metadata.maxZoom.byteValue(), metadata.maxZoom);
-
-                Method buildMethod = builderClass.getMethod("build");
-                Object options = buildMethod.invoke(builder);
-                if (optionsClass.isInstance(options)) {
-                    return options;
-                }
-            } catch (Exception ignored) {
-                // tenta próxima variação de classe/assinatura disponível no SDK
-            }
-        }
-
-        return null;
-    }
-
-    private void invokeIfPresent(Class<?> builderClass, Object builder, String[] methodNames, Object... candidateArgs) throws Exception {
-        for (String methodName : methodNames) {
-            for (Method method : builderClass.getMethods()) {
-                if (!methodName.equals(method.getName()) || method.getParameterTypes().length != 1) {
-                    continue;
-                }
-
-                Class<?> paramType = method.getParameterTypes()[0];
-                for (Object candidateArg : candidateArgs) {
-                    if (candidateArg == null) {
-                        continue;
-                    }
-                    if (isCompatibleParam(paramType, candidateArg.getClass())) {
-                        method.invoke(builder, candidateArg);
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
-    private boolean isCompatibleParam(Class<?> expectedType, Class<?> providedType) {
-        if (expectedType.isAssignableFrom(providedType)) {
-            return true;
-        }
-        return (expectedType == byte.class && providedType == Byte.class)
-                || (expectedType == int.class && providedType == Integer.class)
-                || (expectedType == float.class && providedType == Float.class)
-                || (expectedType == double.class && providedType == Double.class);
-    }
-
-    private boolean isZoomType(Class<?> type) {
-        return type == byte.class || type == Byte.class
-                || type == int.class || type == Integer.class
-                || type == float.class || type == Float.class
-                || type == double.class || type == Double.class;
-    }
-
-    private Object castZoom(int zoom, Class<?> type) {
-        if (type == byte.class || type == Byte.class) {
-            return (byte) zoom;
-        }
-        if (type == float.class || type == Float.class) {
-            return (float) zoom;
-        }
-        if (type == double.class || type == Double.class) {
-            return (double) zoom;
-        }
-        return zoom;
     }
 
     public static void notifyTalhaoClick(String featureJson) {
@@ -557,5 +284,4 @@ public class AerialMapPlugin extends Plugin {
         instance.notifyListeners("nativeMapError", payload, true);
         instance.notifyListeners("error", payload, true);
     }
-
 }

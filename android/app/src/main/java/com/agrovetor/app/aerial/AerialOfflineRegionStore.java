@@ -45,7 +45,7 @@ public class AerialOfflineRegionStore {
     public synchronized OfflineRegionMetadata findByRegionId(String regionId) {
         List<OfflineRegionMetadata> regions = readAll();
         for (OfflineRegionMetadata region : regions) {
-            if (regionId.equals(region.regionId)) {
+            if (regionId.equals(region.regionId) || regionId.equals(region.packageId)) {
                 return region;
             }
         }
@@ -56,7 +56,8 @@ public class AerialOfflineRegionStore {
         List<OfflineRegionMetadata> regions = readAll();
         boolean replaced = false;
         for (int i = 0; i < regions.size(); i++) {
-            if (metadata.regionId.equals(regions.get(i).regionId)) {
+            OfflineRegionMetadata current = regions.get(i);
+            if (metadata.regionId.equals(current.regionId) || metadata.packageId.equals(current.packageId)) {
                 regions.set(i, metadata);
                 replaced = true;
                 break;
@@ -70,7 +71,7 @@ public class AerialOfflineRegionStore {
 
     public synchronized boolean remove(String regionId) {
         List<OfflineRegionMetadata> regions = readAll();
-        boolean changed = regions.removeIf(region -> regionId.equals(region.regionId));
+        boolean changed = regions.removeIf(region -> regionId.equals(region.regionId) || regionId.equals(region.packageId));
         if (!changed) {
             return true;
         }
@@ -82,18 +83,32 @@ public class AerialOfflineRegionStore {
         try {
             for (OfflineRegionMetadata region : regions) {
                 JSONObject json = new JSONObject();
+                json.put("packageId", region.packageId);
                 json.put("regionId", region.regionId);
                 json.put("regionName", region.regionName);
+                json.put("companyId", region.companyId);
+                json.put("farmId", region.farmId);
                 json.put("styleUri", region.styleUri);
                 json.put("minZoom", region.minZoom);
                 json.put("maxZoom", region.maxZoom);
                 json.put("createdAt", region.createdAt);
                 json.put("updatedAt", region.updatedAt);
+                json.put("lastValidatedAt", region.lastValidatedAt);
                 json.put("status", region.status);
                 json.put("tileRegionId", region.tileRegionId);
                 json.put("stylePackId", region.stylePackId);
+                json.put("hasStylePack", region.hasStylePack);
+                json.put("hasTileRegion", region.hasTileRegion);
+                json.put("hasTalhoes", region.hasTalhoes);
+                json.put("hasArmadilhas", region.hasArmadilhas);
                 if (region.errorMessage != null) {
                     json.put("errorMessage", region.errorMessage);
+                }
+                if (region.talhoesGeoJson != null) {
+                    json.put("talhoesGeoJson", region.talhoesGeoJson);
+                }
+                if (region.armadilhasGeoJson != null) {
+                    json.put("armadilhasGeoJson", region.armadilhasGeoJson);
                 }
 
                 JSONArray bounds = new JSONArray();
@@ -140,11 +155,21 @@ public class AerialOfflineRegionStore {
                     json.optString("status", "queued")
             );
 
+            metadata.packageId = json.optString("packageId", metadata.regionId);
+            metadata.companyId = json.optString("companyId", null);
+            metadata.farmId = json.optString("farmId", null);
             metadata.createdAt = json.optLong("createdAt", metadata.createdAt);
             metadata.updatedAt = json.optLong("updatedAt", metadata.updatedAt);
+            metadata.lastValidatedAt = json.optLong("lastValidatedAt", 0L);
             metadata.tileRegionId = json.optString("tileRegionId", metadata.regionId);
             metadata.stylePackId = json.optString("stylePackId", metadata.styleUri);
+            metadata.hasStylePack = json.optBoolean("hasStylePack", false);
+            metadata.hasTileRegion = json.optBoolean("hasTileRegion", false);
+            metadata.hasTalhoes = json.optBoolean("hasTalhoes", false);
+            metadata.hasArmadilhas = json.optBoolean("hasArmadilhas", false);
             metadata.errorMessage = json.optString("errorMessage", null);
+            metadata.talhoesGeoJson = json.optString("talhoesGeoJson", null);
+            metadata.armadilhasGeoJson = json.optString("armadilhasGeoJson", null);
             return metadata;
         } catch (Exception e) {
             Log.e(TAG, "Falha ao desserializar metadado offline", e);
