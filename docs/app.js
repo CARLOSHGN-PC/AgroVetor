@@ -11,6 +11,7 @@ import { perfLogger } from './js/lib/PerfLogger.js';
 import VirtualList from './js/lib/VirtualList.js';
 import { appDiagnostics } from './js/lib/AppDiagnostics.js';
 import { createAerialMapProvider } from './js/mapProviders/MapProviderFactory.js';
+import { AndroidNativeMapProvider } from './js/mapProviders/AndroidNativeMapProvider.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     perfLogger.start('App Boot');
@@ -14346,21 +14347,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isAndroidNative = Boolean(cap?.isNativePlatform?.() && platform === 'android');
                 if (!isAndroidNative) return false;
 
-                return Boolean(cap?.isPluginAvailable?.('AerialMap') || cap?.Plugins?.AerialMap || cap?.registerPlugin);
+                return Boolean(cap?.isPluginAvailable?.('AerialMap') || cap?.Plugins?.AerialMap);
+            },
+
+            getNativeAerialBatchProvider() {
+                if (!this.isAndroidNativeAerialModuleAvailable()) return null;
+
+                if (App.state.aerialMapProvider?.kind === 'android-native') {
+                    return App.state.aerialMapProvider;
+                }
+
+                if (!this._nativeBatchProvider) {
+                    this._nativeBatchProvider = new AndroidNativeMapProvider({ app: App });
+                }
+
+                return this._nativeBatchProvider;
             },
 
             updateAndroidOfflineButtonsVisibility() {
-                const providerKind = App.state.aerialMapProvider?.kind || null;
                 const pluginAvailable = this.isAndroidNativeAerialModuleAvailable();
-                const shouldShowOfflineButtons = providerKind === 'android-native';
+                const shouldShowOfflineButtons = pluginAvailable;
                 console.info('[Perfil][Aéreo Offline] visibilidade dos botões:', {
-                    providerKind,
                     pluginAvailable,
                     shouldShowOfflineButtons
                 });
 
-                const { downloadAllAerialTilesBtn, updateAllAerialTilesBtn, removeAllAerialTilesBtn } = App.elements.userMenu;
-                [downloadAllAerialTilesBtn, updateAllAerialTilesBtn, removeAllAerialTilesBtn].forEach((btn) => {
+                const { downloadAllAerialTilesBtn } = App.elements.userMenu;
+                [downloadAllAerialTilesBtn].forEach((btn) => {
                     if (!btn) return;
                     btn.style.display = shouldShowOfflineButtons ? 'flex' : 'none';
                 });
@@ -14368,7 +14381,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             buildOfflineBatchPayload() {
                 if (!App.state.geoJsonData?.features?.length) {
-                    throw new Error('Não há talhões carregados para preparar o offline.');
+                    throw new Error('Não há contornos carregados para gerar o download em lote.');
                 }
 
                 const bounds = turf.bbox(App.state.geoJsonData);
@@ -14406,7 +14419,8 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async downloadAllAerialTiles() {
-                if (!(App.state.useNativeAerialMap && App.state.aerialMapProvider)) {
+                const nativeProvider = this.getNativeAerialBatchProvider();
+                if (!nativeProvider) {
                     console.warn('[AEREO_OFFLINE] bloqueado: downloadAllAerialTiles requer Android nativo.', {
                         useNativeAerialMap: App.state.useNativeAerialMap,
                         providerKind: App.state.aerialMapProvider?.kind || null
@@ -14417,8 +14431,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     const payload = this.buildOfflineBatchPayload();
-                    App.ui.showAlert('Iniciando download offline do Monitoramento Aéreo...', 'info');
-                    await App.state.aerialMapProvider.downloadOfflineBatch(payload);
+                    App.ui.showAlert('Iniciando download dos tiles do SHP...', 'info');
+                    await nativeProvider.downloadOfflineBatch(payload);
                     App.ui.showAlert('Download em lote iniciado. Baixando mapa offline em segundo plano.', 'info');
                 } catch (error) {
                     logAereoOfflineError('native-offline:batch:download:error', error);
