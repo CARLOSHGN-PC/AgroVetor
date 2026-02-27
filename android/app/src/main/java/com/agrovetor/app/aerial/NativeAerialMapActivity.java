@@ -80,6 +80,8 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private boolean styleLoading;
     private int styleAttemptIndex;
     private List<String> styleFallbackChain = Collections.emptyList();
+    @Nullable
+    private String lastMapLoadingErrorDetails;
     private RuntimeOfflineSnapshot runtimeOfflineSnapshot = RuntimeOfflineSnapshot.empty();
     @Nullable
     private String pendingTalhoesGeoJson;
@@ -227,6 +229,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private void proceedToNextStyleOrFail(String reasonType, String styleUri) {
         styleLoading = false;
         String reason = buildDetailedFailureReason(reasonType, styleUri);
+        Log.e(TAG, "Falha de carregamento detectada. reasonType=" + reasonType + " styleUri=" + styleUri + " details=" + lastMapLoadingErrorDetails);
         styleAttemptIndex += 1;
         if (styleAttemptIndex < styleFallbackChain.size()) {
             String next = styleFallbackChain.get(styleAttemptIndex);
@@ -269,7 +272,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         if (!matchingTileRegion) {
             return reasonType + ": tile region real ausente para styleUri=" + styleUri;
         }
-        return reasonType + ": map loading error para styleUri=" + styleUri + " (stylePacksReais=" + runtimeOfflineSnapshot.stylePackIds.size() + ", tileRegionsReais=" + runtimeOfflineSnapshot.tileRegionIds.size() + ")";
+        return reasonType + ": map loading error para styleUri=" + styleUri + " (stylePacksReais=" + runtimeOfflineSnapshot.stylePackIds.size() + ", tileRegionsReais=" + runtimeOfflineSnapshot.tileRegionIds.size() + ", lastError=" + lastMapLoadingErrorDetails + ")";
     }
 
     private List<String> buildStyleFallbackChain(boolean networkAvailable, List<OfflineRegionMetadata> candidateRegions) {
@@ -629,7 +632,12 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
                         public Object invoke(Object proxy, Method method, Object[] args) {
                             if (args != null && args.length > 0 && args[0] != null) {
                                 String details = String.valueOf(args[0]);
-                                Log.e(TAG, "MapLoadingError recebido: " + details);
+                                lastMapLoadingErrorDetails = details;
+                                Log.e(TAG, "MapLoadingError recebido: method=" + method.getName() + " details=" + details + " styleLoading=" + styleLoading + " styleReady=" + styleReady + " attempt=" + (styleAttemptIndex + 1));
+                                if (!styleLoading || styleReady) {
+                                    Log.w(TAG, "MapLoadingError ignorado porque style não está mais em carregamento ativo.");
+                                    return null;
+                                }
                                 String failingStyleUri = styleFallbackChain.isEmpty() ? "<none>" : styleFallbackChain.get(Math.min(styleAttemptIndex, styleFallbackChain.size() - 1));
                                 proceedToNextStyleOrFail("map_loading_error", failingStyleUri);
                             }
