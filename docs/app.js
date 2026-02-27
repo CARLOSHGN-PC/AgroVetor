@@ -13537,14 +13537,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         logAereoOffline('init:done', { hasMap: Boolean(App.state.mapboxMap), hasContours: Boolean(App.state.geoJsonData?.features?.length) });
                     } catch (e) {
                         if (App.state.useNativeAerialMap) {
-                            logAereoOfflineError('init:native:fallback', e);
+                            const fallbackDebug = {
+                                error: {
+                                    name: e?.name || null,
+                                    message: e?.message || String(e),
+                                    details: e?.details || null,
+                                    stack: e?.stack || null
+                                },
+                                provider: App.state.aerialMapProvider?.kind || null,
+                                useNativeAerialMap: App.state.useNativeAerialMap,
+                                providerKind: App.state.aerialMapProvider?.kind || null,
+                                hasGeoJsonData: Boolean(App.state.geoJsonData?.features?.length)
+                            };
+                            logAereoOfflineError('init:native:fallback', e, fallbackDebug);
+                            console.error('[AEREO_OFFLINE] falha real do provider nativo antes do fallback:', fallbackDebug);
                             console.warn('[AEREO_OFFLINE] fallback do provider nativo para web detectado.');
                             App.state.useNativeAerialMap = false;
-                            App.state.aerialMapProvider = createAerialMapProvider({ app: App });
+                            App.state.aerialMapProvider = createAerialMapProvider({ app: App, forceWeb: true });
                             this.updateAndroidOfflineButtonsVisibility();
                             await this._initMapInstanceSafe();
                             await this.loadBaseLayerOfflineSafe();
-                            await this.loadContoursOfflineSafe();
+                            await this.loadContoursOfflineSafe({ preserveExisting: true, reason: 'native-fallback' });
                             this.watchUserPosition();
                             this.loadTraps();
                             console.info('[AEREO_OFFLINE] estado final após fallback:', {
@@ -13623,12 +13636,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async loadContoursOfflineSafe() {
+            async loadContoursOfflineSafe(options = {}) {
+                const { preserveExisting = false, reason = 'default' } = options;
                 const mapContainer = document.getElementById('map-container');
                 if (mapContainer) mapContainer.classList.add('loading');
                 const key = getContourCacheKey();
                 App.state.activeContourCacheKey = key;
-                logAereoOffline('contours:load:start', { key, online: navigator.onLine });
+                const hasExistingContours = Boolean(App.state.geoJsonData?.features?.length);
+                logAereoOffline('contours:load:start', { key, online: navigator.onLine, preserveExisting, reason, hasExistingContours });
 
                 try {
                     const loaded = await this._loadContoursFromStorage(key);
@@ -13645,11 +13660,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
+                    if (preserveExisting && hasExistingContours) {
+                        logAereoOffline('contours:load:preserved-existing', { key, reason, features: App.state.geoJsonData.features.length });
+                        if (App.state.mapboxMap) this.loadShapesOnMap();
+                        return;
+                    }
+
                     App.state.geoJsonData = null;
                     App.ui.showAlert('Contornos offline não encontrados. Conecte-se para baixar novamente.', 'warning', 7000);
-                    logAereoOffline('contours:load:missing', { key, online: navigator.onLine });
+                    logAereoOffline('contours:load:missing', { key, online: navigator.onLine, preserveExisting, reason });
                 } catch (error) {
-                    logAereoOfflineError('contours:load:error', error, { key });
+                    logAereoOfflineError('contours:load:error', error, { key, preserveExisting, reason, hasExistingContours });
+                    if (preserveExisting && hasExistingContours) {
+                        logAereoOffline('contours:load:error:preserved-existing', { key, reason, features: App.state.geoJsonData.features.length });
+                        if (App.state.mapboxMap) this.loadShapesOnMap();
+                        return;
+                    }
                     App.state.geoJsonData = null;
                     App.ui.showAlert('Não foi possível carregar os contornos offline. Baixe novamente quando estiver online.', 'warning', 8000);
                 } finally {

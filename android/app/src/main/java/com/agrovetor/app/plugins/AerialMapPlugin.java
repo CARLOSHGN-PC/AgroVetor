@@ -53,13 +53,28 @@ public class AerialMapPlugin extends Plugin {
         }
         AerialMapSessionStore.zoom = zoom;
 
-        Intent intent = new Intent(getContext(), NativeAerialMapActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        getActivity().startActivity(intent);
+        Log.i(TAG, "openMap chamado: styleUri=" + styleUri
+                + " center=[" + AerialMapSessionStore.center[0] + "," + AerialMapSessionStore.center[1] + "]"
+                + " zoom=" + zoom
+                + " hasTalhoes=" + (AerialMapSessionStore.talhoesGeoJson != null && !AerialMapSessionStore.talhoesGeoJson.trim().isEmpty()));
 
-        JSObject result = new JSObject();
-        result.put("status", "opened");
-        call.resolve(result);
+        try {
+            Intent intent = new Intent(getContext(), NativeAerialMapActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            if (getActivity() == null) {
+                Log.e(TAG, "openMap abortado: getActivity() retornou null");
+                call.reject("Activity nativa indisponível para abrir mapa.");
+                return;
+            }
+            getActivity().startActivity(intent);
+
+            JSObject result = new JSObject();
+            result.put("status", "opened");
+            call.resolve(result);
+        } catch (Exception error) {
+            Log.e(TAG, "Falha ao iniciar NativeAerialMapActivity", error);
+            call.reject("Falha ao iniciar mapa nativo.", error);
+        }
     }
 
     @PluginMethod
@@ -277,6 +292,7 @@ public class AerialMapPlugin extends Plugin {
     }
 
     public static void notifyError(String message, String details) {
+        Log.e(TAG, "notifyError: message=" + message + " details=" + details);
         if (instance == null) return;
         JSObject payload = new JSObject();
         payload.put("message", message);
