@@ -13,7 +13,14 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
 
     static isSupported() {
         const cap = window?.Capacitor;
-        return Boolean(cap?.isNativePlatform?.() && cap?.getPlatform?.() === 'android' && cap?.registerPlugin);
+        const isAndroidNative = Boolean(cap?.isNativePlatform?.() && cap?.getPlatform?.() === 'android');
+        if (!isAndroidNative) return false;
+
+        return Boolean(
+            cap?.isPluginAvailable?.(pluginName)
+            || cap?.Plugins?.[pluginName]
+            || cap?.registerPlugin
+        );
     }
 
     _ensurePlugin() {
