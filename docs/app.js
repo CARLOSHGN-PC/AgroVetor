@@ -13565,7 +13565,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 useNativeAerialMap: App.state.useNativeAerialMap,
                                 providerKind: App.state.aerialMapProvider?.kind || null
                             });
-                            App.ui.showAlert('Falha no mapa nativo. Retornando para modo web.', 'warning', 5000);
+                            const nativeErrorDetail = e?.details || e?.message || 'erro desconhecido';
+                            App.ui.showAlert(`Falha no mapa nativo (${nativeErrorDetail}). Retornando para modo web.`, 'warning', 7000);
                         } else {
                             logAereoOfflineError('init:error', e);
                             App.ui.showAlert("Não foi possível carregar o mapa.", "error");
@@ -13643,11 +13644,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const key = getContourCacheKey();
                 App.state.activeContourCacheKey = key;
                 const hasExistingContours = Boolean(App.state.geoJsonData?.features?.length);
-                logAereoOffline('contours:load:start', { key, online: navigator.onLine, preserveExisting, reason, hasExistingContours });
+                const shapefileURL = App.state.companyConfig?.shapefileURL || null;
+                const hasShapefileURL = Boolean(shapefileURL);
+                logAereoOffline('contours:load:start', { key, online: navigator.onLine, preserveExisting, reason, hasExistingContours, hasShapefileURL });
+                console.info('[AEREO_OFFLINE] companyConfig.shapefileURL', { hasShapefileURL, shapefileURL: hasShapefileURL ? shapefileURL : null });
 
                 try {
-                    const loaded = await this._loadContoursFromStorage(key);
-                    if (loaded) {
+                    const storageResult = await this._loadContoursFromStorage(key, { detailed: true });
+                    if (storageResult.loaded) {
                         this.loadShapesOnMap();
                         if (App.state.useNativeAerialMap && App.state.aerialMapProvider) {
                             await App.state.aerialMapProvider.loadTalhoes(App.state.geoJsonData);
@@ -13655,9 +13659,24 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    if (navigator.onLine && App.state.companyConfig?.shapefileURL) {
-                        await this.loadAndCacheShapes(App.state.companyConfig.shapefileURL);
-                        return;
+                    if (navigator.onLine && hasShapefileURL) {
+                        console.info('[AEREO_OFFLINE] loadAndCacheShapes será chamado', { key, shapefileURL });
+                        const networkResult = await this.loadAndCacheShapes(shapefileURL, { silentFallbackAlert: true, detailed: true });
+                        if (networkResult.loaded) {
+                            if (App.state.useNativeAerialMap && App.state.aerialMapProvider) {
+                                await App.state.aerialMapProvider.loadTalhoes(App.state.geoJsonData);
+                            }
+                            return;
+                        }
+
+                        const warningMessage = networkResult.reason === 'download-error'
+                            ? 'Erro ao baixar contornos do servidor. Verifique a URL do shapefile e tente novamente.'
+                            : 'Erro ao processar/cachear os contornos baixados. Tente novamente ou atualize o pacote offline.';
+                        App.ui.showAlert(warningMessage, 'warning', 8000);
+                        logAereoOffline('contours:load:network:failed', { key, reason: networkResult.reason || null, error: networkResult.error || null });
+                    } else if (navigator.onLine && !hasShapefileURL) {
+                        App.ui.showAlert('Configuração incompleta: shapefileURL ausente para baixar os contornos.', 'warning', 8000);
+                        logAereoOffline('contours:load:missing:shapefile-url', { key, online: true });
                     }
 
                     if (preserveExisting && hasExistingContours) {
@@ -13667,17 +13686,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     App.state.geoJsonData = null;
-                    App.ui.showAlert('Contornos offline não encontrados. Conecte-se para baixar novamente.', 'warning', 7000);
-                    logAereoOffline('contours:load:missing', { key, online: navigator.onLine, preserveExisting, reason });
+                    const missingMessage = !navigator.onLine
+                        ? 'Contornos offline não encontrados e dispositivo sem internet para baixar novamente.'
+                        : (hasShapefileURL
+                            ? 'Contornos indisponíveis após tentativa de download. Verifique o arquivo e tente novamente.'
+                            : 'Contornos indisponíveis: shapefileURL não configurado para esta empresa.');
+                    App.ui.showAlert(missingMessage, 'warning', 8000);
+                    logAereoOffline('contours:load:missing', { key, online: navigator.onLine, preserveExisting, reason, hasShapefileURL });
                 } catch (error) {
-                    logAereoOfflineError('contours:load:error', error, { key, preserveExisting, reason, hasExistingContours });
+                    logAereoOfflineError('contours:load:error', error, { key, preserveExisting, reason, hasExistingContours, hasShapefileURL });
                     if (preserveExisting && hasExistingContours) {
                         logAereoOffline('contours:load:error:preserved-existing', { key, reason, features: App.state.geoJsonData.features.length });
                         if (App.state.mapboxMap) this.loadShapesOnMap();
                         return;
                     }
                     App.state.geoJsonData = null;
-                    App.ui.showAlert('Não foi possível carregar os contornos offline. Baixe novamente quando estiver online.', 'warning', 8000);
+                    App.ui.showAlert('Erro ao ler contornos no cache local. Refaça o download dos contornos.', 'warning', 8000);
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
                 }
@@ -13826,10 +13850,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log(`Reprojeção de coordenadas de ${sourceProjection} para ${destProjection} concluída.`);
             },
 
-            async loadAndCacheShapes(url) {
+            async loadAndCacheShapes(url, options = {}) {
+                const { silentFallbackAlert = false, detailed = false } = options;
                 const mapContainer = document.getElementById('map-container');
                 if (!url) {
                     if (mapContainer) mapContainer.classList.remove('loading');
+                    if (detailed) return { loaded: false, reason: 'missing-url', error: null };
                     return;
                 }
 
@@ -13862,23 +13888,37 @@ document.addEventListener('DOMContentLoaded', () => {
                         features: normalizedGeoJson.features?.length || 0,
                         ms: Math.round(performance.now() - startedAt)
                     });
+                    if (detailed) return { loaded: true, reason: null, error: null };
                 } catch (err) {
                     logAereoOfflineError('contours:network:error', err, { key, url });
-                    App.ui.showAlert('Falha ao carregar contornos da rede. Tentando usar cache offline.', 'warning');
-                    const restored = await this._loadContoursFromStorage(key);
-                    if (!restored) {
+                    const errorMessage = err?.message || String(err);
+                    console.error('[AEREO_OFFLINE] loadAndCacheShapes falhou', { key, url, errorMessage, stack: err?.stack || null });
+                    if (!silentFallbackAlert) {
+                        App.ui.showAlert('Falha ao carregar contornos da rede. Tentando usar cache offline.', 'warning');
+                    }
+                    const restored = await this._loadContoursFromStorage(key, { detailed: true });
+                    if (!restored.loaded && !silentFallbackAlert) {
                         App.ui.showAlert('Não foi possível carregar os contornos do mapa offline; algumas funcionalidades podem estar indisponíveis.', 'warning', 8000);
+                    }
+                    if (detailed) {
+                        return { loaded: restored.loaded, reason: 'download-error', error: errorMessage };
                     }
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
                 }
+                if (detailed) return { loaded: false, reason: 'unknown', error: null };
             },
 
-            async _loadContoursFromStorage(key) {
+            async _loadContoursFromStorage(key, options = {}) {
+                const { detailed = false } = options;
                 const startedAt = performance.now();
                 try {
                     const loaded = await getContourStorageAdapter().load(key);
-                    if (!loaded?.geojson) return false;
+                    const hasGeoJson = Boolean(loaded?.geojson);
+                    console.info('[AEREO_OFFLINE] _loadContoursFromStorage resultado', { key, hasGeoJson });
+                    if (!hasGeoJson) {
+                        return detailed ? { loaded: false, reason: 'empty-cache', error: null } : false;
+                    }
                     App.state.geoJsonData = this._normalizeContourGeoJson(loaded.geojson);
                     logAereoOffline('contours:storage:loaded', {
                         key,
@@ -13886,7 +13926,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         features: App.state.geoJsonData.features?.length || 0,
                         ms: Math.round(performance.now() - startedAt)
                     });
-                    return true;
+                    return detailed ? { loaded: true, reason: null, error: null } : true;
                 } catch (error) {
                     logAereoOfflineError('contours:storage:error', error, { key });
                     try {
@@ -13894,7 +13934,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } catch (clearError) {
                         logAereoOfflineError('contours:storage:clear:error', clearError, { key });
                     }
-                    return false;
+                    return detailed ? { loaded: false, reason: 'storage-error', error: error?.message || String(error) } : false;
                 }
             },
 
