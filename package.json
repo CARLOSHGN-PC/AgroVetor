@@ -2,7 +2,7 @@
   "dependencies": {
     "@capacitor-community/file-opener": "^7.0.1",
     "@capacitor/android": "^7.4.3",
-    "@capacitor/cli": "^7.4.4",
+    "@capacitor/cli": "^7.5.0",
     "@capacitor/core": "^7.4.4",
     "@capacitor/filesystem": "^7.1.6",
     "@capacitor/geolocation": "^7.1.5",
@@ -12,7 +12,7 @@
     "@google/generative-ai": "^0.24.1",
     "@playwright/test": "^1.56.1",
     "@turf/turf": "^7.3.1",
-    "axios": "^1.13.2",
+    "axios": "^1.13.5",
     "cors": "^2.8.5",
     "csv-parser": "^3.2.0",
     "csv-writer": "^1.6.0",
