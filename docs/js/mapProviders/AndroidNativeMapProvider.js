@@ -32,51 +32,35 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
 
     async initMap(config = {}) {
         const plugin = this._ensurePlugin();
-        const openPayload = {
+
+        if (!this._clickListener) {
+            this._clickListener = await plugin.addListener('talhaoClick', (payload) => {
+                const feature = payload?.feature;
+                if (feature && this.app?.mapModule?.showTalhaoInfo) {
+                    this.app.mapModule.showTalhaoInfo(feature, payload?.riskPercentage ?? null);
+                }
+            });
+        }
+
+        if (!this._progressListener) {
+            this._progressListener = await plugin.addListener('offlineDownloadProgress', (payload) => {
+                console.info('[AerialNativeMap] download progress', payload);
+                const status = payload?.status;
+                if (status === 'ready') {
+                    this.app?.ui?.showAlert('Download offline concluído.', 'success');
+                } else if (status === 'downloading') {
+                    this.app?.ui?.showAlert('Baixando mapa offline...', 'info', 1800);
+                } else if (status === 'error') {
+                    this.app?.ui?.showAlert('Erro ao preparar offline.', 'warning');
+                }
+            });
+        }
+
+        return plugin.openMap({
             styleUri: config.styleUri || 'mapbox://styles/mapbox/standard-satellite',
             center: config.center || [-48.45, -21.17],
             zoom: config.zoom || 12,
-        };
-
-        try {
-            if (!this._clickListener) {
-                this._clickListener = await plugin.addListener('talhaoClick', (payload) => {
-                    const feature = payload?.feature;
-                    if (feature && this.app?.mapModule?.showTalhaoInfo) {
-                        this.app.mapModule.showTalhaoInfo(feature, payload?.riskPercentage ?? null);
-                    }
-                });
-            }
-
-            if (!this._progressListener) {
-                this._progressListener = await plugin.addListener('offlineDownloadProgress', (payload) => {
-                    console.info('[AerialNativeMap] download progress', payload);
-                    const status = payload?.status;
-                    if (status === 'ready') {
-                        this.app?.ui?.showAlert('Download offline concluído.', 'success');
-                    } else if (status === 'downloading') {
-                        this.app?.ui?.showAlert('Baixando mapa offline...', 'info', 1800);
-                    } else if (status === 'error') {
-                        this.app?.ui?.showAlert('Erro ao preparar offline.', 'warning');
-                    }
-                });
-            }
-
-            const response = await plugin.openMap(openPayload);
-            console.info('[AerialNativeMap] openMap sucesso', { payload: openPayload, response });
-            return response;
-        } catch (error) {
-            const diagnostics = {
-                payload: openPayload,
-                pluginName,
-                hasPlugin: Boolean(plugin),
-                message: error?.message || String(error),
-                details: error?.details || null,
-                stack: error?.stack || null,
-            };
-            console.error('[AerialNativeMap] initMap falhou', diagnostics);
-            throw error;
-        }
+        });
     }
 
     async loadTalhoes(geojson) {
