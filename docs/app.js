@@ -3341,22 +3341,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 container.appendChild(notificationEl);
 
-                const dismiss = () => {
-                    notificationEl.style.animation = 'slideOutRight 0.3s ease-out forwards';
+                let isDismissing = false;
+                const dismiss = (direction = 'right') => {
+                    if (isDismissing) return;
+                    isDismissing = true;
+
+                    const animationName = direction === 'left' ? 'slideOutLeft' : 'slideOutRight';
+                    notificationEl.style.animation = `${animationName} 0.3s ease-out forwards`;
+
                     notificationEl.addEventListener('animationend', () => {
-                        notificationEl.remove();
+                        if (notificationEl.parentNode) {
+                            notificationEl.remove();
+                        }
                     });
                 };
 
                 // Auto dismiss after 5 seconds
-                const autoDismissTimeout = setTimeout(dismiss, 5000);
+                const autoDismissTimeout = setTimeout(() => dismiss('right'), 5000);
 
                 // Click on X to close
                 const closeBtn = notificationEl.querySelector('.close-btn');
                 if (closeBtn) {
                     closeBtn.addEventListener('click', () => {
                         clearTimeout(autoDismissTimeout);
-                        dismiss();
+                        dismiss('right');
                     });
                 }
 
@@ -3365,22 +3373,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 let touchEndX = 0;
 
                 notificationEl.addEventListener('touchstart', (event) => {
-                    touchStartX = event.changedTouches[0].screenX;
+                    touchStartX = event.changedTouches[0].clientX;
                 }, { passive: true });
 
                 notificationEl.addEventListener('touchend', (event) => {
-                    touchEndX = event.changedTouches[0].screenX;
+                    touchEndX = event.changedTouches[0].clientX;
                     handleSwipe();
                 }, { passive: true });
 
                 const handleSwipe = () => {
-                    if (touchEndX < touchStartX - 50) { // Swipe left
+                    const threshold = 30; // pixels
+                    if (touchEndX < touchStartX - threshold) { // Swipe left
                         clearTimeout(autoDismissTimeout);
-                        dismiss();
-                    }
-                    if (touchEndX > touchStartX + 50) { // Swipe right
+                        dismiss('left');
+                    } else if (touchEndX > touchStartX + threshold) { // Swipe right
                         clearTimeout(autoDismissTimeout);
-                        dismiss();
+                        dismiss('right');
                     }
                 };
             },
