@@ -1386,11 +1386,19 @@
       .trap-notification.danger {
           border-left-color: var(--color-danger);
       }
+      .trap-notification.success {
+          border-left-color: var(--color-success);
+      }
+      .trap-notification.info {
+          border-left-color: var(--color-info);
+      }
       .trap-notification .icon {
           font-size: 24px;
       }
       .trap-notification.warning .icon { color: var(--color-warning); }
       .trap-notification.danger .icon { color: var(--color-danger); }
+      .trap-notification.success .icon { color: var(--color-success); }
+      .trap-notification.info .icon { color: var(--color-info); }
       .trap-notification p {
           margin: 0;
           font-size: 14px;
@@ -2131,10 +2139,6 @@
             </div>
             
             <div class="header-actions-container">
-                <div id="connectionStatusBadge" class="connection-status-badge" role="status" aria-live="polite">
-                    <i class="fas fa-circle"></i>
-                    <span id="connectionStatusText">Offline</span>
-                </div>
                 <div id="notification-bell-container" class="notification-bell" style="display: none;">
                     <button id="notification-bell-toggle" aria-label="Notificações">
                         <i class="fas fa-bell"></i>
@@ -2162,6 +2166,10 @@
                         <div class="user-menu-header">
                             <p><strong>Conectado como:</strong></p>
                             <p id="userMenuUsername"></p>
+                        </div>
+                        <div id="connectionStatusBadge" class="connection-status-badge user-menu-item" role="status" aria-live="polite" style="margin: 8px 16px; width: calc(100% - 32px); justify-content: center; display: flex;">
+                            <i class="fas fa-circle"></i>
+                            <span id="connectionStatusText">Offline</span>
                         </div>
                         <div id="currentDateTime" class="user-menu-item"></div>
                         <hr>

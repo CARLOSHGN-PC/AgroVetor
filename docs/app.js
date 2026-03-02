@@ -3300,6 +3300,89 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 this.updateNotificationBell();
                 App.actions.saveNotification(newNotification); // Salva a notificação completa
+
+                // Show floating notification
+                this.showFloatingNotification(newNotification);
+            },
+            showFloatingNotification(notification) {
+                const container = App.elements.notificationContainer;
+                if (!container) return;
+
+                // Limit the number of notifications on screen to 3
+                while (container.children.length >= 3) {
+                    container.removeChild(container.firstChild);
+                }
+
+                const notificationEl = document.createElement('div');
+
+                // Map system notification types to CSS classes used by trap-notification
+                let cssTypeClass = 'info';
+                if (notification.type === 'error' || notification.type === 'critical_error') cssTypeClass = 'danger';
+                if (notification.type === 'warning') cssTypeClass = 'warning';
+                if (notification.type === 'success') cssTypeClass = 'success';
+
+                notificationEl.className = `trap-notification ${cssTypeClass}`;
+                if (notification.logId) notificationEl.dataset.logId = notification.logId;
+                if (notification.trapId) notificationEl.dataset.trapId = notification.trapId;
+
+                let iconClass = 'fa-info-circle';
+                if (cssTypeClass === 'danger') iconClass = 'fa-times-circle';
+                if (cssTypeClass === 'warning') iconClass = 'fa-exclamation-triangle';
+                if (cssTypeClass === 'success') iconClass = 'fa-check-circle';
+
+                notificationEl.innerHTML = `
+                    <div class="icon" style="margin-right: 15px;"><i class="fas ${iconClass}"></i></div>
+                    <div class="text" style="flex: 1;">
+                        <p><strong>${notification.title || 'Notificação'}</strong></p>
+                        <p>${notification.message}</p>
+                    </div>
+                    <button class="close-btn" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--color-text-light); margin-left: 10px;">&times;</button>
+                `;
+
+                container.appendChild(notificationEl);
+
+                const dismiss = () => {
+                    notificationEl.style.animation = 'slideOutRight 0.3s ease-out forwards';
+                    notificationEl.addEventListener('animationend', () => {
+                        notificationEl.remove();
+                    });
+                };
+
+                // Auto dismiss after 5 seconds
+                const autoDismissTimeout = setTimeout(dismiss, 5000);
+
+                // Click on X to close
+                const closeBtn = notificationEl.querySelector('.close-btn');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', () => {
+                        clearTimeout(autoDismissTimeout);
+                        dismiss();
+                    });
+                }
+
+                // Swipe to close
+                let touchStartX = 0;
+                let touchEndX = 0;
+
+                notificationEl.addEventListener('touchstart', (event) => {
+                    touchStartX = event.changedTouches[0].screenX;
+                }, { passive: true });
+
+                notificationEl.addEventListener('touchend', (event) => {
+                    touchEndX = event.changedTouches[0].screenX;
+                    handleSwipe();
+                }, { passive: true });
+
+                const handleSwipe = () => {
+                    if (touchEndX < touchStartX - 50) { // Swipe left
+                        clearTimeout(autoDismissTimeout);
+                        dismiss();
+                    }
+                    if (touchEndX > touchStartX + 50) { // Swipe right
+                        clearTimeout(autoDismissTimeout);
+                        dismiss();
+                    }
+                };
             },
             updateDateTime() { App.elements.currentDateTime.innerHTML = `<i class="fas fa-clock"></i> ${new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`; },
             renderFallbackMenu() {
@@ -15115,57 +15198,12 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             showTrapNotification(notification) {
-                const container = App.elements.notificationContainer;
-
-                // Limita o número de notificações na tela para 3
-                while (container.children.length >= 3) {
-                    container.removeChild(container.firstChild);
-                }
-
-                const notificationEl = document.createElement('div');
-                notificationEl.className = `trap-notification ${notification.type}`;
-                notificationEl.dataset.trapId = notification.trapId;
-
-                const iconClass = notification.type === 'warning' ? 'fa-exclamation-triangle' : 'fa-exclamation-circle';
-                
-                notificationEl.innerHTML = `
-                    <button class="close-btn">&times;</button>
-                    <div class="icon"><i class="fas ${iconClass}"></i></div>
-                    <div class="text">
-                        <p><strong>Armadilha requer atenção</strong></p>
-                        <p>${notification.message}</p>
-                    </div>
-                `;
-                
-                container.appendChild(notificationEl);
-                
-                const dismiss = () => {
-                    notificationEl.classList.add('dismiss');
-                    notificationEl.addEventListener('animationend', () => {
-                        notificationEl.remove();
-                    });
-                };
-
-                // Click no X para fechar
-                notificationEl.querySelector('.close-btn').addEventListener('click', dismiss);
-
-                // Deslizar para fechar
-                let touchStartX = 0;
-                let touchEndX = 0;
-
-                notificationEl.addEventListener('touchstart', (event) => {
-                    touchStartX = event.changedTouches[0].screenX;
-                }, { passive: true });
-
-                notificationEl.addEventListener('touchend', (event) => {
-                    touchEndX = event.changedTouches[0].screenX;
-                    if (touchEndX < touchStartX - 50) { // Deslize para a esquerda de 50px
-                        dismiss();
-                    }
-                }, { passive: true });
-
-                // Remover automaticamente após um tempo
-                setTimeout(dismiss, 10000);
+                App.ui.showFloatingNotification({
+                    title: 'Armadilha requer atenção',
+                    message: notification.message,
+                    type: notification.type,
+                    trapId: notification.trapId
+                });
             },
 
             toggleRiskView() {
