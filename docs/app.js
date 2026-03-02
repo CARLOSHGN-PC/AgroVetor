@@ -558,99 +558,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const isStorageShapefileRequest = (rawUrl = '') => {
-        const url = String(rawUrl || '').toLowerCase();
-        return (
-            url.includes('firebasestorage.googleapis.com') ||
-            url.includes('/o/shapefiles%2f') ||
-            url.endsWith('.zip') ||
-            url.includes('.zip?') ||
-            url.endsWith('.shp') ||
-            url.includes('.shp?') ||
-            url.endsWith('.dbf') ||
-            url.includes('.dbf?') ||
-            url.endsWith('.shx') ||
-            url.includes('.shx?') ||
-            url.endsWith('.prj') ||
-            url.includes('.prj?')
-        );
-    };
-
-    const appendCacheBust = (url, timestamp = Date.now()) => {
-        if (!url) return url;
-        return url.includes('?') ? `${url}&t=${timestamp}` : `${url}?t=${timestamp}`;
-    };
-
-    const maskSensitiveUrl = (rawUrl = '') => {
-        if (!rawUrl) return rawUrl;
-        try {
-            const parsed = new URL(rawUrl, window.location.origin);
-            if (parsed.searchParams.has('token')) {
-                const token = parsed.searchParams.get('token') || '';
-                const maskedToken = token.length > 10 ? `${token.slice(0, 4)}...${token.slice(-4)}` : '***';
-                parsed.searchParams.set('token', maskedToken);
-            }
-            return parsed.toString();
-        } catch (error) {
-            return String(rawUrl).replace(/([?&]token=)[^&]+/i, '$1***');
-        }
-    };
-
-    const buildSafeShapefileFetchOptions = (baseOptions = {}) => {
-        const headers = new Headers(baseOptions?.headers || {});
-        ['if-match', 'if-none-match', 'if-unmodified-since', 'if-modified-since', 'etag'].forEach((name) => headers.delete(name));
-
-        if (!headers.has('Accept')) {
-            headers.set('Accept', 'application/zip,application/octet-stream,*/*');
-        }
-
-        return {
-            method: 'GET',
-            credentials: 'omit',
-            cache: 'no-store',
-            ...baseOptions,
-            headers
-        };
-    };
-
-    const headersToSanitizedObject = (headersInit) => {
-        const headers = new Headers(headersInit || {});
-        const safeHeaders = {};
-        headers.forEach((value, key) => {
-            if (/authorization|cookie|token/i.test(key)) {
-                safeHeaders[key] = '***';
-                return;
-            }
-            safeHeaders[key] = value;
-        });
-        return safeHeaders;
-    };
-
     const readShapefileAsArrayBuffer = async (url, context = 'online') => {
-        const finalUrl = appendCacheBust(url);
-        const safeLogUrl = maskSensitiveUrl(finalUrl);
-
         if (isCapacitorNative()) {
             try {
                 const { CapacitorHttp } = Capacitor.Plugins;
-                if (CapacitorHttp?.request && isStorageShapefileRequest(finalUrl)) {
-                    const options = buildSafeShapefileFetchOptions({ headers: { 'Cache-Control': 'no-store' } });
-                    logAereoOffline('contours:network:request', {
-                        context,
-                        mode: 'capacitor-http',
-                        url: safeLogUrl,
-                        headers: headersToSanitizedObject(options.headers)
-                    });
-                    logShpSource(`capacitor-http-${context}`, safeLogUrl);
-                    const response = await CapacitorHttp.request({
-                        url: finalUrl,
-                        method: options.method,
-                        responseType: 'arraybuffer',
-                        headers: headersToSanitizedObject(options.headers)
-                    });
-                    logAereoOffline('contours:network:response', { context, mode: 'capacitor-http', status: response?.status || 0, url: safeLogUrl });
+                if (CapacitorHttp?.request) {
+                    logShpSource(`capacitor-http-${context}`, url);
+                    const response = await CapacitorHttp.request({ url, method: 'GET', responseType: 'arraybuffer', headers: { 'Cache-Control': 'no-store' } });
                     if (!response || response.status < 200 || response.status >= 300) {
-                        throw new Error(`Não foi possível baixar o shapefile: ${response?.status || 'desconhecido'}`);
+                        throw new Error(`HTTP ${response?.status || 'desconhecido'}`);
                     }
                     const normalized = await normalizeToArrayBuffer(response.data);
                     return normalized;
@@ -660,20 +576,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const options = buildSafeShapefileFetchOptions();
-        logAereoOffline('contours:network:request', {
-            context,
-            mode: 'fetch',
-            url: safeLogUrl,
-            headers: headersToSanitizedObject(options.headers)
-        });
-        logShpSource(`fetch-${context}`, safeLogUrl);
-
-        const fetchImpl = (window.__AGV_IS_STORAGE_SHAPEFILE_REQUEST?.(finalUrl) && window.__AGV_ORIGINAL_FETCH)
-            ? window.__AGV_ORIGINAL_FETCH.bind(window)
-            : fetch;
-        const response = await fetchImpl(finalUrl, options);
-        logAereoOffline('contours:network:response', { context, mode: 'fetch', status: response.status, url: safeLogUrl });
+        logShpSource(`fetch-${context}`, url);
+        const response = await fetch(url, { cache: 'no-store' });
         if (!response.ok) throw new Error(`Não foi possível baixar o shapefile: ${response.status} ${response.statusText}`);
         return response.arrayBuffer();
     };
@@ -13909,7 +13813,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 logAereoOffline('contours:network:fetch:start', { key, url });
 
                 try {
-                    const buffer = await readShapefileAsArrayBuffer(url, 'online');
+                    const urlWithCacheBuster = `${url}?t=${Date.now()}`;
+                    const buffer = await readShapefileAsArrayBuffer(urlWithCacheBuster, 'online');
                     logAereoOffline('contours:network:fetch:done', { key, bytes: buffer?.byteLength || 0, ms: Math.round(performance.now() - startedAt) });
 
                     const { geojson, debug } = await runShapefileWorker(buffer);
@@ -13932,13 +13837,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         ms: Math.round(performance.now() - startedAt)
                     });
                 } catch (err) {
-                    logAereoOfflineError('contours:network:error', err, { key, url: maskSensitiveUrl(url) });
+                    logAereoOfflineError('contours:network:error', err, { key, url });
                     App.ui.showAlert('Falha ao carregar contornos da rede. Tentando usar cache offline.', 'warning');
                     const restored = await this._loadContoursFromStorage(key);
-                    logAereoOffline('contours:network:fallback', { key, restored, reason: err?.message || String(err) });
                     if (!restored) {
                         App.ui.showAlert('Não foi possível carregar os contornos do mapa offline; algumas funcionalidades podem estar indisponíveis.', 'warning', 8000);
-                        throw err;
                     }
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
@@ -14030,7 +13933,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.group('[SHP DEBUG] Testar SHP');
                 const startedAt = performance.now();
                 try {
-                    const buffer = await readShapefileAsArrayBuffer(url, 'debug');
+                    const buffer = await readShapefileAsArrayBuffer(`${url}?debug=${Date.now()}`, 'debug');
                     console.info(`[SHP] bytes shp=${buffer?.byteLength || 0} dbf=0 prj=0`);
                     const { geojson, debug } = await runShapefileWorker(buffer);
                     const bounds = this._getGeoJsonBounds(geojson);
