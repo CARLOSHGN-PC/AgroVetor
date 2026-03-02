@@ -13813,7 +13813,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 logAereoOffline('contours:network:fetch:start', { key, url });
 
                 try {
-                    const urlWithCacheBuster = `${url}?t=${Date.now()}`;
+                    const urlWithCacheBuster = url.includes('?') ? `${url}&t=${Date.now()}` : `${url}?t=${Date.now()}`;
                     const buffer = await readShapefileAsArrayBuffer(urlWithCacheBuster, 'online');
                     logAereoOffline('contours:network:fetch:done', { key, bytes: buffer?.byteLength || 0, ms: Math.round(performance.now() - startedAt) });
 
