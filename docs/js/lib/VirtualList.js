@@ -27,8 +27,6 @@ export default class VirtualList {
         this.sentinel.style.width = '100%';
         // this.sentinel.style.backgroundColor = 'red'; // Debug
 
-        this.renderBatch();
-
         // Setup observer
         const options = {
             root: null, // viewport
@@ -42,8 +40,10 @@ export default class VirtualList {
             }
         }, options);
 
+        this.renderBatch();
+
         this.container.appendChild(this.sentinel);
-        this.observer.observe(this.sentinel);
+        if (this.observer) this.observer.observe(this.sentinel);
     }
 
     renderBatch() {
@@ -54,7 +54,7 @@ export default class VirtualList {
         this.loading = true;
 
         // Temporarily unobserve
-        if (this.sentinel) {
+        if (this.sentinel && this.observer) {
             this.observer.unobserve(this.sentinel);
             this.sentinel.remove();
         }
