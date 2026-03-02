@@ -61,14 +61,12 @@ public class AerialMapPlugin extends Plugin {
         try {
             Intent intent = new Intent(getContext(), NativeAerialMapActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            Log.i(TAG, "openMap contexto: activityPresente=" + (getActivity() != null) + " contextClass=" + getContext().getClass().getName());
             if (getActivity() == null) {
                 Log.e(TAG, "openMap abortado: getActivity() retornou null");
                 call.reject("Activity nativa indisponível para abrir mapa.");
                 return;
             }
             getActivity().startActivity(intent);
-            Log.i(TAG, "openMap startActivity executado com sucesso para NativeAerialMapActivity");
 
             JSObject result = new JSObject();
             result.put("status", "opened");

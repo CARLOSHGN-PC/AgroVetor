@@ -9,7 +9,6 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         this.plugin = null;
         this._clickListener = null;
         this._progressListener = null;
-        this._errorListener = null;
     }
 
     static isSupported() {
@@ -17,7 +16,11 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         const isAndroidNative = Boolean(cap?.isNativePlatform?.() && cap?.getPlatform?.() === 'android');
         if (!isAndroidNative) return false;
 
-        return Boolean(cap?.isPluginAvailable?.(pluginName) || cap?.Plugins?.[pluginName]);
+        return Boolean(
+            cap?.isPluginAvailable?.(pluginName)
+            || cap?.Plugins?.[pluginName]
+            || cap?.registerPlugin
+        );
     }
 
     _ensurePlugin() {
@@ -28,33 +31,15 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
     }
 
     async initMap(config = {}) {
-        const diagnostics = {
-            stage: 'boot',
-            pluginName,
-            capacitorPlatform: window?.Capacitor?.getPlatform?.() || null,
-            pluginAvailable: window?.Capacitor?.isPluginAvailable?.(pluginName) ?? null,
-            pluginInRegistry: Boolean(window?.Capacitor?.Plugins?.[pluginName]),
-        };
-
-        if (diagnostics.pluginAvailable === false && !diagnostics.pluginInRegistry) {
-            const unavailableError = new Error('Plugin nativo AerialMap indisponível no Android.');
-            console.error('[AerialNativeMap] initMap abortado: plugin indisponível', diagnostics);
-            throw unavailableError;
-        }
-
         const plugin = this._ensurePlugin();
-        diagnostics.stage = 'plugin-ready';
-        diagnostics.hasPlugin = Boolean(plugin);
         const openPayload = {
             styleUri: config.styleUri || 'mapbox://styles/mapbox/standard-satellite',
             center: config.center || [-48.45, -21.17],
             zoom: config.zoom || 12,
         };
-        diagnostics.payload = openPayload;
 
         try {
             if (!this._clickListener) {
-                diagnostics.stage = 'listener:talhaoClick';
                 this._clickListener = await plugin.addListener('talhaoClick', (payload) => {
                     const feature = payload?.feature;
                     if (feature && this.app?.mapModule?.showTalhaoInfo) {
@@ -63,15 +48,7 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
                 });
             }
 
-            if (!this._errorListener) {
-                diagnostics.stage = 'listener:nativeMapError';
-                this._errorListener = await plugin.addListener('nativeMapError', (payload) => {
-                    console.error('[AerialNativeMap] nativeMapError recebido', payload);
-                });
-            }
-
             if (!this._progressListener) {
-                diagnostics.stage = 'listener:offlineDownloadProgress';
                 this._progressListener = await plugin.addListener('offlineDownloadProgress', (payload) => {
                     console.info('[AerialNativeMap] download progress', payload);
                     const status = payload?.status;
@@ -85,18 +62,19 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
                 });
             }
 
-            diagnostics.stage = 'openMap:call';
             const response = await plugin.openMap(openPayload);
-            diagnostics.stage = 'openMap:success';
             console.info('[AerialNativeMap] openMap sucesso', { payload: openPayload, response });
             return response;
         } catch (error) {
-            console.error('[AerialNativeMap] initMap falhou', {
-                ...diagnostics,
+            const diagnostics = {
+                payload: openPayload,
+                pluginName,
+                hasPlugin: Boolean(plugin),
                 message: error?.message || String(error),
                 details: error?.details || null,
                 stack: error?.stack || null,
-            });
+            };
+            console.error('[AerialNativeMap] initMap falhou', diagnostics);
             throw error;
         }
     }
@@ -155,10 +133,6 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         if (this._progressListener) {
             await this._progressListener.remove();
             this._progressListener = null;
-        }
-        if (this._errorListener) {
-            await this._errorListener.remove();
-            this._errorListener = null;
         }
     }
 }
