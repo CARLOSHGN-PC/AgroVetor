@@ -61,6 +61,11 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         return plugin.loadTalhoes({ geojson: JSON.stringify(geojson) });
     }
 
+    async loadArmadilhas(geojson) {
+        const plugin = this._ensurePlugin();
+        return plugin.loadArmadilhas({ geojson: JSON.stringify(geojson) });
+    }
+
     async highlightTalhao(talhaoId) {
         const plugin = this._ensurePlugin();
         return plugin.highlightTalhao({ talhaoId: String(talhaoId) });

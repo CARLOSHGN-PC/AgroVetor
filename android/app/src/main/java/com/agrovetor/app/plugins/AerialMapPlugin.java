@@ -81,6 +81,7 @@ public class AerialMapPlugin extends Plugin {
         }
         AerialMapSessionStore.styleUri = metadata.styleUri;
         AerialMapSessionStore.talhoesGeoJson = metadata.talhoesGeoJson;
+        AerialMapSessionStore.armadilhasGeoJson = metadata.armadilhasGeoJson;
         openMap(call);
     }
 
@@ -94,6 +95,19 @@ public class AerialMapPlugin extends Plugin {
 
         AerialMapSessionStore.talhoesGeoJson = geojson;
         NativeAerialMapActivity.reloadTalhoesIfVisible(geojson);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void loadArmadilhas(PluginCall call) {
+        String geojson = call.getString("geojson");
+        if (geojson == null || geojson.isEmpty()) {
+            call.reject("GeoJSON é obrigatório.");
+            return;
+        }
+
+        AerialMapSessionStore.armadilhasGeoJson = geojson;
+        NativeAerialMapActivity.reloadArmadilhasIfVisible(geojson);
         call.resolve();
     }
 

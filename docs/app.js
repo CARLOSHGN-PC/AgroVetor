@@ -2677,7 +2677,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (collectionName === 'armadilhas') {
-                        if (App.state.mapboxMap) App.mapModule.loadTraps();
+                        if (App.mapModule) App.mapModule.loadTraps();
                         App.mapModule.checkTrapStatusAndNotify();
                     }
 
@@ -14665,6 +14665,21 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             loadTraps() {
+                if (App.state.useNativeAerialMap && App.state.aerialMapProvider && typeof App.state.aerialMapProvider.loadArmadilhas === 'function') {
+                    const trapsGeoJson = {
+                        type: 'FeatureCollection',
+                        features: App.state.armadilhas.filter(t => t.status === 'Ativa' && Number.isFinite(t.longitude) && Number.isFinite(t.latitude)).map(t => ({
+                            type: 'Feature',
+                            geometry: { type: 'Point', coordinates: [t.longitude, t.latitude] },
+                            properties: { trapId: t.id, status: t.status }
+                        }))
+                    };
+                    App.state.aerialMapProvider.loadArmadilhas(trapsGeoJson).catch(console.error);
+                    return; // native provider loaded
+                }
+
+                if (!App.state.mapboxMap) return; // avoid crash if mapboxMap is not loaded
+
                 Object.values(App.state.mapboxTrapMarkers).forEach(marker => marker.remove());
                 App.state.mapboxTrapMarkers = {};
 
