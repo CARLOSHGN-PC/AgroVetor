@@ -14276,22 +14276,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             isAndroidNativeAerialModuleAvailable() {
                 const cap = window?.Capacitor;
-                const platform = cap?.getPlatform?.() || 'web';
-                const isAndroidNative = Boolean(cap?.isNativePlatform?.() && platform === 'android');
+                const isAndroidNative = Boolean(cap?.isNativePlatform?.() && cap?.getPlatform?.() === 'android');
                 if (!isAndroidNative) return false;
 
-                return Boolean(cap?.isPluginAvailable?.('AerialMap') || cap?.Plugins?.AerialMap || cap?.registerPlugin);
+                return Boolean(cap?.Plugins?.AerialMap || cap?.registerPlugin);
             },
 
             updateAndroidOfflineButtonsVisibility() {
                 const providerKind = App.state.aerialMapProvider?.kind || null;
-                const pluginAvailable = this.isAndroidNativeAerialModuleAvailable();
-                const shouldShowOfflineButtons = providerKind === 'android-native';
-                console.info('[Perfil][Aéreo Offline] visibilidade dos botões:', {
-                    providerKind,
-                    pluginAvailable,
-                    shouldShowOfflineButtons
-                });
+                const shouldShowOfflineButtons = providerKind === 'android-native' || this.isAndroidNativeAerialModuleAvailable();
+                console.info('[Perfil][Aéreo Offline] provider kind:', providerKind);
 
                 const { downloadAllAerialTilesBtn, updateAllAerialTilesBtn, removeAllAerialTilesBtn } = App.elements.userMenu;
                 [downloadAllAerialTilesBtn, updateAllAerialTilesBtn, removeAllAerialTilesBtn].forEach((btn) => {
