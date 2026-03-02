@@ -4914,6 +4914,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (log.timestamp) {
                                 if (typeof log.timestamp.toDate === 'function') {
                                     logTimestamp = log.timestamp.toDate();
+                                } else if (log.timestamp.seconds) {
+                                    logTimestamp = new Date(log.timestamp.seconds * 1000);
                                 } else {
                                     logTimestamp = new Date(log.timestamp);
                                 }
@@ -6334,8 +6336,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    const logTimestamp = logDoc.timestamp ? logDoc.timestamp.toDate().toLocaleString('pt-BR') : 'Data não disponível';
-                    modal.title.textContent = `Detalhes da Sincronização de ${logTimestamp}`;
+                    let logTimestamp = new Date();
+                    if (logDoc.timestamp) {
+                        if (typeof logDoc.timestamp.toDate === 'function') {
+                            logTimestamp = logDoc.timestamp.toDate();
+                        } else if (logDoc.timestamp.seconds) {
+                            logTimestamp = new Date(logDoc.timestamp.seconds * 1000);
+                        } else {
+                            logTimestamp = new Date(logDoc.timestamp);
+                        }
+                    }
+
+                    const formattedTimestamp = logDoc.timestamp && !isNaN(logTimestamp) ? logTimestamp.toLocaleString('pt-BR') : 'Data não disponível';
+                    modal.title.textContent = `Detalhes da Sincronização de ${formattedTimestamp}`;
 
                     let contentHTML = '<div class="sync-items-container">';
 
