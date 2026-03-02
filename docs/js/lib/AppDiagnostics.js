@@ -42,13 +42,52 @@ export class AppDiagnostics {
     if (this._origFetch || typeof window.fetch !== 'function') return;
 
     this._origFetch = window.fetch.bind(window);
+    const isStorageShapefileRequest = (rawUrl = '') => {
+      const url = String(rawUrl || '').toLowerCase();
+      return (
+        url.includes('firebasestorage.googleapis.com') ||
+        url.includes('/o/shapefiles%2f') ||
+        url.endsWith('.zip') ||
+        url.includes('.zip?') ||
+        url.endsWith('.shp') ||
+        url.includes('.shp?') ||
+        url.endsWith('.dbf') ||
+        url.includes('.dbf?') ||
+        url.endsWith('.shx') ||
+        url.includes('.shx?') ||
+        url.endsWith('.prj') ||
+        url.includes('.prj?')
+      );
+    };
+    const sanitizeShapefileHeaders = (headersInit) => {
+      const headers = new Headers(headersInit || {});
+      [
+        'if-match',
+        'if-none-match',
+        'if-unmodified-since',
+        'if-modified-since',
+        'etag'
+      ].forEach((name) => headers.delete(name));
+      return headers;
+    };
+    window.__AGV_ORIGINAL_FETCH = this._origFetch;
+    window.__AGV_IS_STORAGE_SHAPEFILE_REQUEST = isStorageShapefileRequest;
     window.fetch = async (...args) => {
       const requestInfo = args[0];
       const url = typeof requestInfo === 'string' ? requestInfo : requestInfo?.url;
+      const bypassForShapefile = isStorageShapefileRequest(url);
       if (!this.bootFinished) this.metrics.bootRequests += 1;
 
       try {
-        const response = await this._origFetch(...args);
+        const response = bypassForShapefile
+          ? await this._origFetch(url, {
+              ...(args[1] || {}),
+              method: 'GET',
+              credentials: 'omit',
+              cache: 'no-store',
+              headers: sanitizeShapefileHeaders(args[1]?.headers)
+            })
+          : await this._origFetch(...args);
         const cacheStatus = response.headers?.get?.('x-cache') || response.headers?.get?.('cf-cache-status');
         if (cacheStatus && /miss/i.test(cacheStatus)) {
           this.metrics.cacheMisses += 1;
