@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         worker.postMessage({ type: 'PARSE_SHP_BUFFER', payload: arrayBuffer });
     });
 
-    const OFFLINE_DB_VERSION = 10;
+    const OFFLINE_DB_VERSION = 11;
     const MASTER_DATA_COLLECTIONS = [
         'fazendas',
         'personnel',
@@ -636,6 +636,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         masterStore.createIndex('collection', 'collection', { unique: false });
                         masterStore.createIndex('companyId', 'companyId', { unique: false });
                         masterStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+                    }
+                    if (oldVersion < 11) {
+                        db.createObjectStore('data_cache', { keyPath: 'id' });
                     }
                 },
             });
