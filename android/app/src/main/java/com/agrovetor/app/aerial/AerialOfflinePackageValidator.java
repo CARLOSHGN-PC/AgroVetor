@@ -30,11 +30,9 @@ public class AerialOfflinePackageValidator {
             error = "Pacote offline incompleto: style pack ausente";
         } else if (!hasTileRegion) {
             error = "Pacote offline incompleto: tile region ausente";
-        } else if (!hasTalhoes) {
-            error = "Pacote offline incompleto: contornos não encontrados";
-        } else if (!hasArmadilhas) {
-            error = "Pacote offline incompleto: armadilhas não carregadas";
         }
+        // Removing strict hasTalhoes and hasArmadilhas checks as a farm might legitimately not have them,
+        // preventing the offline package from becoming "ready" and causing map load failures offline.
 
         Log.i(TAG, "Validação pacote=" + metadata.packageId + " style=" + hasStylePack + " tile=" + hasTileRegion + " talhoes=" + hasTalhoes + " armadilhas=" + hasArmadilhas + (error != null ? " erro=" + error : ""));
         return new ValidationResult(hasStylePack, hasTileRegion, hasTalhoes, hasArmadilhas, error);

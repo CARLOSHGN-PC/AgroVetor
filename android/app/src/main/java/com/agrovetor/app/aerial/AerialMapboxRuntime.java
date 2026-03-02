@@ -8,6 +8,10 @@ import androidx.annotation.NonNull;
 
 import com.mapbox.common.MapboxOptions;
 import com.mapbox.common.TileStore;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+
 import com.mapbox.maps.MapboxMapsOptions;
 import com.mapbox.maps.OfflineManager;
 import com.mapbox.maps.TileStoreUsageMode;
@@ -72,8 +76,11 @@ public final class AerialMapboxRuntime {
 
         TileStore runtimeTileStore = getTileStore(context);
         MapboxMapsOptions.setTileStore(runtimeTileStore);
-        MapboxMapsOptions.setTileStoreUsageMode(TileStoreUsageMode.READ_AND_UPDATE);
-        Log.i(TAG, "TileStore e TileStoreUsageMode configurados no runtime global antes da criação do MapView");
+        // By default, mapbox tries to update tiles. When offline, READ_ONLY can prevent map load failures.
+        // We set it globally to READ_ONLY for strict offline reliability, or READ_AND_UPDATE if online.
+        boolean isOnline = isNetworkAvailable(context);
+        MapboxMapsOptions.setTileStoreUsageMode(isOnline ? TileStoreUsageMode.READ_AND_UPDATE : TileStoreUsageMode.READ_ONLY);
+        Log.i(TAG, "TileStore e TileStoreUsageMode configurados no runtime global antes da criação do MapView. UsageMode=" + (isOnline ? "READ_AND_UPDATE" : "READ_ONLY"));
 
         getOfflineManager(context);
         Log.i(TAG, "Runtime Mapbox v11 inicializado: token global, TileStore persistente e OfflineManager prontos");
@@ -100,5 +107,23 @@ public final class AerialMapboxRuntime {
         OfflineManager manager = new OfflineManager();
         Log.i(TAG, "OfflineManager singleton criado com construtor padrão");
         return manager;
+    }
+
+    private static boolean isNetworkAvailable(Context context) {
+        ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connectivityManager == null) {
+            return false;
+        }
+
+        Network network = connectivityManager.getActiveNetwork();
+        if (network == null) {
+            return false;
+        }
+
+        NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+        return capabilities != null &&
+                (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
     }
 }
