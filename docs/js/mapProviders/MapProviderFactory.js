@@ -27,7 +27,7 @@ const getNativeDecisionContext = () => {
     };
 };
 
-export function createAerialMapProvider({ app, forceWeb = false } = {}) {
+export function createAerialMapProvider({ app }) {
     const context = getNativeDecisionContext();
 
     console.info('[AEREO_OFFLINE] provider decision context:', {
@@ -40,14 +40,11 @@ export function createAerialMapProvider({ app, forceWeb = false } = {}) {
         localStorageFlag: context.localStorageFlag
     });
 
-    if (!forceWeb && context.shouldUseNative && AndroidNativeMapProvider.isSupported()) {
+    if (context.shouldUseNative && AndroidNativeMapProvider.isSupported()) {
         console.info('[AEREO_OFFLINE] provider final escolhido: android-native');
         return new AndroidNativeMapProvider({ app });
     }
 
-    if (forceWeb) {
-        console.info('[AEREO_OFFLINE] provider forçado: web (fallback pós-falha nativa)');
-    }
     console.info('[AEREO_OFFLINE] provider final escolhido: web');
     return new WebMapProvider({ app });
 }
