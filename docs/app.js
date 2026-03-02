@@ -4909,7 +4909,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         pageSize: 15,
                         renderItem: (log) => {
                             const statusInfo = statusMap[log.status] || { icon: 'fa-question-circle', color: 'var(--color-text-light)', label: 'Desconhecido' };
-                            const logTimestamp = log.timestamp ? log.timestamp.toDate() : new Date();
+
+                            let logTimestamp = new Date();
+                            if (log.timestamp) {
+                                if (typeof log.timestamp.toDate === 'function') {
+                                    logTimestamp = log.timestamp.toDate();
+                                } else {
+                                    logTimestamp = new Date(log.timestamp);
+                                }
+                            }
+
                             const detailsButton = (log.items && log.items.length > 0)
                                 ? `<button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="view-sync-details" data-id="${log.id}">
                                     <i class="fas fa-eye"></i> Ver Detalhes
