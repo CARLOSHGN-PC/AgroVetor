@@ -15649,82 +15649,210 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            handleOperationChange() {
-                const opId = App.elements.osManual.operation.value;
-                const section = document.getElementById('osProductSection');
-                const list = document.getElementById('osProductsList');
-
-                if (!opId) {
-                    section.style.display = 'none';
+            handleOperationSearch(query) {
+                const sugg = App.elements.osManual.operationSuggestions;
+                if (!query || !sugg) {
+                    if(sugg) sugg.style.display = 'none';
                     return;
                 }
 
-                const links = (App.state.operacao_produtos || []).filter(l => l.operacao_id === opId);
+                const q = query.toLowerCase();
+                const operations = (App.state.operacoes || []).filter(o => o.ativo);
 
-                if (links.length === 0) {
-                    list.innerHTML = '<p>Sem produtos vinculados.</p>';
-                    section.style.display = 'block';
+                // Allow search by name or code (id)
+                const matches = operations.filter(o =>
+                    o.nome.toLowerCase().includes(q) ||
+                    String(o.id).toLowerCase().includes(q)
+                ).slice(0, 10); // Limit results
+
+                if (matches.length === 0) {
+                    sugg.innerHTML = '<li style="padding: 10px; color: var(--color-text-light);">Nenhuma operação encontrada</li>';
+                } else {
+                    sugg.innerHTML = matches.map(op => `
+                        <li style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--color-border);"
+                            onclick="App.osManual.selectOperationSearch('${op.id}', '${op.nome.replace(/'/g, "\\'")}')"
+                            onmouseover="this.style.background='var(--color-surface)'"
+                            onmouseout="this.style.background='none'">
+                            <span style="font-weight: bold;">${op.id}</span> - ${op.nome}
+                        </li>
+                    `).join('');
+                }
+
+                sugg.style.display = 'block';
+            },
+
+            selectOperationSearch(id, nome) {
+                const els = App.elements.osManual;
+                if(!els.operationSearch) return;
+                els.operationSearch.value = `${id} - ${nome}`;
+                els.operationSearch.dataset.selectedId = id;
+                els.operationSearch.dataset.selectedName = nome;
+                if(els.operationSuggestions) els.operationSuggestions.style.display = 'none';
+            },
+
+            addSelectedOperation() {
+                const els = App.elements.osManual;
+                if(!els.operationSearch) return;
+
+                const opId = els.operationSearch.dataset.selectedId;
+                const opName = els.operationSearch.dataset.selectedName;
+
+                if (!opId) {
+                    App.ui.showAlert('Por favor, busque e selecione uma operação na lista antes de adicionar.', 'warning');
+                    return;
+                }
+
+                // Check if already added
+                if ((App.state.osSelectedOperations || []).some(op => op.id === opId)) {
+                    App.ui.showAlert('Esta operação já foi adicionada ao roteiro.', 'warning');
+                    return;
+                }
+
+                // Fetch linked products
+                const links = (App.state.operacao_produtos || []).filter(l => l.operacao_id === opId);
+                const defaultProducts = [];
+
+                links.forEach(link => {
+                    const prod = App.state.produtos.find(p => p.id === link.produto_id);
+                    if (prod) {
+                        defaultProducts.push({
+                            id: prod.id,
+                            nome: prod.nome,
+                            unidade: prod.unidade,
+                            dosagem: link.dosagem_por_ha || 0,
+                            obrigatorio: link.obrigatorio || false,
+                            selecionado: link.obrigatorio || true // Default to true if linked
+                        });
+                    }
+                });
+
+                if(!App.state.osSelectedOperations) App.state.osSelectedOperations = [];
+
+                // Add to state
+                App.state.osSelectedOperations.push({
+                    id: opId,
+                    nome: opName,
+                    produtos: defaultProducts
+                });
+
+                // Clear search
+                els.operationSearch.value = '';
+                delete els.operationSearch.dataset.selectedId;
+                delete els.operationSearch.dataset.selectedName;
+
+                this.renderSelectedOperations();
+            },
+
+            removeOperation(opId) {
+                App.state.osSelectedOperations = (App.state.osSelectedOperations || []).filter(op => op.id !== opId);
+                this.renderSelectedOperations();
+            },
+
+            renderSelectedOperations() {
+                const list = App.elements.osManual.selectedOperationsList;
+                if(!list) return;
+                const ops = App.state.osSelectedOperations || [];
+
+                if (ops.length === 0) {
+                    list.innerHTML = '<div style="padding: 10px; color: var(--color-text-light); border: 1px dashed var(--color-border); text-align: center;">Nenhuma operação adicionada.</div>';
                     this.updateProductCalculations();
                     return;
                 }
 
-                let html = '';
-                links.forEach(link => {
-                    const prod = App.state.produtos.find(p => p.id === link.produto_id);
-                    if (!prod) return;
+                list.innerHTML = ops.map(op => {
+                    // Count active products
+                    const activeProds = op.produtos.filter(p => p.selecionado).length;
 
-                    const checked = link.obrigatorio ? 'checked disabled' : 'checked';
-
-                    html += `
-                        <div class="product-item" style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
-                            <input type="checkbox" class="os-prod-cb" data-id="${prod.id}" data-name="${prod.nome}" data-unit="${prod.unidade}" ${checked}>
-                            <span style="flex: 1;">${prod.nome} (${prod.unidade})</span>
-                            <input type="number" class="os-prod-dosage" value="${link.dosagem_por_ha}" step="0.001" style="width: 80px;">
-                            <span>/ha</span>
+                    return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--border-radius);">
+                        <div style="flex-grow: 1;">
+                            <div style="font-weight: bold; color: var(--color-text); margin-bottom: 4px;">${op.id} - ${op.nome}</div>
+                            <div style="font-size: 0.85em; color: var(--color-text-light);">
+                                <i class="fas fa-flask" style="color: var(--color-primary); margin-right: 4px;"></i>
+                                ${activeProds} Produto(s) configurado(s)
+                            </div>
                         </div>
-                    `;
-                });
-
-                list.innerHTML = html;
-                section.style.display = 'block';
-
-                list.querySelectorAll('.os-prod-cb, .os-prod-dosage').forEach(el => {
-                    el.addEventListener('change', () => this.updateProductCalculations());
-                    if (el.tagName === 'INPUT' && el.type === 'number') {
-                         el.addEventListener('input', () => this.updateProductCalculations());
-                    }
-                });
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" onclick="App.osManual.openProductModal('${op.id}')" class="btn-secondary" style="padding: 8px;" title="Configurar Produtos">
+                                <i class="fas fa-pencil-alt"></i> Configurar
+                            </button>
+                            <button type="button" onclick="App.osManual.removeOperation('${op.id}')" class="btn-excluir" style="padding: 8px;" title="Remover Operação">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `}).join('');
 
                 this.updateProductCalculations();
             },
 
+            openProductModal(opId) {
+                const op = (App.state.osSelectedOperations || []).find(o => o.id === opId);
+                if (!op) return;
+
+                const els = App.elements.osManual;
+                if(!els.productModal) return;
+
+                // Store editing id
+                els.productModal.dataset.editingOpId = opId;
+                if(els.productModalTitle) els.productModalTitle.textContent = `Produtos para: ${op.nome}`;
+
+                if (op.produtos.length === 0) {
+                    if(els.productsListModal) els.productsListModal.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum produto vinculado a esta operação no sistema.</p>';
+                } else {
+                    if(els.productsListModal) els.productsListModal.innerHTML = op.produtos.map((p, idx) => {
+                        const checked = p.selecionado ? 'checked' : '';
+                        const disabled = p.obrigatorio ? 'disabled' : '';
+                        return `
+                        <div class="product-item" style="display: flex; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface);">
+                            <input type="checkbox" id="modal_cb_${idx}" class="modal-prod-cb" data-idx="${idx}" ${checked} ${disabled}>
+                            <div style="flex-grow: 1;">
+                                <label for="modal_cb_${idx}" style="font-weight: bold; margin-bottom: 2px; cursor: pointer;">${p.nome} (${p.unidade})</label>
+                                ${p.obrigatorio ? '<span style="font-size: 0.7em; background: var(--color-warning); color: #000; padding: 2px 4px; border-radius: 3px;">Obrigatório</span>' : ''}
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <input type="number" id="modal_dose_${idx}" class="modal-prod-dosage" value="${p.dosagem}" step="0.001" style="width: 80px; padding: 4px;">
+                                <span style="font-size: 0.9em; color: var(--color-text-light);">/ha</span>
+                            </div>
+                        </div>
+                        `;
+                    }).join('');
+                }
+
+                els.productModal.style.display = 'flex';
+            },
+
+            saveProductsForOperation() {
+                const els = App.elements.osManual;
+                if(!els.productModal) return;
+                const opId = els.productModal.dataset.editingOpId;
+                const op = (App.state.osSelectedOperations || []).find(o => o.id === opId);
+
+                if (!op) return;
+
+                // Update product data from modal
+                if(els.productsListModal) {
+                    els.productsListModal.querySelectorAll('.product-item').forEach(item => {
+                        const cb = item.querySelector('.modal-prod-cb');
+                        const doseInput = item.querySelector('.modal-prod-dosage');
+                        if (cb && doseInput) {
+                            const idx = parseInt(cb.dataset.idx, 10);
+                            if (op.produtos[idx]) {
+                                op.produtos[idx].selecionado = cb.checked || cb.disabled; // Keep true if disabled (obrigatorio)
+                                op.produtos[idx].dosagem = parseFloat(doseInput.value) || 0;
+                            }
+                        }
+                    });
+                }
+
+                els.productModal.style.display = 'none';
+                this.renderSelectedOperations();
+            },
+
             updateProductCalculations() {
-                const totalArea = App.state.osTotalArea || 0;
-                const preview = document.getElementById('osProductsPreview');
-                const list = document.getElementById('osProductsList');
-
-                if (!list || !preview) return;
-
-                let html = '<table style="width:100%; font-size: 13px;"><thead><tr><th>Produto</th><th>Dosagem</th><th>Total</th></tr></thead><tbody>';
-
-                const items = list.querySelectorAll('.product-item');
-                let hasProducts = false;
-
-                items.forEach(item => {
-                    const cb = item.querySelector('.os-prod-cb');
-                    if (cb.checked) {
-                        hasProducts = true;
-                        const prodName = cb.dataset.name;
-                        const dosage = parseFloat(item.querySelector('.os-prod-dosage').value) || 0;
-                        const total = (dosage * totalArea).toFixed(3);
-                        const unit = cb.dataset.unit;
-
-                        html += `<tr><td>${prodName}</td><td>${dosage}</td><td>${total} ${unit}</td></tr>`;
-                    }
-                });
-
-                html += '</tbody></table>';
-                preview.innerHTML = hasProducts ? html : '';
+                if(App.elements.osManual.totalArea) {
+                    App.elements.osManual.totalArea.textContent = `${(App.state.osTotalArea || 0).toFixed(2)} ha`;
+                }
             },
 
             initMap() {
