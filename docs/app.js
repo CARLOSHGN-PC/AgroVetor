@@ -15573,16 +15573,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             populateDropdowns() {
                 const typeSelect = App.elements.osManual.serviceType;
-                const opSelect = App.elements.osManual.operation;
 
                 if (typeSelect) {
                     typeSelect.innerHTML = '<option value="">Selecione...</option>' +
                         (App.state.tipos_servico || []).filter(x => x.ativo).map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
                 }
-                if (opSelect) {
-                    opSelect.innerHTML = '<option value="">Selecione...</option>' +
-                        (App.state.operacoes || []).filter(x => x.ativo).map(op => `<option value="${op.id}">${op.nome}</option>`).join('');
-                }
+                // O dropdown antigo de operação foi removido em prol da busca inteligente.
             },
 
             setupEventListeners() {
@@ -15595,9 +15591,44 @@ document.addEventListener('DOMContentLoaded', () => {
                     els.responsibleMatricula.addEventListener('input', App.debounce((e) => this.lookupResponsible(e.target.value), 500));
                 }
 
-                if (els.operation) {
-                    els.operation.addEventListener('change', () => this.handleOperationChange());
+                // --- Início: Nova Lógica de Múltiplas Operações ---
+                App.state.osSelectedOperations = [];
+
+                if (els.operationSearch) {
+                    els.operationSearch.addEventListener('input', App.debounce((e) => {
+                        this.handleOperationSearch(e.target.value);
+                    }, 300));
+
+                    els.operationSearch.addEventListener('focus', () => {
+                        this.handleOperationSearch(els.operationSearch.value);
+                    });
+
+                    document.addEventListener('click', (e) => {
+                        if (els.operationSuggestions && e.target !== els.operationSearch && !els.operationSuggestions.contains(e.target)) {
+                            els.operationSuggestions.style.display = 'none';
+                        }
+                    });
                 }
+
+                if (els.btnAddOperationToOS) {
+                    els.btnAddOperationToOS.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.addSelectedOperation();
+                    });
+                }
+
+                if (els.closeProductModalBtn) {
+                    els.closeProductModalBtn.addEventListener('click', () => {
+                        if(els.productModal) els.productModal.style.display = 'none';
+                    });
+                }
+
+                if (els.saveProductsModalBtn) {
+                    els.saveProductsModalBtn.addEventListener('click', () => {
+                        this.saveProductsForOperation();
+                    });
+                }
+                // --- Fim: Nova Lógica ---
 
                 els.btnGenerate.addEventListener('click', () => this.generateOS());
 

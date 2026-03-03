@@ -2685,15 +2685,39 @@
                             <select id="osServiceType" style="width: 100%;"><option value="">Selecione...</option></select>
                         </div>
 
-                        <div class="form-col" style="margin-bottom: 10px;">
-                            <label for="osOperation" class="required">Operação:</label>
-                            <select id="osOperation" style="width: 100%;"><option value="">Selecione...</option></select>
+                        <div class="form-col" style="margin-bottom: 10px; position: relative;">
+                            <label for="osOperationSearch" class="required">Buscar Operações (Nome ou Cód):</label>
+                            <div style="display: flex; gap: 5px;">
+                                <input type="text" id="osOperationSearch" placeholder="Ex: 015 ou Pulverização..." style="flex-grow: 1;">
+                                <select id="osOperationSelect" style="display:none;"></select>
+                                <button type="button" id="btnAddOperationToOS" class="save" style="padding: 12px;" title="Adicionar Operação">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <ul id="osOperationSuggestions" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--color-bg); border: 1px solid var(--color-border); max-height: 150px; overflow-y: auto; z-index: 10; padding: 0; margin: 0; list-style: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></ul>
+
+                            <!-- Lista de Operações Selecionadas -->
+                            <div id="osSelectedOperationsList" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;"></div>
                         </div>
 
-                        <div id="osProductSection" style="display: none; margin-bottom: 15px; border: 1px solid var(--color-border); padding: 10px; border-radius: var(--border-radius);">
-                            <h4 style="margin-bottom: 10px;">Produtos / Insumos</h4>
-                            <div id="osProductsList"></div>
-                            <div id="osProductsPreview" class="table-responsive" style="margin-top: 10px;"></div>
+                        <!-- Modal de Produtos para Operação (Injetado via JS ou aqui) -->
+                        <div id="osProductModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; padding: 20px;">
+                            <div style="background: var(--color-bg); border-radius: var(--border-radius); width: 100%; max-width: 500px; max-height: 90vh; display: flex; flex-direction: column;">
+                                <div style="padding: 15px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center;">
+                                    <h3 id="osProductModalTitle" style="margin: 0; font-size: 1.1rem;">Produtos</h3>
+                                    <button type="button" id="osCloseProductModal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-text);">&times;</button>
+                                </div>
+                                <div id="osProductsList" style="padding: 15px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 10px;">
+                                    <!-- Injetado -->
+                                </div>
+                                <div style="padding: 15px; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end;">
+                                    <button type="button" id="osSaveProductsModalBtn" class="save"><i class="fas fa-check"></i> Confirmar</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="osProductSection" style="display: none;">
+                            <!-- Legacy element kept so app.js doesn't crash on init if it depends on it -->
                         </div>
 
                         <div class="form-col" style="margin-bottom: 15px;">
