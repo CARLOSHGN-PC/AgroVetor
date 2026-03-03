@@ -940,7 +940,14 @@ document.addEventListener('DOMContentLoaded', () => {
             osManual: {
                 farmSelect: document.getElementById('osFarmSelect'),
                 serviceType: document.getElementById('osServiceType'),
-                operation: document.getElementById('osOperation'),
+                operationSelect: document.getElementById('osOperationSelect'),
+                btnAddOperationToOS: document.getElementById('btnAddOperationToOS'),
+                selectedOperationsList: document.getElementById('osSelectedOperationsList'),
+                productModal: document.getElementById('osProductModal'),
+                productModalTitle: document.getElementById('osProductModalTitle'),
+                closeProductModalBtn: document.getElementById('osCloseProductModal'),
+                productsListModal: document.getElementById('osProductsList'),
+                saveProductsModalBtn: document.getElementById('osSaveProductsModalBtn'),
                 responsibleMatricula: document.getElementById('osResponsibleMatricula'),
                 responsibleName: document.getElementById('osResponsibleName'),
                 observations: document.getElementById('osObservations'),
@@ -15573,12 +15580,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             populateDropdowns() {
                 const typeSelect = App.elements.osManual.serviceType;
+                const opSelect = App.elements.osManual.operationSelect;
 
                 if (typeSelect) {
                     typeSelect.innerHTML = '<option value="">Selecione...</option>' +
                         (App.state.tipos_servico || []).filter(x => x.ativo).map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
                 }
-                // O dropdown antigo de operação foi removido em prol da busca inteligente.
+
+                if (opSelect) {
+                    opSelect.innerHTML = '<option value="">Selecione uma operação...</option>' +
+                        (App.state.operacoes || []).filter(x => x.ativo).map(o => `<option value="${o.id}">${o.codigo_externo ? o.codigo_externo + ' - ' : ''}${o.nome}</option>`).join('');
+                }
             },
 
             setupEventListeners() {
@@ -15593,35 +15605,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // --- Início: Nova Lógica de Múltiplas Operações ---
                 App.state.osSelectedOperations = [];
-
-                // UX Requisitada: Digita Código -> Mostra Nome
-                const opCodeInput = document.getElementById('osOpCodeInput');
-                const opNameInput = document.getElementById('osOpNameInput');
-
-                if (opCodeInput) {
-                    opCodeInput.addEventListener('input', App.debounce((e) => {
-                        const code = e.target.value.trim();
-                        if (!code) {
-                            opNameInput.value = '';
-                            delete opCodeInput.dataset.selectedId;
-                            delete opCodeInput.dataset.selectedName;
-                            return;
-                        }
-
-                        // Busca exata pelo ID (Código)
-                        const opMatch = (App.state.operacoes || []).find(o => String(o.id).toUpperCase() === code.toUpperCase() && o.ativo);
-
-                        if (opMatch) {
-                            opNameInput.value = opMatch.nome;
-                            opCodeInput.dataset.selectedId = opMatch.id;
-                            opCodeInput.dataset.selectedName = opMatch.nome;
-                        } else {
-                            opNameInput.value = 'Operação não encontrada';
-                            delete opCodeInput.dataset.selectedId;
-                            delete opCodeInput.dataset.selectedName;
-                        }
-                    }, 300));
-                }
 
                 if (els.btnAddOperationToOS) {
                     els.btnAddOperationToOS.addEventListener('click', (e) => {
@@ -15696,18 +15679,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Removed legacy search suggestions functions as they are replaced by direct code input
 
             addSelectedOperation() {
-                const opCodeInput = document.getElementById('osOpCodeInput');
-                const opNameInput = document.getElementById('osOpNameInput');
+                const opSelect = App.elements.osManual.operationSelect;
+                if(!opSelect) return;
 
-                if(!opCodeInput) return;
-
-                const opId = opCodeInput.dataset.selectedId;
-                const opName = opCodeInput.dataset.selectedName;
-
-                if (!opId || opNameInput.value === 'Operação não encontrada') {
-                    App.ui.showAlert('Por favor, digite um código de operação válido antes de adicionar.', 'warning');
+                const opId = opSelect.value;
+                if (!opId) {
+                    App.ui.showAlert('Por favor, selecione uma operação antes de adicionar.', 'warning');
                     return;
                 }
+
+                const opMatch = (App.state.operacoes || []).find(o => o.id === opId);
+                if (!opMatch) return;
 
                 // Check if already added
                 if ((App.state.osSelectedOperations || []).some(op => op.id === opId)) {
@@ -15738,15 +15720,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Add to state
                 App.state.osSelectedOperations.push({
                     id: opId,
-                    nome: opName,
+                    nome: opMatch.nome,
                     produtos: defaultProducts
                 });
 
                 // Clear search
-                opCodeInput.value = '';
-                opNameInput.value = '';
-                delete opCodeInput.dataset.selectedId;
-                delete opCodeInput.dataset.selectedName;
+                opSelect.value = '';
 
                 this.renderSelectedOperations();
             },
@@ -19003,23 +18982,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(!list) return;
                 const items = App.state.tipos_servico || [];
 
-                let html = '<table style="width:100%"><thead><tr><th>Descrição</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>';
-                html += items.map(item => `
-                    <tr>
-                        <td>${item.descricao}</td>
-                        <td>${item.ativo ? 'Sim' : 'Não'}</td>
-                        <td>
-                            <button class="btn-excluir" onclick="App.data.deleteDocument('tipos_servico', '${item.id}').then(() => App.cadastrosAuxiliares.renderTiposServico())">
-                                <i class="fas fa-trash"></i>
+                if (items.length === 0) {
+                    list.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--color-text-light); padding: 20px;">Nenhum tipo de serviço cadastrado.</p>';
+                    return;
+                }
+
+                let html = items.map(item => `
+                    <div class="user-card-redesigned" style="border-left-color: var(--color-info);">
+                        <div class="user-card-header">
+                            <div class="user-card-info">
+                                <div class="user-card-avatar" style="background-color: color-mix(in srgb, var(--color-info) 15%, transparent); color: var(--color-info);">
+                                    <i class="fas fa-tag"></i>
+                                </div>
+                                <div class="user-card-details">
+                                    <h4>${item.descricao}</h4>
+                                    <span class="user-card-status ${item.ativo !== false ? 'active' : 'inactive'}" style="display: inline-flex; margin-top: 5px;">
+                                        <i class="fas fa-circle" style="font-size: 8px;"></i> ${item.ativo !== false ? 'Ativo' : 'Inativo'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-card-actions">
+                            <button onclick="App.cadastrosAuxiliares.editTipoServico('${item.id}')" title="Editar">
+                                <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.editTipoServico('${item.id}')"><i class="fas fa-edit"></i></button>
-                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.toggleAtivo('tipos_servico', '${item.id}', ${item.ativo !== false})">
+                            <button class="toggle-btn ${item.ativo !== false ? 'active' : 'inactive'}" onclick="App.cadastrosAuxiliares.toggleAtivo('tipos_servico', '${item.id}', ${item.ativo !== false})" title="Ativar/Desativar">
                                 <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
                             </button>
-                        </td>
-                    </tr>
+                            <button onclick="App.data.deleteDocument('tipos_servico', '${item.id}').then(() => App.cadastrosAuxiliares.renderTiposServico())" style="color: var(--color-danger);" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
                 `).join('');
-                html += '</tbody></table>';
                 list.innerHTML = html;
             },
 
@@ -19052,24 +19047,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(!list) return;
                 const items = App.state.operacoes || [];
 
-                let html = '<table style="width:100%"><thead><tr><th>Nome</th><th>Max App</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>';
-                html += items.map(item => `
-                    <tr>
-                        <td>${item.nome}</td>
-                        <td>${item.max_aplicacoes}</td>
-                        <td>${item.ativo ? 'Sim' : 'Não'}</td>
-                        <td>
-                            <button class="btn-excluir" onclick="App.data.deleteDocument('operacoes', '${item.id}').then(() => App.cadastrosAuxiliares.renderOperacoes())">
-                                <i class="fas fa-trash"></i>
+                if (items.length === 0) {
+                    list.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--color-text-light); padding: 20px;">Nenhuma operação cadastrada.</p>';
+                    return;
+                }
+
+                let html = items.map(item => `
+                    <div class="user-card-redesigned" style="border-left-color: var(--color-warning);">
+                        <div class="user-card-header">
+                            <div class="user-card-info">
+                                <div class="user-card-avatar" style="background-color: color-mix(in srgb, var(--color-warning) 15%, transparent); color: var(--color-warning);">
+                                    <i class="fas fa-cogs"></i>
+                                </div>
+                                <div class="user-card-details">
+                                    <h4>${item.nome}</h4>
+                                    <p style="margin-top: 4px; font-size: 12px;"><i class="fas fa-barcode"></i> Cód: ${item.codigo_externo || 'N/A'}</p>
+                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-layer-group"></i> Max App: ${item.max_aplicacoes}</p>
+                                    <span class="user-card-status ${item.ativo !== false ? 'active' : 'inactive'}" style="display: inline-flex; margin-top: 8px;">
+                                        <i class="fas fa-circle" style="font-size: 8px;"></i> ${item.ativo !== false ? 'Ativo' : 'Inativo'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-card-actions">
+                            <button onclick="App.cadastrosAuxiliares.editOperacao('${item.id}')" title="Editar">
+                                <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.editOperacao('${item.id}')"><i class="fas fa-edit"></i></button>
-                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.toggleAtivo('operacoes', '${item.id}', ${item.ativo !== false})">
+                            <button class="toggle-btn ${item.ativo !== false ? 'active' : 'inactive'}" onclick="App.cadastrosAuxiliares.toggleAtivo('operacoes', '${item.id}', ${item.ativo !== false})" title="Ativar/Desativar">
                                 <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
                             </button>
-                        </td>
-                    </tr>
+                            <button onclick="App.data.deleteDocument('operacoes', '${item.id}').then(() => App.cadastrosAuxiliares.renderOperacoes())" style="color: var(--color-danger);" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
                 `).join('');
-                html += '</tbody></table>';
                 list.innerHTML = html;
             },
 
@@ -19103,24 +19115,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(!list) return;
                 const items = App.state.produtos || [];
 
-                let html = '<table style="width:100%"><thead><tr><th>Nome</th><th>Unidade</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>';
-                html += items.map(item => `
-                    <tr>
-                        <td>${item.nome}</td>
-                        <td>${item.unidade}</td>
-                        <td>${item.ativo ? 'Sim' : 'Não'}</td>
-                        <td>
-                            <button class="btn-excluir" onclick="App.data.deleteDocument('produtos', '${item.id}').then(() => App.cadastrosAuxiliares.renderProdutos())">
-                                <i class="fas fa-trash"></i>
+                if (items.length === 0) {
+                    list.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--color-text-light); padding: 20px;">Nenhum produto cadastrado.</p>';
+                    return;
+                }
+
+                let html = items.map(item => `
+                    <div class="user-card-redesigned" style="border-left-color: var(--color-success);">
+                        <div class="user-card-header">
+                            <div class="user-card-info">
+                                <div class="user-card-avatar" style="background-color: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success);">
+                                    <i class="fas fa-flask"></i>
+                                </div>
+                                <div class="user-card-details">
+                                    <h4>${item.nome}</h4>
+                                    <p style="margin-top: 4px; font-size: 12px;"><i class="fas fa-barcode"></i> Cód: ${item.codigo_externo || 'N/A'}</p>
+                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-weight-hanging"></i> Unidade: ${item.unidade}</p>
+                                    <span class="user-card-status ${item.ativo !== false ? 'active' : 'inactive'}" style="display: inline-flex; margin-top: 8px;">
+                                        <i class="fas fa-circle" style="font-size: 8px;"></i> ${item.ativo !== false ? 'Ativo' : 'Inativo'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-card-actions">
+                            <button onclick="App.cadastrosAuxiliares.editProduto('${item.id}')" title="Editar">
+                                <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.editProduto('${item.id}')"><i class="fas fa-edit"></i></button>
-                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.toggleAtivo('produtos', '${item.id}', ${item.ativo !== false})">
+                            <button class="toggle-btn ${item.ativo !== false ? 'active' : 'inactive'}" onclick="App.cadastrosAuxiliares.toggleAtivo('produtos', '${item.id}', ${item.ativo !== false})" title="Ativar/Desativar">
                                 <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
                             </button>
-                        </td>
-                    </tr>
+                            <button onclick="App.data.deleteDocument('produtos', '${item.id}').then(() => App.cadastrosAuxiliares.renderProdutos())" style="color: var(--color-danger);" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
                 `).join('');
-                html += '</tbody></table>';
                 list.innerHTML = html;
             },
 
@@ -19152,29 +19181,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(!list) return;
                 const items = App.state.operacao_produtos || [];
 
-                let html = '<table style="width:100%"><thead><tr><th>Operação</th><th>Produto</th><th>Dosagem/HA</th><th>Ações</th></tr></thead><tbody>';
-                html += items.map(item => {
+                if (items.length === 0) {
+                    list.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--color-text-light); padding: 20px;">Nenhum vínculo cadastrado.</p>';
+                    return;
+                }
+
+                let html = items.map(item => {
                     const op = (App.state.operacoes || []).find(o => o.id === item.operacao_id)?.nome || 'N/A';
                     const prod = (App.state.produtos || []).find(p => p.id === item.produto_id);
                     const prodName = prod ? `${prod.nome} (${prod.unidade})` : 'N/A';
 
                     return `
-                    <tr>
-                        <td>${op}</td>
-                        <td>${prodName}</td>
-                        <td>${item.dosagem_por_ha}</td>
-                        <td>
-                            <button class="btn-excluir" onclick="App.data.deleteDocument('operacao_produtos', '${item.id}').then(() => App.cadastrosAuxiliares.renderOpProd())">
-                                <i class="fas fa-trash"></i>
+                    <div class="user-card-redesigned" style="border-left-color: var(--color-purple);">
+                        <div class="user-card-header">
+                            <div class="user-card-info">
+                                <div class="user-card-avatar" style="background-color: color-mix(in srgb, var(--color-purple) 15%, transparent); color: var(--color-purple);">
+                                    <i class="fas fa-link"></i>
+                                </div>
+                                <div class="user-card-details">
+                                    <h4 style="color: var(--color-text);">${op}</h4>
+                                    <p style="margin-top: 4px; font-weight: 500; font-size: 13px; color: var(--color-primary-dark);"><i class="fas fa-flask"></i> ${prodName}</p>
+                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-vial"></i> Dosagem: ${item.dosagem_por_ha}/HA</p>
+                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-exclamation-circle"></i> Obrigatório: ${item.obrigatorio ? 'Sim' : 'Não'}</p>
+                                    <span class="user-card-status ${item.ativo !== false ? 'active' : 'inactive'}" style="display: inline-flex; margin-top: 8px;">
+                                        <i class="fas fa-circle" style="font-size: 8px;"></i> ${item.ativo !== false ? 'Ativo' : 'Inativo'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-card-actions">
+                            <button onclick="App.cadastrosAuxiliares.editOpProd('${item.id}')" title="Editar">
+                                <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.editOpProd('${item.id}')"><i class="fas fa-edit"></i></button>
-                            <button class="btn-secondary" onclick="App.cadastrosAuxiliares.toggleAtivo('operacao_produtos', '${item.id}', ${item.ativo !== false})">
+                            <button class="toggle-btn ${item.ativo !== false ? 'active' : 'inactive'}" onclick="App.cadastrosAuxiliares.toggleAtivo('operacao_produtos', '${item.id}', ${item.ativo !== false})" title="Ativar/Desativar">
                                 <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
                             </button>
-                        </td>
-                    </tr>
+                            <button onclick="App.data.deleteDocument('operacao_produtos', '${item.id}').then(() => App.cadastrosAuxiliares.renderOpProd())" style="color: var(--color-danger);" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
                 `}).join('');
-                html += '</tbody></table>';
                 list.innerHTML = html;
             },
 
