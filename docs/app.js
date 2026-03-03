@@ -15779,7 +15779,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ${activeProds} Produto(s) configurado(s)
                             </div>
                         </div>
-                        <div style="display: flex; gap: 8px; margin-left: 10px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-left: 10px;">
                             <button type="button" onclick="App.osManual.openProductModal('${op.id}')" class="btn-secondary" style="width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px;" title="Configurar Produtos">
                                 <i class="fas fa-pencil-alt"></i>
                             </button>
@@ -16267,8 +16267,15 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async generateOS() {
-                const { farmSelect, serviceType, responsibleMatricula, responsibleName, observations } = App.elements.osManual;
-                const selectedOps = App.state.osSelectedOperations || [];
+                const els = App.elements.osManual;
+                const { farmSelect, serviceType, responsibleMatricula, responsibleName, observations, operationSelect } = els;
+                let selectedOps = App.state.osSelectedOperations || [];
+
+                // Se o usuário selecionou uma operação mas esqueceu de clicar em 'Adicionar', adicione automaticamente
+                if (selectedOps.length === 0 && operationSelect && operationSelect.value) {
+                    this.addSelectedOperation();
+                    selectedOps = App.state.osSelectedOperations || [];
+                }
 
                 if (!farmSelect.value) return App.ui.showAlert("Selecione uma fazenda.", "warning");
                 if (!responsibleMatricula.value || responsibleName.value === 'Não encontrado') return App.ui.showAlert("Informe um responsável válido.", "warning");
@@ -16316,6 +16323,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 this._continueGenerateOS(selectedOps, primaryOpId, farm);
+            },
+
+            async getNextOsNumber() {
+                const prefix = `OS-${new Date().getFullYear()}-`;
+                const ordens = App.state.ordens_servico || [];
+                const maxNum = ordens
+                    .filter(os => os.os_numero && os.os_numero.startsWith(prefix))
+                    .reduce((max, os) => {
+                        const num = parseInt(os.os_numero.replace(prefix, ''), 10);
+                        return !isNaN(num) && num > max ? num : max;
+                    }, 0);
+                return `${prefix}${String(maxNum + 1).padStart(5, '0')}`;
             },
 
             async _continueGenerateOS(selectedOps, primaryOpId, farm) {
