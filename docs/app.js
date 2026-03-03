@@ -3218,6 +3218,23 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             showLoginMessage(message) { App.elements.loginMessage.textContent = message; },
             showAlert(message, type = 'success', duration = 3000) {
+                const alertContainer = App.elements.alertContainer;
+                if (alertContainer) {
+                    alertContainer.innerHTML = `
+                        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' || type === 'critical_error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+                        <span>${message}</span>
+                    `;
+                    alertContainer.className = '';
+                    alertContainer.classList.add(type === 'error' || type === 'critical_error' ? 'error' : type);
+                    alertContainer.classList.add('show');
+
+                    if (this.alertTimeout) clearTimeout(this.alertTimeout);
+                    this.alertTimeout = setTimeout(() => {
+                        alertContainer.classList.remove('show');
+                    }, duration);
+                }
+
+                // Keep showing in system notifications (the bell and trap list) as well
                 const title = type.charAt(0).toUpperCase() + type.slice(1);
                 this.showSystemNotification(title, message, type);
             },
@@ -4979,15 +4996,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     // Consulta o Firestore para obter o histórico da empresa atual
+                    // Removido orderBy("timestamp", "desc") da query para evitar erro de índice ausente (Firestore)
+                    // A ordenação é feita localmente em seguida.
                     const q = query(
                         collection(db, 'sync_history_store'),
-                        where("companyId", "==", App.state.currentUser.companyId),
-                        orderBy("timestamp", "desc")
+                        where("companyId", "==", App.state.currentUser.companyId)
                     );
                     const querySnapshot = await getDocs(q);
 
                     const logs = [];
                     querySnapshot.forEach(doc => logs.push({ id: doc.id, ...doc.data() }));
+
+                    // Ordenação local (descendente)
+                    logs.sort((a, b) => {
+                        const timeA = (a.timestamp && a.timestamp.toMillis) ? a.timestamp.toMillis() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
+                        const timeB = (b.timestamp && b.timestamp.toMillis) ? b.timestamp.toMillis() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
+                        return timeB - timeA;
+                    });
 
                     const statusMap = {
                         success: { icon: 'fa-check-circle', color: 'var(--color-success)', label: 'Sucesso' },
@@ -8860,10 +8885,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal.overlay.classList.add('show');
 
                 try {
+                    // Removido orderBy para evitar erro de índice no firestore e ordenado localmente
                     const q = query(
                         collection(db, 'configChangeHistory'),
-                        where("companyId", "==", App.state.currentUser.companyId),
-                        orderBy("timestamp", "desc")
+                        where("companyId", "==", App.state.currentUser.companyId)
                     );
                     const querySnapshot = await getDocs(q);
 
@@ -8872,9 +8897,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
+                    const logs = [];
+                    querySnapshot.forEach(doc => logs.push(doc.data()));
+
+                    logs.sort((a, b) => {
+                        const timeA = (a.timestamp && a.timestamp.toMillis) ? a.timestamp.toMillis() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
+                        const timeB = (b.timestamp && b.timestamp.toMillis) ? b.timestamp.toMillis() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
+                        return timeB - timeA;
+                    });
+
                     let contentHTML = '';
-                    querySnapshot.forEach(doc => {
-                        const log = doc.data();
+                    logs.forEach(log => {
                         const logTimestamp = log.timestamp ? log.timestamp.toDate().toLocaleString('pt-BR') : 'Data não disponível';
 
                         contentHTML += `
