@@ -15771,19 +15771,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const activeProds = op.produtos.filter(p => p.selecionado).length;
 
                     return `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--border-radius);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--border-radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                         <div style="flex-grow: 1;">
-                            <div style="font-weight: bold; color: var(--color-text); margin-bottom: 4px;">${op.id} - ${op.nome}</div>
+                            <div style="font-weight: bold; color: var(--color-text); margin-bottom: 4px; font-size: 1.05rem;">${op.nome}</div>
                             <div style="font-size: 0.85em; color: var(--color-text-light);">
                                 <i class="fas fa-flask" style="color: var(--color-primary); margin-right: 4px;"></i>
                                 ${activeProds} Produto(s) configurado(s)
                             </div>
                         </div>
-                        <div style="display: flex; gap: 8px;">
-                            <button type="button" onclick="App.osManual.openProductModal('${op.id}')" class="btn-secondary" style="padding: 8px;" title="Configurar Produtos">
-                                <i class="fas fa-pencil-alt"></i> Configurar
+                        <div style="display: flex; gap: 10px; margin-left: 10px;">
+                            <button type="button" onclick="App.osManual.openProductModal('${op.id}')" class="btn-secondary" style="padding: 10px 14px; display: flex; align-items: center; justify-content: center; border-radius: 6px;" title="Configurar Produtos">
+                                <i class="fas fa-pencil-alt"></i>
                             </button>
-                            <button type="button" onclick="App.osManual.removeOperation('${op.id}')" class="btn-excluir" style="padding: 8px;" title="Remover Operação">
+                            <button type="button" onclick="App.osManual.removeOperation('${op.id}')" class="btn-excluir" style="padding: 10px 14px; display: flex; align-items: center; justify-content: center; border-radius: 6px;" title="Remover Operação">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -16309,9 +16309,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (warnings.length > 0) {
-                    const confirm = await App.ui.confirmCustom(`Alertas de re-aplicação na operação principal: ${warnings.join(', ')}. Continuar?`);
-                    if (!confirm) return;
+                    App.ui.showConfirmationModal(`Alertas de re-aplicação na operação principal: ${warnings.join(', ')}. Continuar?`, () => {
+                        this._continueGenerateOS(selectedOps, selectedPlots, primaryOpId, farmId, safraId, responsible, typeServ, farm, safra);
+                    });
+                    return;
                 }
+
+                this._continueGenerateOS(selectedOps, selectedPlots, primaryOpId, farmId, safraId, responsible, typeServ, farm, safra);
+            },
+
+            async _continueGenerateOS(selectedOps, selectedPlots, primaryOpId, farmId, safraId, responsible, typeServ, farm, safra) {
+                const els = App.elements.osManual;
+                const companyId = App.state.currentUser.companyId;
 
                 // Prepare Data for multiple operations
                 const operacoesFormatadas = selectedOps.map(op => {
@@ -18951,23 +18960,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 listContainer.innerHTML = html;
             },
 
-            async finalizeOS(osId) {
-                if (!await App.ui.confirmCustom('Deseja realmente finalizar esta O.S.?')) return;
-
-                try {
-                    await App.data.updateDocument('ordens_servico', osId, {
-                        status: 'FINALIZADA',
-                        finalizado_em: new Date().toISOString()
-                    });
-                    App.ui.showAlert('O.S. Finalizada!', 'success');
-                    // Manually update state for immediate feedback if listener is slow
-                    const os = App.state.ordens_servico.find(o => o.id === osId);
-                    if(os) os.status = 'FINALIZADA';
-                    this.renderList();
-                } catch (e) {
-                    console.error(e);
-                    App.ui.showAlert('Erro ao finalizar.', 'error');
-                }
+            finalizeOS(osId) {
+                App.ui.showConfirmationModal('Deseja realmente finalizar esta O.S.?', async () => {
+                    try {
+                        await App.data.updateDocument('ordens_servico', osId, {
+                            status: 'FINALIZADA',
+                            finalizado_em: new Date().toISOString()
+                        });
+                        App.ui.showAlert('O.S. Finalizada!', 'success');
+                        // Manually update state for immediate feedback if listener is slow
+                        const os = App.state.ordens_servico.find(o => o.id === osId);
+                        if(os) os.status = 'FINALIZADA';
+                        this.renderList();
+                    } catch (e) {
+                        console.error("Erro ao finalizar O.S.", e);
+                        App.ui.showAlert('Erro ao finalizar a O.S.', 'error');
+                    }
+                });
             },
 
             async downloadPDF(osId, osNumero) {
