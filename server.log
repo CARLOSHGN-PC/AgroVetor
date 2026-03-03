@@ -1,13 +1,77 @@
-127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /index.html HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /app.js HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /icons/icon-512x512.png HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /js/lib/shp.js HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /js/lib/idb-lib.js HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:38] "GET /capacitor.js HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:39] "GET /js/fleet.js HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:39] "GET /js/lib/CalculationService.js HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:39] "GET /js/lib/VirtualList.js HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:39] "GET /js/lib/PerfLogger.js HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:39] "GET /js/repositories/KMRepository.js HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:40] "GET /service-worker.js HTTP/1.1" 200 -
-127.0.0.1 - - [16/Feb/2026 17:16:40] "GET /icons/imagens.png HTTP/1.1" 200 -
+npm warn exec The following package was not found and will be installed: http-server@14.1.1
+npm warn deprecated whatwg-encoding@2.0.0: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+Starting up http-server, serving docs
+
+http-server version: 14.1.1
+
+http-server settings:
+CORS: disabled
+Cache: 3600 seconds
+Connection Timeout: 120 seconds
+Directory Listings: visible
+AutoIndex: visible
+Serve GZIP Files: false
+Serve Brotli Files: false
+Default File Extension: none
+
+Available on:
+  http://127.0.0.1:8080
+  http://192.168.0.2:8080
+Hit CTRL-C to stop the server
+
+[2026-03-03T18:39:13.724Z]  "GET /" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+(node:4078) [DEP0066] DeprecationWarning: OutgoingMessage.prototype._headers is deprecated
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[2026-03-03T18:39:13.862Z]  "GET /icons/icon-512x512.png" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:13.870Z]  "GET /app.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:13.871Z]  "GET /js/lib/shp.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:13.873Z]  "GET /js/lib/idb-lib.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:13.893Z]  "GET /vendor/proj4.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:13.911Z]  "GET /capacitor.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:14.673Z]  "GET /js/fleet.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:14.676Z]  "GET /js/lib/CalculationService.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:14.678Z]  "GET /js/lib/PerfLogger.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:14.679Z]  "GET /js/lib/VirtualList.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:14.686Z]  "GET /js/lib/AppDiagnostics.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:14.687Z]  "GET /js/mapProviders/MapProviderFactory.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:14.721Z]  "GET /js/mapProviders/WebMapProvider.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:14.721Z]  "GET /js/mapProviders/AndroidNativeMapProvider.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:14.722Z]  "GET /js/repositories/KMRepository.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:14.728Z]  "GET /js/mapProviders/AerialMapProvider.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:39:15.106Z]  "GET /icons/imagens.png" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.177Z]  "GET /" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.199Z]  "GET /icons/icon-512x512.png" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.208Z]  "GET /app.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.227Z]  "GET /js/lib/shp.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.238Z]  "GET /js/lib/idb-lib.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.239Z]  "GET /vendor/proj4.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.258Z]  "GET /capacitor.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.590Z]  "GET /js/fleet.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.591Z]  "GET /js/lib/CalculationService.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.592Z]  "GET /js/lib/PerfLogger.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.608Z]  "GET /js/lib/VirtualList.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.612Z]  "GET /js/lib/AppDiagnostics.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.613Z]  "GET /js/mapProviders/MapProviderFactory.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.623Z]  "GET /js/repositories/KMRepository.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.637Z]  "GET /js/mapProviders/WebMapProvider.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.638Z]  "GET /js/mapProviders/AndroidNativeMapProvider.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.647Z]  "GET /js/mapProviders/AerialMapProvider.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:03.805Z]  "GET /icons/imagens.png" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.513Z]  "GET /" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.530Z]  "GET /icons/icon-512x512.png" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.570Z]  "GET /js/lib/shp.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.570Z]  "GET /js/lib/idb-lib.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.572Z]  "GET /app.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.572Z]  "GET /vendor/proj4.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.580Z]  "GET /capacitor.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.818Z]  "GET /js/fleet.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.819Z]  "GET /js/lib/CalculationService.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.820Z]  "GET /js/lib/PerfLogger.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.820Z]  "GET /js/lib/VirtualList.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.825Z]  "GET /js/lib/AppDiagnostics.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.826Z]  "GET /js/mapProviders/MapProviderFactory.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.832Z]  "GET /js/repositories/KMRepository.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.835Z]  "GET /js/mapProviders/WebMapProvider.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.835Z]  "GET /js/mapProviders/AndroidNativeMapProvider.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.846Z]  "GET /js/mapProviders/AerialMapProvider.js" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+[2026-03-03T18:40:33.984Z]  "GET /icons/imagens.png" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
