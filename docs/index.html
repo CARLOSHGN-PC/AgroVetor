@@ -2685,19 +2685,22 @@
                             <select id="osServiceType" style="width: 100%;"><option value="">Selecione...</option></select>
                         </div>
 
-                        <div class="form-col" style="margin-bottom: 10px; position: relative;">
-                            <label for="osOperationSearch" class="required">Buscar Operações (Nome ou Cód):</label>
-                            <div style="display: flex; gap: 5px;">
-                                <input type="text" id="osOperationSearch" placeholder="Ex: 015 ou Pulverização..." style="flex-grow: 1;">
-                                <select id="osOperationSelect" style="display:none;"></select>
-                                <button type="button" id="btnAddOperationToOS" class="save" style="padding: 12px;" title="Adicionar Operação">
-                                    <i class="fas fa-plus"></i>
+                        <div class="form-col" style="margin-bottom: 15px;">
+                            <label class="required">Roteiro de Operações:</label>
+                            <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 10px; background: var(--color-surface); padding: 10px; border: 1px solid var(--color-border); border-radius: var(--border-radius);">
+                                <input type="text" id="osOpCodeInput" placeholder="Cód." style="width: 80px;" oninput="this.value = this.value.toUpperCase()">
+                                <input type="text" id="osOpNameInput" placeholder="Nome da Operação" style="flex-grow: 1; background: #eee; border: 1px solid #ccc; color: #555;" readonly>
+                                <button type="button" id="btnAddOperationToOS" class="save" style="padding: 12px;" title="Adicionar ao Roteiro">
+                                    Adicionar
                                 </button>
                             </div>
-                            <ul id="osOperationSuggestions" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--color-bg); border: 1px solid var(--color-border); max-height: 150px; overflow-y: auto; z-index: 10; padding: 0; margin: 0; list-style: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></ul>
 
-                            <!-- Lista de Operações Selecionadas -->
-                            <div id="osSelectedOperationsList" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;"></div>
+                            <!-- Lista de Operações do Roteiro -->
+                            <div id="osSelectedOperationsList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+
+                            <!-- Legacy elements required to not break app.js lookups while transitioning completely -->
+                            <input type="hidden" id="osOperationSearch">
+                            <ul id="osOperationSuggestions" style="display: none;"></ul>
                         </div>
 
                         <!-- Modal de Produtos para Operação (Injetado via JS ou aqui) -->
@@ -2770,15 +2773,23 @@
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-info);">
-                    <h3><i class="fas fa-filter"></i> Filtros</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
+                        <h3 style="margin: 0;"><i class="fas fa-filter"></i> Filtros</h3>
+                        <button id="btnImportMachineData" class="save" style="background: var(--color-primary); border-radius: 20px;"><i class="fas fa-upload"></i> Importar Relatório de Máquina</button>
+                    </div>
+
                     <div class="form-row">
                         <div class="form-col"><label for="osOfficeStart">De:</label><input type="date" id="osOfficeStart"></div>
                         <div class="form-col"><label for="osOfficeEnd">Até:</label><input type="date" id="osOfficeEnd"></div>
                         <div class="form-col"><label for="osOfficeStatus">Status:</label>
                             <select id="osOfficeStatus">
                                 <option value="">Todos</option>
-                                <option value="ABERTA">Aberta</option>
-                                <option value="FINALIZADA">Finalizada</option>
+                                <option value="PLANEJADA">Planejada</option>
+                                <option value="EM_EXECUCAO">Em Execução</option>
+                                <option value="DIVERGENTE">Divergente</option>
+                                <option value="CONCLUIDA">Concluída</option>
+                                <option value="FINALIZADA">Finalizada (Legado)</option>
+                                <option value="CANCELADA">Cancelada</option>
                             </select>
                         </div>
                     </div>
@@ -2787,6 +2798,27 @@
 
                 <h3><i class="fas fa-list"></i> Ordens de Serviço</h3>
                 <div id="osOfficeList" class="table-responsive"></div>
+
+                <!-- Modal Importação de Relatório -->
+                <div id="osImportModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; padding: 20px;">
+                    <div style="background: var(--color-bg); border-radius: var(--border-radius); width: 100%; max-width: 600px; display: flex; flex-direction: column; padding: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3 style="margin: 0;">Importar Relatório de Execução</h3>
+                            <button type="button" onclick="document.getElementById('osImportModal').style.display='none'" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-text);">&times;</button>
+                        </div>
+                        <p style="font-size: 0.9em; color: var(--color-text-light); margin-bottom: 20px;">
+                            Faça o upload do relatório da máquina (formato CSV/Excel). O sistema irá conciliar os dados de Fazenda, Talhão e Operação com as O.S. Planejadas.
+                        </p>
+                        <input type="file" id="osImportFile" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" style="margin-bottom: 20px; padding: 10px; border: 1px dashed var(--color-border); border-radius: var(--border-radius); width: 100%;">
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="font-size: 0.9em; display: flex; align-items: center; gap: 5px;">
+                                Margem de Tolerância: <input type="number" id="osImportTolerance" value="5" min="0" max="100" style="width: 60px;"> %
+                            </label>
+                            <button type="button" id="btnProcessImport" class="save"><i class="fas fa-cogs"></i> Processar Importação</button>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>

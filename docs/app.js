@@ -15594,20 +15594,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 // --- Início: Nova Lógica de Múltiplas Operações ---
                 App.state.osSelectedOperations = [];
 
-                if (els.operationSearch) {
-                    els.operationSearch.addEventListener('input', App.debounce((e) => {
-                        this.handleOperationSearch(e.target.value);
-                    }, 300));
+                // UX Requisitada: Digita Código -> Mostra Nome
+                const opCodeInput = document.getElementById('osOpCodeInput');
+                const opNameInput = document.getElementById('osOpNameInput');
 
-                    els.operationSearch.addEventListener('focus', () => {
-                        this.handleOperationSearch(els.operationSearch.value);
-                    });
-
-                    document.addEventListener('click', (e) => {
-                        if (els.operationSuggestions && e.target !== els.operationSearch && !els.operationSuggestions.contains(e.target)) {
-                            els.operationSuggestions.style.display = 'none';
+                if (opCodeInput) {
+                    opCodeInput.addEventListener('input', App.debounce((e) => {
+                        const code = e.target.value.trim();
+                        if (!code) {
+                            opNameInput.value = '';
+                            delete opCodeInput.dataset.selectedId;
+                            delete opCodeInput.dataset.selectedName;
+                            return;
                         }
-                    });
+
+                        // Busca exata pelo ID (Código)
+                        const opMatch = (App.state.operacoes || []).find(o => String(o.id).toUpperCase() === code.toUpperCase() && o.ativo);
+
+                        if (opMatch) {
+                            opNameInput.value = opMatch.nome;
+                            opCodeInput.dataset.selectedId = opMatch.id;
+                            opCodeInput.dataset.selectedName = opMatch.nome;
+                        } else {
+                            opNameInput.value = 'Operação não encontrada';
+                            delete opCodeInput.dataset.selectedId;
+                            delete opCodeInput.dataset.selectedName;
+                        }
+                    }, 300));
                 }
 
                 if (els.btnAddOperationToOS) {
@@ -15680,56 +15693,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            handleOperationSearch(query) {
-                const sugg = App.elements.osManual.operationSuggestions;
-                if (!query || !sugg) {
-                    if(sugg) sugg.style.display = 'none';
-                    return;
-                }
-
-                const q = query.toLowerCase();
-                const operations = (App.state.operacoes || []).filter(o => o.ativo);
-
-                // Allow search by name or code (id)
-                const matches = operations.filter(o =>
-                    o.nome.toLowerCase().includes(q) ||
-                    String(o.id).toLowerCase().includes(q)
-                ).slice(0, 10); // Limit results
-
-                if (matches.length === 0) {
-                    sugg.innerHTML = '<li style="padding: 10px; color: var(--color-text-light);">Nenhuma operação encontrada</li>';
-                } else {
-                    sugg.innerHTML = matches.map(op => `
-                        <li style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--color-border);"
-                            onclick="App.osManual.selectOperationSearch('${op.id}', '${op.nome.replace(/'/g, "\\'")}')"
-                            onmouseover="this.style.background='var(--color-surface)'"
-                            onmouseout="this.style.background='none'">
-                            <span style="font-weight: bold;">${op.id}</span> - ${op.nome}
-                        </li>
-                    `).join('');
-                }
-
-                sugg.style.display = 'block';
-            },
-
-            selectOperationSearch(id, nome) {
-                const els = App.elements.osManual;
-                if(!els.operationSearch) return;
-                els.operationSearch.value = `${id} - ${nome}`;
-                els.operationSearch.dataset.selectedId = id;
-                els.operationSearch.dataset.selectedName = nome;
-                if(els.operationSuggestions) els.operationSuggestions.style.display = 'none';
-            },
+            // Removed legacy search suggestions functions as they are replaced by direct code input
 
             addSelectedOperation() {
-                const els = App.elements.osManual;
-                if(!els.operationSearch) return;
+                const opCodeInput = document.getElementById('osOpCodeInput');
+                const opNameInput = document.getElementById('osOpNameInput');
 
-                const opId = els.operationSearch.dataset.selectedId;
-                const opName = els.operationSearch.dataset.selectedName;
+                if(!opCodeInput) return;
 
-                if (!opId) {
-                    App.ui.showAlert('Por favor, busque e selecione uma operação na lista antes de adicionar.', 'warning');
+                const opId = opCodeInput.dataset.selectedId;
+                const opName = opCodeInput.dataset.selectedName;
+
+                if (!opId || opNameInput.value === 'Operação não encontrada') {
+                    App.ui.showAlert('Por favor, digite um código de operação válido antes de adicionar.', 'warning');
                     return;
                 }
 
@@ -15767,9 +15743,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 // Clear search
-                els.operationSearch.value = '';
-                delete els.operationSearch.dataset.selectedId;
-                delete els.operationSearch.dataset.selectedName;
+                opCodeInput.value = '';
+                opNameInput.value = '';
+                delete opCodeInput.dataset.selectedId;
+                delete opCodeInput.dataset.selectedName;
 
                 this.renderSelectedOperations();
             },
@@ -16227,31 +16204,34 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async generateOS() {
-                const { farmSelect, serviceType, operation, responsibleMatricula, responsibleName, observations } = App.elements.osManual;
+                const { farmSelect, serviceType, responsibleMatricula, responsibleName, observations } = App.elements.osManual;
+                const selectedOps = App.state.osSelectedOperations || [];
 
                 if (!farmSelect.value) return App.ui.showAlert("Selecione uma fazenda.", "warning");
                 if (!responsibleMatricula.value || responsibleName.value === 'Não encontrado') return App.ui.showAlert("Informe um responsável válido.", "warning");
                 if (!serviceType.value) return App.ui.showAlert("Selecione o tipo de serviço.", "warning");
-                if (!operation.value) return App.ui.showAlert("Selecione a operação.", "warning");
+                if (selectedOps.length === 0) return App.ui.showAlert("Adicione pelo menos uma operação ao roteiro.", "warning");
                 if (App.state.osSelectedPlots.size === 0) return App.ui.showAlert("Selecione ao menos 1 talhão.", "warning");
-
-                // Check Max Applications
-                const op = App.state.operacoes.find(o => o.id === operation.value);
-                const maxApp = op ? (op.max_aplicacoes || 99) : 99;
 
                 const blockedPlots = [];
                 const warnings = [];
                 const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
 
+                // For legacy compatibility, we take the primary operation for basic checks
+                const primaryOpId = selectedOps[0].id;
+                const primaryOpData = App.state.operacoes.find(o => o.id === primaryOpId);
+                const maxApp = primaryOpData ? (primaryOpData.max_aplicacoes || 99) : 99;
+
+                // Checking only the primary operation for max applications limit
                 App.state.osSelectedPlots.forEach(talhaoId => {
                     const talhao = farm.talhoes.find(t => t.id === talhaoId);
                     if(!talhao) return;
 
                     const count = (App.state.ordens_servico || []).filter(os =>
-                        os.operacao_id === operation.value &&
+                        os.operacao_id === primaryOpId &&
                         os.fazenda_id === farmSelect.value &&
                         os.status !== 'CANCELADA' &&
-                        os.itens.some(item => item.talhao_id === talhao.name) // assuming name match, better if ID
+                        os.itens.some(item => item.talhao_id === talhao.name)
                     ).length;
 
                     if (count >= maxApp) {
@@ -16262,28 +16242,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (blockedPlots.length > 0) {
-                    return App.ui.showAlert(`Bloqueio: Limite de aplicações excedido para: ${blockedPlots.join(', ')}`, 'error');
+                    return App.ui.showAlert(`Bloqueio: Limite de aplicações excedido na operação principal (${primaryOpId}) para: ${blockedPlots.join(', ')}`, 'error');
                 }
 
                 if (warnings.length > 0) {
-                    const confirm = await App.ui.confirmCustom(`Alertas de re-aplicação: ${warnings.join(', ')}. Continuar?`);
+                    const confirm = await App.ui.confirmCustom(`Alertas de re-aplicação na operação principal: ${warnings.join(', ')}. Continuar?`);
                     if (!confirm) return;
                 }
 
-                // Prepare Data
-                const products = [];
-                document.querySelectorAll('#osProductsList .product-item').forEach(item => {
-                    const cb = item.querySelector('.os-prod-cb');
-                    if (cb.checked) {
-                        products.push({
-                            produto_id: cb.dataset.id,
-                            produto_nome: cb.dataset.name,
-                            unidade: cb.dataset.unit,
-                            dosagem_por_ha: parseFloat(item.querySelector('.os-prod-dosage').value),
-                            qtde_total: parseFloat(item.querySelector('.os-prod-dosage').value) * App.state.osTotalArea
-                        });
-                    }
+                // Prepare Data for multiple operations
+                const operacoesFormatadas = selectedOps.map(op => {
+                    const operacaoProdutos = op.produtos.filter(p => p.selecionado).map(p => ({
+                        produto_id: p.id,
+                        produto_nome: p.nome,
+                        unidade: p.unidade,
+                        dosagem_por_ha: p.dosagem,
+                        qtde_total: p.dosagem * App.state.osTotalArea
+                    }));
+                    return {
+                        operacao_id: op.id,
+                        operacao_nome: op.nome,
+                        produtos: operacaoProdutos
+                    };
                 });
+
+                // Legacy products (from the first operation) to keep old reports working
+                const products = operacoesFormatadas[0].produtos || [];
 
                 const plots = [];
                 let totalAreaHa = 0;
@@ -16305,8 +16289,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const safeTotalAreaHa = Number.isFinite(totalAreaHa) ? totalAreaHa : 0;
                 App.state.osTotalArea = safeTotalAreaHa;
 
+                const novoNumeroOS = await this.getNextOsNumber();
+
                 const osData = {
-                    os_numero: Date.now(),
+                    os_numero: novoNumeroOS,
                     data: new Date().toISOString().split('T')[0],
                     safra: App.state.globalConfigs?.safra || '24/25',
                     ciclo: App.state.globalConfigs?.ciclo || '1',
@@ -16319,15 +16305,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     companyId: App.state.currentUser.companyId,
                     tipo_servico_id: serviceType.value,
                     tipo_servico_desc: App.state.tipos_servico.find(t => t.id === serviceType.value)?.descricao,
-                    operacao_id: operation.value,
-                    operacao_nome: op.nome,
-                    status: 'ABERTA',
+
+                    // Estrutura Legada / Simplificada
+                    operacao_id: operacoesFormatadas[0].operacao_id,
+                    operacao_nome: operacoesFormatadas[0].operacao_nome,
+
+                    // Nova estrutura: Múltiplas Operações
+                    operacoes_multiplas: operacoesFormatadas,
+
+                    status: 'PLANEJADA', // Novo status padrão para roteiros
                     total_area_ha: safeTotalAreaHa,
                     observacoes: observations.value,
                     itens: plots,
-                    produtos: products,
+                    produtos: products, // Mantido por compatibilidade
                     created_at: new Date().toISOString(),
-                    companyId: App.state.currentUser.companyId
                 };
 
                 try {
