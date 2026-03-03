@@ -15779,11 +15779,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ${activeProds} Produto(s) configurado(s)
                             </div>
                         </div>
-                        <div style="display: flex; gap: 10px; margin-left: 10px;">
-                            <button type="button" onclick="App.osManual.openProductModal('${op.id}')" class="btn-secondary" style="padding: 10px 14px; display: flex; align-items: center; justify-content: center; border-radius: 6px;" title="Configurar Produtos">
+                        <div style="display: flex; gap: 8px; margin-left: 10px;">
+                            <button type="button" onclick="App.osManual.openProductModal('${op.id}')" class="btn-secondary" style="width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px;" title="Configurar Produtos">
                                 <i class="fas fa-pencil-alt"></i>
                             </button>
-                            <button type="button" onclick="App.osManual.removeOperation('${op.id}')" class="btn-excluir" style="padding: 10px 14px; display: flex; align-items: center; justify-content: center; border-radius: 6px;" title="Remover Operação">
+                            <button type="button" onclick="App.osManual.removeOperation('${op.id}')" class="btn-excluir" style="width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px;" title="Remover Operação">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -16310,15 +16310,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (warnings.length > 0) {
                     App.ui.showConfirmationModal(`Alertas de re-aplicação na operação principal: ${warnings.join(', ')}. Continuar?`, () => {
-                        this._continueGenerateOS(selectedOps, selectedPlots, primaryOpId, farmId, safraId, responsible, typeServ, farm, safra);
+                        this._continueGenerateOS(selectedOps, primaryOpId, farm);
                     });
                     return;
                 }
 
-                this._continueGenerateOS(selectedOps, selectedPlots, primaryOpId, farmId, safraId, responsible, typeServ, farm, safra);
+                this._continueGenerateOS(selectedOps, primaryOpId, farm);
             },
 
-            async _continueGenerateOS(selectedOps, selectedPlots, primaryOpId, farmId, safraId, responsible, typeServ, farm, safra) {
+            async _continueGenerateOS(selectedOps, primaryOpId, farm) {
                 const els = App.elements.osManual;
                 const companyId = App.state.currentUser.companyId;
 
@@ -16370,13 +16370,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     ciclo: App.state.globalConfigs?.ciclo || '1',
                     fazenda_id: farm.id,
                     fazenda_nome: farm.name,
-                    responsavel_matricula: responsibleMatricula.value,
-                    responsavel_nome: responsibleName.value,
+                    responsavel_matricula: els.responsibleMatricula.value,
+                    responsavel_nome: els.responsibleName.value,
                     usuario_abertura_id: App.state.currentUser.uid,
                     usuario_abertura_nome: App.state.currentUser.username || App.state.currentUser.email,
                     companyId: App.state.currentUser.companyId,
-                    tipo_servico_id: serviceType.value,
-                    tipo_servico_desc: App.state.tipos_servico.find(t => t.id === serviceType.value)?.descricao,
+                    tipo_servico_id: els.serviceType.value,
+                    tipo_servico_desc: App.state.tipos_servico.find(t => t.id === els.serviceType.value)?.descricao,
 
                     // Estrutura Legada / Simplificada
                     operacao_id: operacoesFormatadas[0].operacao_id,
@@ -16387,7 +16387,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     status: 'PLANEJADA', // Novo status padrão para roteiros
                     total_area_ha: safeTotalAreaHa,
-                    observacoes: observations.value,
+                    observacoes: els.observations.value,
                     itens: plots,
                     produtos: products, // Mantido por compatibilidade
                     created_at: new Date().toISOString(),
