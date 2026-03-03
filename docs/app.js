@@ -16287,6 +16287,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const warnings = [];
                 const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
 
+                // Climate Validation
+                try {
+                    const forecast = await App.actions.getWeatherForecast();
+                    if (forecast && forecast.daily && forecast.daily.precipitation_sum && forecast.daily.precipitation_sum[0] > 10) {
+                        warnings.push(`Atenção: Previsão de chuva moderada/forte (${forecast.daily.precipitation_sum[0]}mm) para hoje. Verifique se o roteiro é seguro.`);
+                    }
+                } catch (e) {
+                    console.warn("Could not fetch weather forecast for OS validation", e);
+                }
+
                 // For legacy compatibility, we take the primary operation for basic checks
                 const primaryOpId = selectedOps[0].id;
                 const primaryOpData = App.state.operacoes.find(o => o.id === primaryOpId);
@@ -18944,6 +18954,23 @@ document.addEventListener('DOMContentLoaded', () => {
             setup() {
                 const btnFilter = document.getElementById('btnFilterOS');
                 if (btnFilter) btnFilter.addEventListener('click', () => this.renderList());
+
+                const btnCloseEditModal = document.getElementById('osEditModalClose');
+                if (btnCloseEditModal) btnCloseEditModal.addEventListener('click', () => this.closeEditModal());
+
+                const btnCancelEditOs = document.getElementById('btnCancelEditOs');
+                if (btnCancelEditOs) btnCancelEditOs.addEventListener('click', () => this.closeEditModal());
+
+                const btnSaveEditOs = document.getElementById('btnSaveEditOs');
+                if (btnSaveEditOs) btnSaveEditOs.addEventListener('click', () => this.saveEditOS());
+
+                const btnImportMachineData = document.getElementById('btnImportMachineData');
+                if (btnImportMachineData) btnImportMachineData.addEventListener('click', () => {
+                    document.getElementById('osImportModal').style.display = 'flex';
+                });
+
+                const btnProcessImport = document.getElementById('btnProcessImport');
+                if (btnProcessImport) btnProcessImport.addEventListener('click', () => this.processMachineReport());
             },
 
             renderList() {
@@ -18971,15 +18998,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 html += data.map(os => `
                     <tr>
-                        <td>${new Date(os.data + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
-                        <td>${os.os_numero}</td>
-                        <td>${os.responsavel_nome}</td>
-                        <td>${os.operacao_nome}</td>
-                        <td><span class="plano-status ${os.status === 'FINALIZADA' ? 'concluido' : 'pendente'}">${os.status}</span></td>
-                        <td>
+                        <td data-label="Data">${new Date(os.data + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                        <td data-label="Nº OS">${os.os_numero}</td>
+                        <td data-label="Responsável">${os.responsavel_nome}</td>
+                        <td data-label="Operação">${os.operacao_nome}</td>
+                        <td data-label="Status"><span class="plano-status ${os.status === 'FINALIZADA' ? 'concluido' : (os.status === 'DIVERGENTE' ? 'atrasado' : 'pendente')}">${os.status}</span></td>
+                        <td data-label="Ações">
                             <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                                <button class="btn-secondary" style="padding: 6px;" title="Editar O.S." onclick="App.osEscritorio.openEditModal('${os.id}')"><i class="fas fa-edit"></i></button>
+                                <button class="btn-secondary" style="padding: 6px; background: var(--color-purple);" title="Clonar (Duplicar) O.S." onclick="App.osEscritorio.cloneOS('${os.id}')"><i class="fas fa-copy"></i></button>
                                 <button class="btn-secondary" style="padding: 6px;" title="Baixar PDF" onclick="App.osEscritorio.downloadPDF('${os.id}', '${os.os_numero}')"><i class="fas fa-file-pdf"></i></button>
-                                ${os.status !== 'FINALIZADA' ?
+                                ${os.status !== 'FINALIZADA' && os.status !== 'CANCELADA' ?
                                     `<button class="save" style="padding: 6px; background: var(--color-success);" title="Finalizar" onclick="App.osEscritorio.finalizeOS('${os.id}')"><i class="fas fa-check"></i></button>`
                                     : ''}
                             </div>
@@ -18989,6 +19018,107 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 html += '</tbody></table>';
                 listContainer.innerHTML = html;
+            },
+
+            openEditModal(osId) {
+                const os = App.state.ordens_servico.find(o => o.id === osId);
+                if (!os) return;
+
+                document.getElementById('osEditId').value = os.id;
+                document.getElementById('osEditStatus').value = os.status || 'PLANEJADA';
+                document.getElementById('osEditResponsavelNome').value = os.responsavel_nome || '';
+                document.getElementById('osEditResponsavelMatricula').value = os.responsavel_matricula || '';
+                document.getElementById('osEditObservacoes').value = os.observacoes_escritorio || '';
+
+                const divergenceAlert = document.getElementById('osEditDivergenceAlert');
+                const divergenceText = document.getElementById('osEditDivergenceText');
+
+                if (os.status === 'DIVERGENTE' && os.observacoes_execucao) {
+                    divergenceText.textContent = os.observacoes_execucao;
+                    divergenceAlert.style.display = 'block';
+                } else {
+                    divergenceText.textContent = '';
+                    divergenceAlert.style.display = 'none';
+                }
+
+                document.getElementById('osEditModal').style.display = 'flex';
+            },
+
+            closeEditModal() {
+                document.getElementById('osEditModal').style.display = 'none';
+            },
+
+            async saveEditOS() {
+                const osId = document.getElementById('osEditId').value;
+                const status = document.getElementById('osEditStatus').value;
+                const responsavel_nome = document.getElementById('osEditResponsavelNome').value;
+                const responsavel_matricula = document.getElementById('osEditResponsavelMatricula').value;
+                const observacoes_escritorio = document.getElementById('osEditObservacoes').value;
+
+                if (!osId) return;
+
+                App.ui.setLoading(true, "A guardar alterações...");
+                try {
+                    const updateData = {
+                        status,
+                        responsavel_nome,
+                        responsavel_matricula,
+                        observacoes_escritorio,
+                        updatedAt: new Date().toISOString()
+                    };
+
+                    await App.data.updateDocument('ordens_servico', osId, updateData);
+                    App.ui.showAlert("O.S. atualizada com sucesso!", "success");
+                    this.closeEditModal();
+
+                    // Update state manually if offline/slow network
+                    const os = App.state.ordens_servico.find(o => o.id === osId);
+                    if (os) {
+                        Object.assign(os, updateData);
+                    }
+                    this.renderList();
+                } catch (error) {
+                    console.error("Erro ao atualizar O.S.", error);
+                    App.ui.showAlert("Erro ao guardar alterações.", "error");
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async cloneOS(osId) {
+                App.ui.showConfirmationModal('Deseja clonar esta Ordem de Serviço? Uma nova O.S. será criada em rascunho com os mesmos dados base.', async () => {
+                    const originalOs = App.state.ordens_servico.find(o => o.id === osId);
+                    if (!originalOs) return;
+
+                    App.ui.setLoading(true, "A clonar O.S....");
+                    try {
+                        // Gerar novo número de OS
+                        const nextNumberStr = await App.actions.osManual.getNextOsNumber();
+                        const nextSequence = parseInt(nextNumberStr.split('-')[2], 10);
+
+                        const clonedData = {
+                            ...originalOs,
+                            os_numero: nextSequence, // Store as number for DB backward compatibility
+                            sequentialId: nextNumberStr, // Store string as sequentialId
+                            status: 'PLANEJADA',
+                            data: new Date().toISOString().split('T')[0], // Hoje
+                            createdAt: new Date().toISOString(),
+                            usuario_abertura: App.state.currentUser.uid,
+                            usuario_abertura_nome: App.state.currentUser.username || App.state.currentUser.email,
+                            observacoes_escritorio: '', // Limpar obs
+                        };
+
+                        delete clonedData.id; // Remover o ID original para criar um novo documento
+
+                        await App.data.addDocument('ordens_servico', clonedData);
+                        App.ui.showAlert(`O.S. clonada com sucesso! Nova OS: ${nextNumberStr}`, "success");
+                    } catch (error) {
+                        console.error("Erro ao clonar O.S.", error);
+                        App.ui.showAlert("Erro ao clonar a Ordem de Serviço.", "error");
+                    } finally {
+                        App.ui.setLoading(false);
+                    }
+                });
             },
 
             finalizeOS(osId) {
@@ -19018,6 +19148,145 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (e) {
                     console.error(e);
                     App.ui.showAlert('Erro ao baixar PDF.', 'error');
+                }
+            },
+
+            async processMachineReport() {
+                const fileInput = document.getElementById('osImportFile');
+                const tolerance = parseFloat(document.getElementById('osImportTolerance').value) || 5;
+
+                if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                    App.ui.showAlert('Por favor, selecione um arquivo CSV.', 'warning');
+                    return;
+                }
+
+                const file = fileInput.files[0];
+                App.ui.setLoading(true, "A processar relatório da máquina...");
+
+                try {
+                    const text = await file.text();
+                    const lines = text.split('\\n');
+                    // Data	Propriedade	Operação:	Descrição	Fazenda	Etapa	Produto	Grupo	Talhão	Ha.Aplic	Qtde.Aplic	Dos.Aplic	Dos.Rec	Vlr.Unit	Total R$
+                    const headers = lines[0].split(';').map(h => h.trim().toLowerCase());
+
+                    const colIndex = {
+                        data: headers.findIndex(h => h.includes('data')),
+                        fazendaNome: headers.findIndex(h => h.includes('fazenda')),
+                        fazendaCode: headers.findIndex(h => h.includes('propriedade')),
+                        operacaoCode: headers.findIndex(h => h.includes('operação') || h.includes('operacao')),
+                        operacaoDesc: headers.findIndex(h => h.includes('descrição') || h.includes('descricao')),
+                        produto: headers.findIndex(h => h.includes('produto')),
+                        talhao: headers.findIndex(h => h.includes('talhão') || h.includes('talhao')),
+                        dosagemAplic: headers.findIndex(h => h.includes('dos.aplic')),
+                        dosagemRec: headers.findIndex(h => h.includes('dos.rec')),
+                        areaAplic: headers.findIndex(h => h.includes('ha.aplic')),
+                    };
+
+                    if (colIndex.fazendaNome === -1 || colIndex.talhao === -1 || colIndex.produto === -1) {
+                         App.ui.showAlert('Colunas obrigatórias não encontradas (Fazenda, Talhão, Produto). Verifique o formato do CSV.', 'error');
+                         App.ui.setLoading(false);
+                         return;
+                    }
+
+                    // Parse CSV data into structured array grouped by OS keys (Date + Farm + Plot + Op)
+                    const parsedData = [];
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (!line) continue;
+                        const cols = line.split(';');
+
+                        parsedData.push({
+                            data: colIndex.data > -1 ? cols[colIndex.data] : '',
+                            fazendaNome: cols[colIndex.fazendaNome],
+                            fazendaCode: colIndex.fazendaCode > -1 ? cols[colIndex.fazendaCode] : '',
+                            operacao: colIndex.operacaoDesc > -1 ? cols[colIndex.operacaoDesc] : '',
+                            talhao: cols[colIndex.talhao],
+                            produto: cols[colIndex.produto],
+                            dosagemAplic: colIndex.dosagemAplic > -1 ? parseFloat(cols[colIndex.dosagemAplic].replace(',','.')) : 0,
+                            dosagemRec: colIndex.dosagemRec > -1 ? parseFloat(cols[colIndex.dosagemRec].replace(',','.')) : 0,
+                        });
+                    }
+
+                    // Logic to reconcile parsedData with App.state.ordens_servico
+                    let reconciledCount = 0;
+                    let divergentCount = 0;
+
+                    const activeOSs = App.state.ordens_servico.filter(os => os.status === 'PLANEJADA' || os.status === 'EM_EXECUCAO');
+
+                    const updates = [];
+
+                    for (const os of activeOSs) {
+                        let isFullyExecuted = true;
+                        let hasDivergence = false;
+                        let divergenceNotes = [];
+
+                        // Simplified check: we look for the exact plot in the OS within the imported data
+                        // This logic needs refining based on actual operation matching
+                        const osPlots = Array.isArray(os.selectedPlots) ? os.selectedPlots : (os.itens ? os.itens.map(i => i.talhao_nome) : []);
+                        const osProducts = os.produtos || []; // Needs adaptation for 'operacoes_multiplas'
+
+                        if (osPlots.length === 0 || osProducts.length === 0) continue; // Not a standard OS
+
+                        for (const plot of osPlots) {
+                            for (const osProd of osProducts) {
+                                const expectedDosage = parseFloat(osProd.dosagem_por_ha) || 0;
+
+                                // Find matching record in CSV
+                                const match = parsedData.find(pd =>
+                                    (String(pd.talhao) === String(plot)) &&
+                                    (pd.produto.toUpperCase().includes(osProd.produto_nome.toUpperCase()) || osProd.produto_nome.toUpperCase().includes(pd.produto.toUpperCase()))
+                                );
+
+                                if (match) {
+                                    const appliedDosage = match.dosagemAplic;
+                                    const diffPercent = expectedDosage > 0 ? Math.abs((appliedDosage - expectedDosage) / expectedDosage) * 100 : 0;
+
+                                    if (diffPercent > tolerance) {
+                                        hasDivergence = true;
+                                        divergenceNotes.push(`Divergência Talhão ${plot} - Prod: ${osProd.produto_nome}. Rec: ${expectedDosage}, Apl: ${appliedDosage} (${diffPercent.toFixed(1)}% dif)`);
+                                    }
+                                } else {
+                                    // Plot/Product combo from OS not found in execution report
+                                    isFullyExecuted = false;
+                                }
+                            }
+                        }
+
+                        if (isFullyExecuted || hasDivergence) {
+                            const newStatus = hasDivergence ? 'DIVERGENTE' : 'FINALIZADA';
+                            const updatePayload = {
+                                status: newStatus,
+                                observacoes_execucao: divergenceNotes.join(' | '),
+                                data_conciliacao: new Date().toISOString()
+                            };
+
+                            updates.push({ id: os.id, data: updatePayload });
+
+                            if (newStatus === 'FINALIZADA') reconciledCount++;
+                            if (newStatus === 'DIVERGENTE') divergentCount++;
+                        }
+                    }
+
+                    // Apply updates
+                    for (const update of updates) {
+                        await App.data.updateDocument('ordens_servico', update.id, update.data);
+                        const stateOs = App.state.ordens_servico.find(o => o.id === update.id);
+                        if (stateOs) {
+                            Object.assign(stateOs, update.data);
+                        }
+                    }
+
+                    document.getElementById('osImportModal').style.display = 'none';
+                    this.renderList();
+
+                    App.ui.showConfirmationModal(`Importação concluída.\\n\\nConciliadas e Finalizadas: ${reconciledCount}\\nDivergentes: ${divergentCount}\\n\\nAs O.S. divergentes precisam de revisão manual.`, () => {});
+
+                } catch (error) {
+                    console.error("Erro ao processar arquivo:", error);
+                    App.ui.showAlert(`Erro ao processar o arquivo: ${error.message}`, 'error');
+                } finally {
+                    App.ui.setLoading(false);
+                    if(fileInput) fileInput.value = '';
                 }
             }
         },

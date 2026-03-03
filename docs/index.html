@@ -2805,6 +2805,54 @@
                 <h3><i class="fas fa-list"></i> Ordens de Serviço</h3>
                 <div id="osOfficeList" class="table-responsive"></div>
 
+                <!-- Modal Edição de O.S. -->
+                <div id="osEditModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; padding: 20px;">
+                    <div style="background: var(--color-bg); border-radius: var(--border-radius); width: 100%; max-width: 500px; display: flex; flex-direction: column; padding: 20px; box-shadow: var(--shadow-xl);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--color-border);">
+                            <h3 style="margin: 0; color: var(--color-primary);"><i class="fas fa-edit"></i> Editar Ordem de Serviço</h3>
+                            <button type="button" id="osEditModalClose" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-text-light);">&times;</button>
+                        </div>
+                        <input type="hidden" id="osEditId">
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="osEditStatus">Status:</label>
+                                <select id="osEditStatus">
+                                    <option value="PLANEJADA">Planejada</option>
+                                    <option value="EM_EXECUCAO">Em Execução</option>
+                                    <option value="DIVERGENTE">Divergente</option>
+                                    <option value="CONCLUIDA">Concluída</option>
+                                    <option value="FINALIZADA">Finalizada (Legado)</option>
+                                    <option value="CANCELADA">Cancelada</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="osEditResponsavelNome">Nome do Responsável:</label>
+                                <input type="text" id="osEditResponsavelNome" placeholder="Ex: João Silva">
+                            </div>
+                            <div class="form-col">
+                                <label for="osEditResponsavelMatricula">Matrícula do Responsável:</label>
+                                <input type="number" id="osEditResponsavelMatricula" placeholder="12345">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="osEditObservacoes">Observações (Escritório):</label>
+                                <textarea id="osEditObservacoes" placeholder="Adicione notas ou justificativas..."></textarea>
+                            </div>
+                        </div>
+                        <div id="osEditDivergenceAlert" style="display: none; margin-top: 10px; padding: 10px; background: color-mix(in srgb, var(--color-danger) 15%, transparent); border-left: 4px solid var(--color-danger); border-radius: 4px; font-size: 14px; color: var(--color-text);">
+                            <strong style="color: var(--color-danger);"><i class="fas fa-exclamation-triangle"></i> Atenção - Divergência Encontrada</strong>
+                            <p id="osEditDivergenceText" style="margin-top: 5px; margin-bottom: 0; word-break: break-word;"></p>
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--color-border);">
+                            <button type="button" id="btnCancelEditOs" class="btn-secondary" style="margin-top: 0;">Cancelar</button>
+                            <button type="button" id="btnSaveEditOs" class="save" style="margin-top: 0; max-width: 150px;"><i class="fas fa-save"></i> Salvar</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Modal Importação de Relatório -->
                 <div id="osImportModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; padding: 20px;">
                     <div style="background: var(--color-bg); border-radius: var(--border-radius); width: 100%; max-width: 600px; display: flex; flex-direction: column; padding: 20px;">
