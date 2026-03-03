@@ -16416,9 +16416,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const docRef = await App.data.addDocument('ordens_servico', sanitizeFirestoreData(osData));
                     App.ui.showAlert('O.S. Gerada com Sucesso!', 'success');
 
-                    const filename = `OS_${osData.os_numero}.pdf`;
-                    const endpointUrl = `${App.config.backendUrl}/api/reports/os/pdf`;
-                    App.reports._fetchAndDownloadReportByUrl(endpointUrl, { osId: docRef.id }, filename);
+                    if (navigator.onLine) {
+                        const filename = `OS_${osData.os_numero}.pdf`;
+                        const endpointUrl = `${App.config.backendUrl}/api/reports/os/pdf`;
+                        App.reports._fetchAndDownloadReportByUrl(endpointUrl, { osId: docRef.id }, filename);
+                    } else {
+                        App.ui.showAlert('A O.S. foi salva offline! O PDF não pode ser gerado no momento, conecte-se à internet.', 'info');
+                    }
 
                     this.resetForm();
                 } catch (e) {
@@ -16429,16 +16433,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
             resetForm() {
                 const els = App.elements.osManual;
-                els.responsibleMatricula.value = '';
-                els.responsibleName.value = '';
-                els.observations.value = '';
-                els.operation.value = '';
-                els.serviceType.value = '';
-                els.farmSelect.value = '';
+                if (els.responsibleMatricula) els.responsibleMatricula.value = '';
+                if (els.responsibleName) els.responsibleName.value = '';
+                if (els.observations) els.observations.value = '';
+                if (els.operationSelect) els.operationSelect.value = '';
+                if (els.serviceType) els.serviceType.value = '';
+                if (els.farmSelect) els.farmSelect.value = '';
 
-                document.getElementById('osProductSection').style.display = 'none';
-                document.getElementById('osProductsList').innerHTML = '';
-                document.getElementById('osProductsPreview').innerHTML = '';
+                const prodSec = document.getElementById('osProductSection');
+                if(prodSec) prodSec.style.display = 'none';
+
+                const prodList = document.getElementById('osProductsList');
+                if(prodList) prodList.innerHTML = '';
+
+                const prodPrev = document.getElementById('osProductsPreview');
+                if(prodPrev) prodPrev.innerHTML = '';
+
+                App.state.osSelectedOperations = [];
+                this.renderSelectedOperations();
 
                 App.state.osSelectedPlots.clear();
                 this.updateTotalArea();
