@@ -16329,9 +16329,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const prefix = `OS-${new Date().getFullYear()}-`;
                 const ordens = App.state.ordens_servico || [];
                 const maxNum = ordens
-                    .filter(os => os.os_numero && os.os_numero.startsWith(prefix))
+                    .filter(os => os.os_numero && String(os.os_numero).startsWith(prefix))
                     .reduce((max, os) => {
-                        const num = parseInt(os.os_numero.replace(prefix, ''), 10);
+                        const num = parseInt(String(os.os_numero).replace(prefix, ''), 10);
                         return !isNaN(num) && num > max ? num : max;
                     }, 0);
                 return `${prefix}${String(maxNum + 1).padStart(5, '0')}`;
