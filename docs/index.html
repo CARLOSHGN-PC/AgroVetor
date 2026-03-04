@@ -1016,8 +1016,9 @@
       #ai-analysis-card h3 { color: var(--color-ai); } #ai-analysis-card p { white-space: pre-wrap; }
       .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
       #harvestPlanTable, #personnelTable { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
-      #harvestPlanTable th, #harvestPlanTable td, #personnelTable th, #personnelTable td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
-      #harvestPlanTable th, #personnelTable th { background-color: var(--color-bg); font-weight: 600; }
+      #harvestPlanTable th, #harvestPlanTable td, #personnelTable th, #personnelTable td, .os-table th, .os-table td { padding: 12px 15px; text-align: center; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+      #harvestPlanTable th, #personnelTable th, .os-table th { background-color: var(--color-bg); font-weight: 600; color: var(--color-primary-dark); }
+      .os-table td { color: var(--color-text); }
       #harvestPlanTable tbody tr { cursor: grab; }
       #harvestPlanTable tbody tr:active { cursor: grabbing; background: var(--color-primary-light); }
       #harvestPlanTable .talhao-list-cell { font-size: 12px; max-width: 150px; word-wrap: break-word; }
@@ -1904,14 +1905,14 @@
           .table-responsive {
             border: none;
           }
-          table.harvestPlanTable, table#companiesTable, table#personnelTable {
+          table.harvestPlanTable, table#companiesTable, table#personnelTable, table.os-table {
               border: none;
               width: 100%;
           }
-          table.harvestPlanTable thead, table#companiesTable thead, table#personnelTable thead {
+          table.harvestPlanTable thead, table#companiesTable thead, table#personnelTable thead, table.os-table thead {
               display: none;
           }
-          table.harvestPlanTable tr, table#companiesTable tr, table#personnelTable tr {
+          table.harvestPlanTable tr, table#companiesTable tr, table#personnelTable tr, table.os-table tr {
               display: block;
               margin-bottom: 15px;
               border-bottom: 3px solid var(--color-primary);
@@ -1920,7 +1921,7 @@
               padding: 10px;
               box-shadow: var(--shadow-sm);
           }
-          table.harvestPlanTable td, table#companiesTable td, table#personnelTable td {
+          table.harvestPlanTable td, table#companiesTable td, table#personnelTable td, table.os-table td {
               display: flex;
               justify-content: space-between;
               align-items: center;
@@ -1928,17 +1929,17 @@
               text-align: right;
               border-bottom: 1px solid var(--color-border);
           }
-          table.harvestPlanTable td:last-child, table#companiesTable td:last-child, table#personnelTable td:last-child {
+          table.harvestPlanTable td:last-child, table#companiesTable td:last-child, table#personnelTable td:last-child, table.os-table td:last-child {
               border-bottom: none;
           }
-          table.harvestPlanTable td::before, table#companiesTable td::before, table#personnelTable td::before {
+          table.harvestPlanTable td::before, table#companiesTable td::before, table#personnelTable td::before, table.os-table td::before {
               content: attr(data-label);
               font-weight: bold;
               text-align: left;
               margin-right: 10px;
               color: var(--color-primary);
           }
-          table.harvestPlanTable td[data-label="Ações"] div, table#companiesTable td[data-label="Ações"] div, table#personnelTable td[data-label="Ações"] div {
+          table.harvestPlanTable td[data-label="Ações"] div, table#companiesTable td[data-label="Ações"] div, table#personnelTable td[data-label="Ações"] div, table.os-table td[data-label="Ações"] div {
               justify-content: flex-end;
               width: 100%;
           }
@@ -2749,7 +2750,7 @@
                         </div>
 
                         <button id="btnGenerateOS" class="save" style="margin-top: 15px; width: 100%; max-width: none;">
-                            <i class="fas fa-file-pdf"></i> Gerar O.S.
+                            <i class="fas fa-save"></i> Salvar O.S.
                         </button>
                         </div>
                     </div>
@@ -2781,7 +2782,6 @@
                 <div class="card" style="border-left-color: var(--color-info);">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
                         <h3 style="margin: 0;"><i class="fas fa-filter"></i> Filtros</h3>
-                        <button id="btnImportMachineData" class="save" style="background: var(--color-primary); border-radius: 20px;"><i class="fas fa-upload"></i> Importar Relatório de Máquina</button>
                     </div>
 
                     <div class="form-row">
@@ -2853,26 +2853,6 @@
                     </div>
                 </div>
 
-                <!-- Modal Importação de Relatório -->
-                <div id="osImportModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; padding: 20px;">
-                    <div style="background: var(--color-bg); border-radius: var(--border-radius); width: 100%; max-width: 600px; display: flex; flex-direction: column; padding: 20px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                            <h3 style="margin: 0;">Importar Relatório de Execução</h3>
-                            <button type="button" onclick="document.getElementById('osImportModal').style.display='none'" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-text);">&times;</button>
-                        </div>
-                        <p style="font-size: 0.9em; color: var(--color-text-light); margin-bottom: 20px;">
-                            Faça o upload do relatório da máquina (formato CSV/Excel). O sistema irá conciliar os dados de Fazenda, Talhão e Operação com as O.S. Planejadas.
-                        </p>
-                        <input type="file" id="osImportFile" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" style="margin-bottom: 20px; padding: 10px; border: 1px dashed var(--color-border); border-radius: var(--border-radius); width: 100%;">
-
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <label style="font-size: 0.9em; display: flex; align-items: center; gap: 5px;">
-                                Margem de Tolerância: <input type="number" id="osImportTolerance" value="5" min="0" max="100" style="width: 60px;"> %
-                            </label>
-                            <button type="button" id="btnProcessImport" class="save"><i class="fas fa-cogs"></i> Processar Importação</button>
-                        </div>
-                    </div>
-                </div>
             </section>
 
             <section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>
@@ -4091,6 +4071,29 @@
                     <h3><i class="fas fa-key"></i> Acesso Offline</h3>
                     <p>Habilite o acesso offline para poder entrar na aplicação e registar dados mesmo sem internet. Terá de re-autenticar online para atualizar a sua password offline.</p>
                     <button id="btnEnableOfflineLogin" class="save" style="max-width: 300px; background: var(--color-warning);"><i class="fas fa-wifi"></i> Habilitar/Atualizar Login Offline</button>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-primary); margin-top: 30px;">
+                    <h3><i class="fas fa-tractor"></i> Importar Relatório de Máquina (O.S)</h3>
+                    <p>Faça o upload do relatório da máquina (formato CSV/Excel). O sistema irá conciliar os dados de Fazenda, Talhão, Produto e Operação com as O.S. Planejadas para baixa automática ou apontamento de divergências.</p>
+
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-size: 0.9em; display: flex; align-items: center; gap: 5px;">
+                            Margem de Tolerância de Dosagem: <input type="number" id="osImportTolerance" value="5" min="0" max="100" style="width: 80px; margin-top: 0; padding: 6px;"> %
+                        </label>
+                    </div>
+
+                    <div class="upload-area" id="osImportUploadArea" onclick="document.getElementById('osImportFile').click()">
+                        <i class="fas fa-file-csv fa-2x" style="color: var(--color-primary);"></i>
+                        <p>Clique ou arraste o relatório de <strong>máquina</strong> aqui</p>
+                    </div>
+                    <input type="file" id="osImportFile" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" style="display: none;">
+
+                    <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; justify-content: center;">
+                        <button id="btnDownloadOsImportTemplate" class="save" style="max-width: 300px; margin-top: 0; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo CSV</button>
+                        <button id="btnProcessImport" class="save" style="max-width: 300px; margin-top: 0; background: var(--color-primary);"><i class="fas fa-cogs"></i> Processar Importação</button>
+                    </div>
+                    <small class="csv-format-info" style="display: block; margin-top: 10px; text-align: center;">Formato: Data; Propriedade; Operação; Descrição; Fazenda; Etapa; Produto; Grupo; Talhão; Ha.Aplic; Qtde.Aplic; Dos.Aplic; Dos.Rec; Vlr.Unit; Total R$</small>
                 </div>
 
                 <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid var(--color-border); text-align: right;">

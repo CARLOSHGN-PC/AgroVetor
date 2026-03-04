@@ -16423,15 +16423,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 try {
-                    const docRef = await App.data.addDocument('ordens_servico', sanitizeFirestoreData(osData));
-                    App.ui.showAlert('O.S. Gerada com Sucesso!', 'success');
-
-                    if (navigator.onLine) {
-                        const filename = `OS_${osData.os_numero}.pdf`;
-                        const endpointUrl = `${App.config.backendUrl}/api/reports/os/pdf`;
-                        App.reports._fetchAndDownloadReportByUrl(endpointUrl, { osId: docRef.id }, filename);
+                    if (App.state.osEditingId) {
+                        // Modo Edição
+                        await App.data.updateDocument('ordens_servico', App.state.osEditingId, sanitizeFirestoreData(osData));
+                        App.ui.showAlert('O.S. Atualizada com Sucesso!', 'success');
+                        App.state.osEditingId = null; // Reseta o id
+                        App.elements.osManual.btnGenerate.innerHTML = '<i class="fas fa-file-pdf"></i> Gerar O.S.';
+                        App.ui.showTab('ordemServicoEscritorio'); // Volta pro escritorio
                     } else {
-                        App.ui.showAlert('A O.S. foi salva offline! O PDF não pode ser gerado no momento, conecte-se à internet.', 'info');
+                        // Modo Criação Normal
+                        await App.data.addDocument('ordens_servico', sanitizeFirestoreData(osData));
+                        App.ui.showAlert('O.S. Salva com Sucesso! Acesse o Escritório para visualizar.', 'success');
                     }
 
                     this.resetForm();
@@ -16474,6 +16476,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         map.setFilter('os-talhoes-border-layer', null);
                         map.setFilter('os-talhoes-labels', null);
                     }
+                }
+
+                App.state.osEditingId = null;
+                if(App.elements.osManual.btnGenerate) {
+                    App.elements.osManual.btnGenerate.innerHTML = '<i class="fas fa-save"></i> Salvar O.S.';
                 }
             },
 
@@ -18964,13 +18971,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const btnSaveEditOs = document.getElementById('btnSaveEditOs');
                 if (btnSaveEditOs) btnSaveEditOs.addEventListener('click', () => this.saveEditOS());
 
-                const btnImportMachineData = document.getElementById('btnImportMachineData');
-                if (btnImportMachineData) btnImportMachineData.addEventListener('click', () => {
-                    document.getElementById('osImportModal').style.display = 'flex';
-                });
-
                 const btnProcessImport = document.getElementById('btnProcessImport');
                 if (btnProcessImport) btnProcessImport.addEventListener('click', () => this.processMachineReport());
+
+                const btnDownloadOsImportTemplate = document.getElementById('btnDownloadOsImportTemplate');
+                if (btnDownloadOsImportTemplate) btnDownloadOsImportTemplate.addEventListener('click', () => {
+                    const csvContent = "Data;Propriedade;Operação:;Descrição;Fazenda;Etapa;Produto;Grupo;Talhão;Ha.Aplic;Qtde.Aplic;Dos.Aplic;Dos.Rec;Vlr.Unit;Total R$\n";
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", "modelo_importacao_os_maquina.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
             },
 
             renderList() {
@@ -18994,7 +19009,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                let html = '<table style="width:100%"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
+                let html = '<table class="os-table"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
 
                 html += data.map(os => `
                     <tr>
@@ -19005,7 +19020,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Status"><span class="plano-status ${os.status === 'FINALIZADA' ? 'concluido' : (os.status === 'DIVERGENTE' ? 'atrasado' : 'pendente')}">${os.status}</span></td>
                         <td data-label="Ações">
                             <div style="display: flex; gap: 8px; justify-content: flex-end;">
-                                <button class="btn-secondary" style="padding: 6px;" title="Editar O.S." onclick="App.osEscritorio.openEditModal('${os.id}')"><i class="fas fa-edit"></i></button>
+                                <button class="btn-secondary" style="padding: 6px;" title="Atualizar Status/Obs" onclick="App.osEscritorio.openEditModal('${os.id}')"><i class="fas fa-tasks"></i></button>
+                                <button class="btn-secondary" style="padding: 6px; background: var(--color-info);" title="Editar Dados da O.S." onclick="App.osEscritorio.editFullOS('${os.id}')"><i class="fas fa-edit"></i></button>
                                 <button class="btn-secondary" style="padding: 6px; background: var(--color-purple);" title="Clonar (Duplicar) O.S." onclick="App.osEscritorio.cloneOS('${os.id}')"><i class="fas fa-copy"></i></button>
                                 <button class="btn-secondary" style="padding: 6px;" title="Baixar PDF" onclick="App.osEscritorio.downloadPDF('${os.id}', '${os.os_numero}')"><i class="fas fa-file-pdf"></i></button>
                                 ${os.status !== 'FINALIZADA' && os.status !== 'CANCELADA' ?
@@ -19081,6 +19097,57 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Erro ao atualizar O.S.", error);
                     App.ui.showAlert("Erro ao guardar alterações.", "error");
                 } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async editFullOS(osId) {
+                const os = App.state.ordens_servico.find(o => o.id === osId);
+                if (!os) return;
+
+                App.ui.setLoading(true, "A carregar O.S. para edição...");
+                try {
+                    App.ui.showTab('ordemServicoManual');
+
+                    // Wait briefly for tab elements to render and init
+                    setTimeout(() => {
+                        App.elements.osManual.farmSelect.value = os.fazenda_id || '';
+                        App.elements.osManual.serviceType.value = os.tipo_servico_desc || '';
+                        App.elements.osManual.responsibleMatricula.value = os.responsavel_matricula || '';
+                        App.elements.osManual.responsibleName.value = os.responsavel_nome || '';
+                        App.elements.osManual.observations.value = os.observacoes || '';
+
+                        App.state.osSelectedOperations = os.operacoes_multiplas || [];
+                        App.actions.osManual.renderSelectedOperations();
+
+                        App.actions.osManual.onFarmChange(); // To populate plots
+
+                        // Store editing state
+                        App.state.osEditingId = os.id;
+                        App.elements.osManual.btnGenerate.innerHTML = '<i class="fas fa-save"></i> Atualizar O.S.';
+
+                        // Reselect plots
+                        setTimeout(() => {
+                            const selectedPlots = os.selectedPlots || (os.itens ? os.itens.map(i => i.talhao_nome) : []);
+                            const farm = App.state.fazendas.find(f => f.id === os.fazenda_id);
+                            if (farm) {
+                                selectedPlots.forEach(plotName => {
+                                    const t = farm.talhoes.find(p => String(p.name) === String(plotName));
+                                    if(t) {
+                                        App.state.osSelectedPlots.add(t.id);
+                                        const checkbox = document.getElementById(`os-plot-${t.id}`);
+                                        if (checkbox) checkbox.checked = true;
+                                    }
+                                });
+                                App.actions.osManual.updateTotalArea();
+                                App.actions.osManual.updateProductCalculations();
+                                App.actions.osManual.updateMapHighlight();
+                            }
+                            App.ui.setLoading(false);
+                        }, 500); // Give time for plots list to render
+                    }, 300);
+                } catch (e) {
+                    console.error("Erro ao carregar edição completa", e);
                     App.ui.setLoading(false);
                 }
             },
@@ -19165,7 +19232,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     const text = await file.text();
-                    const lines = text.split('\\n');
+                    const lines = text.split(/\r?\n/);
                     // Data	Propriedade	Operação:	Descrição	Fazenda	Etapa	Produto	Grupo	Talhão	Ha.Aplic	Qtde.Aplic	Dos.Aplic	Dos.Rec	Vlr.Unit	Total R$
                     const headers = lines[0].split(';').map(h => h.trim().toLowerCase());
 
@@ -19276,10 +19343,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
-                    document.getElementById('osImportModal').style.display = 'none';
+                    if (document.getElementById('osImportModal')) {
+                        document.getElementById('osImportModal').style.display = 'none';
+                    }
                     this.renderList();
 
-                    App.ui.showConfirmationModal(`Importação concluída.\\n\\nConciliadas e Finalizadas: ${reconciledCount}\\nDivergentes: ${divergentCount}\\n\\nAs O.S. divergentes precisam de revisão manual.`, () => {});
+                    App.ui.showConfirmationModal(`Importação concluída.<br><br>Conciliadas e Finalizadas: ${reconciledCount}<br>Divergentes: ${divergentCount}<br><br>As O.S. divergentes precisam de revisão manual.`, () => {});
 
                 } catch (error) {
                     console.error("Erro ao processar arquivo:", error);
