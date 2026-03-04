@@ -18958,9 +18958,15 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         osEscritorio: {
+            currentPage: 1,
+            itemsPerPage: 10,
+
             setup() {
                 const btnFilter = document.getElementById('btnFilterOS');
-                if (btnFilter) btnFilter.addEventListener('click', () => this.renderList());
+                if (btnFilter) btnFilter.addEventListener('click', () => {
+                    this.currentPage = 1;
+                    this.renderList();
+                });
 
                 const btnCloseEditModal = document.getElementById('osEditModalClose');
                 if (btnCloseEditModal) btnCloseEditModal.addEventListener('click', () => this.closeEditModal());
@@ -18988,6 +18994,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             },
 
+            nextPage() {
+                this.currentPage++;
+                this.renderList();
+            },
+
+            prevPage() {
+                if (this.currentPage > 1) {
+                    this.currentPage--;
+                    this.renderList();
+                }
+            },
+
             renderList() {
                 const listContainer = document.getElementById('osOfficeList');
                 if (!listContainer) return;
@@ -19009,9 +19027,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                const totalItems = data.length;
+                const totalPages = Math.ceil(totalItems / this.itemsPerPage);
+
+                if (this.currentPage > totalPages) {
+                    this.currentPage = totalPages;
+                }
+                if (this.currentPage < 1) {
+                    this.currentPage = 1;
+                }
+
+                const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+                const endIndex = startIndex + this.itemsPerPage;
+                const paginatedData = data.slice(startIndex, endIndex);
+
                 let html = '<table class="os-table"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
 
-                html += data.map(os => `
+                html += paginatedData.map(os => `
                     <tr>
                         <td data-label="Data">${new Date(os.data + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                         <td data-label="Nº OS">${os.os_numero}</td>
@@ -19033,6 +19065,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 `).join('');
 
                 html += '</tbody></table>';
+
+                if (totalPages > 1) {
+                    html += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding: 10px; background: var(--color-bg); border-radius: 8px;">
+                        <button class="btn-secondary" onclick="App.osEscritorio.prevPage()" ${this.currentPage === 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}><i class="fas fa-chevron-left"></i> Anterior</button>
+                        <span>Página ${this.currentPage} de ${totalPages} (${totalItems} registros)</span>
+                        <button class="btn-secondary" onclick="App.osEscritorio.nextPage()" ${this.currentPage === totalPages ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Próxima <i class="fas fa-chevron-right"></i></button>
+                    </div>`;
+                }
+
                 listContainer.innerHTML = html;
             },
 
@@ -19118,9 +19160,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.elements.osManual.observations.value = os.observacoes || '';
 
                         App.state.osSelectedOperations = os.operacoes_multiplas || [];
-                        App.actions.osManual.renderSelectedOperations();
+                        App.osManual.renderSelectedOperations();
 
-                        App.actions.osManual.onFarmChange(); // To populate plots
+                        App.osManual.onFarmChange(); // To populate plots
 
                         // Store editing state
                         App.state.osEditingId = os.id;
@@ -19139,9 +19181,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                         if (checkbox) checkbox.checked = true;
                                     }
                                 });
-                                App.actions.osManual.updateTotalArea();
-                                App.actions.osManual.updateProductCalculations();
-                                App.actions.osManual.updateMapHighlight();
+                                App.osManual.updateTotalArea();
+                                App.osManual.updateProductCalculations();
+                                App.osManual.updateMapHighlight();
                             }
                             App.ui.setLoading(false);
                         }, 500); // Give time for plots list to render
@@ -19160,7 +19202,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(true, "A clonar O.S....");
                     try {
                         // Gerar novo número de OS
-                        const nextNumberStr = await App.actions.osManual.getNextOsNumber();
+                        const nextNumberStr = await App.osManual.getNextOsNumber();
                         const nextSequence = parseInt(nextNumberStr.split('-')[2], 10);
 
                         const clonedData = {
