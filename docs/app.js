@@ -19162,7 +19162,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.state.osSelectedOperations = os.operacoes_multiplas || [];
                         App.osManual.renderSelectedOperations();
 
-                        App.osManual.onFarmChange(); // To populate plots
+                        App.osManual.handleFarmChange(); // To populate plots
 
                         // Store editing state
                         App.state.osEditingId = os.id;
