@@ -3064,8 +3064,8 @@
                             <select id="planoRelatorioSelect" required></select>
                         </div>
                         <div class="form-col">
-                            <label for="tipoRelatorioColheitaCustom">Modelo do Relatório:</label>
-                            <select id="tipoRelatorioColheitaCustom">
+                            <label for="tipoRelatorioColheita">Modelo do Relatório:</label>
+                            <select id="tipoRelatorioColheita">
                                 <option value="detalhado">Detalhado por Fazenda</option>
                                 <option value="mensal">Previsão Mensal</option>
                             </select>
@@ -3579,7 +3579,6 @@
                             <label for="manageDataType">Tipo de Dado:</label>
                             <select id="manageDataType">
                                 <option value="apontamentoPlantio">Apontamento de Plantio</option>
-                                <option value="apontamentoColheita">Apontamento de Colheita</option>
                                 <option value="brocamento">Brocamento</option>
                                 <option value="perda">Perda de Cana</option>
                             </select>
@@ -4167,55 +4166,6 @@
                 </div>
             </section>
 
-            <section id="relatorioColheita" class="tab-content card" aria-label="Relatórios de Colheita" tabindex="0" hidden>
-                <h2><i class="fas fa-chart-bar"></i> Relatórios de Colheita</h2>
-                <div class="form-row">
-                    <div class="form-col">
-                        <label for="colheitaRelatorioFrente">Filtrar por Frente de Plantio:</label>
-                        <select id="colheitaRelatorioFrente">
-                            <option value="">Todas</option>
-                        </select>
-                    </div>
-                    <div class="form-col">
-                        <label for="colheitaRelatorioCultura">Filtrar por Cultura:</label>
-                        <select id="colheitaRelatorioCultura">
-                            <option value="">Todas</option>
-                            <option value="Soja">Soja</option>
-                            </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-col">
-                        <label for="colheitaRelatorioInicio" class="required">Data Início:</label>
-                        <input type="date" id="colheitaRelatorioInicio" />
-                    </div>
-                    <div class="form-col">
-                        <label for="colheitaRelatorioFim" class="required">Data Fim:</label>
-                        <input type="date" id="colheitaRelatorioFim" />
-                    </div>
-                </div>
-                <div class="checkbox-group-container">
-                    <label>Filtrar por Tipo de Fazenda:</label>
-                    <div class="checkbox-group-grid" id="colheitaReportFarmTypeFilter">
-                        <label class="report-option-item"><input type="checkbox" name="colheitaFarmType" value="Própria"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Própria</span></label>
-                        <label class="report-option-item"><input type="checkbox" name="colheitaFarmType" value="Parceira"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Parceira</span></label>
-                        <label class="report-option-item"><input type="checkbox" name="colheitaFarmType" value="Fornecedor"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Fornecedor</span></label>
-                        <label class="report-option-item"><input type="checkbox" name="colheitaFarmType" value="Acionista"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Acionista</span></label>
-                        <label class="report-option-item"><input type="checkbox" name="colheitaFarmType" value="Arrendatário"><span class="checkbox-visual"><i class="fas fa-check"></i></span><span class="option-content">Arrendatário</span></label>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-col">
-                        <label for="tipoRelatorioColheita">Tipo de Relatório:</label>
-                        <select id="tipoRelatorioColheita"></select>
-                    </div>
-                </div>
-                <div class="botoes-relatorio">
-                    <button id="btnGerarRelatorioColheitaPdf" type="button"><i class="fas fa-file-pdf"></i> Gerar Relatório (PDF)</button>
-                    <button id="btnGerarRelatorioColheitaExcel" type="button"><i class="fas fa-file-excel"></i> Exportar para Excel</button>
-                </div>
-            </section>
-
             <section id="apontamentoPlantio" class="tab-content card" aria-label="Apontamento Diário de Plantio" tabindex="0" hidden>
                 <h2><i class="fas fa-seedling"></i> Apontamento Diário de Plantio</h2>
                 <form id="formApontamentoPlantio">
@@ -4345,136 +4295,6 @@
                         <div id="plantioInsumosContainer" style="margin-top: 15px;"></div>
                     </div>
                     <button type="button" id="btnSaveApontamentoPlantio" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Apontamento</button>
-                </form>
-            </section>
-
-            <section id="apontamentoColheita" class="tab-content card" aria-label="Apontamento Diário de Colheita" tabindex="0" hidden>
-                <h2><i class="fas fa-tractor"></i> Apontamento Diário de Colheita</h2>
-                <form id="formApontamentoColheita">
-                            <input type="hidden" id="colheitaEntryId">
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="colheitaFrente" class="required">Frente de Plantio:</label>
-                            <select id="colheitaFrente" required></select>
-                        </div>
-                        <div class="form-col">
-                            <label for="colheitaProvider">Prestador:</label>
-                            <input type="text" id="colheitaProvider" readonly>
-                        </div>
-                        <div class="form-col">
-                            <label for="colheitaCulture" class="required">Cultura:</label>
-                            <select id="colheitaCulture" required>
-                                <option value="Soja">Soja</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div id="colheitaSojaFields" style="display:none; margin-bottom: 15px; padding: 15px; background-color: var(--color-bg); border-radius: var(--border-radius); border: 1px solid var(--color-border);">
-                        <h4 style="margin-bottom: 10px; color: var(--color-primary);">Configurações do Plantio</h4>
-                        <div class="form-row">
-                            <div class="form-col">
-                                <label for="colheitaTipo" class="required">Tipo de Plantio:</label>
-                                <select id="colheitaTipo" required>
-                                    <option value="">Selecione...</option>
-                                    <option value="Mecanizado">Mecanizado</option>
-                                    <option value="Manual">Manual</option>
-                                </select>
-                            </div>
-                            <div class="form-col">
-                                <label for="colheitaOS">O.S (Ordem de Serviço):</label>
-                                <input type="text" id="colheitaOS" placeholder="Ex: OS-2024-001">
-                            </div>
-                        </div>
-                        <div class="form-row" id="colheitaMecanizadoFields" style="display: none;">
-                            <div class="form-col">
-                                <label for="colheitaFrota" class="required">Equipamento / Frota:</label>
-                                <select id="colheitaFrota"></select>
-                            </div>
-                        </div>
-                        <div class="form-row" id="colheitaManualFields" style="display: none;">
-                            <div class="form-col">
-                                <label for="colheitaPessoas" class="required">Quantidade de pessoas:</label>
-                                <input type="number" id="colheitaPessoas" min="1" step="1" placeholder="1">
-                            </div>
-                        </div>
-
-                        <h4 style="margin: 15px 0 10px; color: var(--color-primary);">Origem da Muda</h4>
-                        <div class="form-row">
-                            <div class="form-col">
-                                <label for="colheitaOrigemMuda">Origem:</label>
-                                <select id="colheitaOrigemMuda">
-                                    <option value="">Selecione...</option>
-                                    <option value="Propria">Própria</option>
-                                    <option value="Comprada">Comprada</option>
-                                    <option value="Viveiro">Viveiro</option>
-                                </select>
-                            </div>
-                            <div class="form-col">
-                                <label for="colheitaMudaFazenda">Fazenda de Origem:</label>
-                                <select id="colheitaMudaFazenda"></select>
-                            </div>
-                            <div class="form-col">
-                                <label for="colheitaMudaTalhao">Talhão de Origem:</label>
-                                <select id="colheitaMudaTalhao"></select>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-col">
-                                <label for="colheitaMudaTalhaoVariedade">Variedade do Talhão de Origem:</label>
-                                <input type="text" id="colheitaMudaTalhaoVariedade" readonly placeholder="Selecionar talhão de origem">
-                            </div>
-                            <div class="form-col">
-                                <label for="colheitaMudaTalhaoArea">Área do Talhão de Origem (ha):</label>
-                                <input type="text" id="colheitaMudaTalhaoArea" readonly placeholder="Selecionar talhão de origem">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="colheitaLeaderId" class="required">Matrícula do Líder:</label>
-                            <input type="text" id="colheitaLeaderId" required>
-                            <div id="colheitaLeaderName" class="info-display"></div>
-                        </div>
-                        <div class="form-col">
-                            <label for="colheitaFarmName" class="required">Nome da Fazenda:</label>
-                            <select id="colheitaFarmName" required></select>
-                        </div>
-                        <div class="form-col">
-                            <label for="colheitaDate" class="required">Data da Operação:</label>
-                            <input type="date" id="colheitaDate" required>
-                        </div>
-                        <div class="form-col">
-                            <label for="plantioChuva">Chuva (mm):</label>
-                            <input type="number" id="plantioChuva" placeholder="Ex: 10">
-                        </div>
-                    </div>
-
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 10px;">
-                        <h3><i class="fas fa-plus-circle"></i> Lançamentos de Plantio</h3>
-                        <button type="button" id="addPlantioRecord" class="save" style="max-width: 250px; margin-top: 0;"><i class="fas fa-plus"></i> Adicionar Lançamento</button>
-                    </div>
-                    <div id="plantioRecordsContainer" class="pontos-container">
-                        <!-- Cards de lançamentos serão inseridos aqui -->
-                    </div>
-
-                    <div id="plantioInfo" class="resultado" style="margin-top: 10px;"></div>
-                    <div class="form-row" style="margin-top: 20px;">
-                        <div class="form-col">
-                            <label for="colheitaObs">Observações:</label>
-                            <textarea id="colheitaObs" placeholder="Adicione observações..."></textarea>
-                        </div>
-                    </div>
-
-                    <div class="resultado" id="totalPlantedArea" style="margin-top: 20px;"></div>
-                    <div id="plantioInsumosSection" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid var(--color-border); border-radius: var(--border-radius); background-color: var(--color-bg);">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 style="margin: 0;"><i class="fas fa-flask"></i> Insumos do Plantio</h3>
-                            <button type="button" id="btnAddPlantioInsumo" class="save" style="max-width: 220px; margin-top: 0;"><i class="fas fa-plus"></i> Adicionar Insumo</button>
-                        </div>
-                        <div id="plantioInsumosContainer" style="margin-top: 15px;"></div>
-                    </div>
-                    <button type="button" id="btnSaveApontamentoColheita" class="save" style="margin-top: 20px;"><i class="fas fa-save"></i> Guardar Apontamento</button>
                 </form>
             </section>
 
