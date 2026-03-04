@@ -16238,6 +16238,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.updateProductCalculations();
             },
 
+            updateMapHighlight() {
+                const map = App.state.osMap;
+                const farmId = App.elements.osManual.farmSelect.value;
+                const farmCode = App.state.fazendas.find(f => f.id === farmId)?.code;
+
+                if (!map || !farmCode || !map.isStyleLoaded() || !map.getSource('os-talhoes-source') || !App.state.geoJsonData?.features) {
+                    return;
+                }
+
+                App.state.geoJsonData.features.forEach(feature => {
+                    if (feature.id === undefined) return;
+
+                    const isSameFarm = String(feature.properties?.AGV_FUNDO) === String(farmCode);
+                    if (!isSameFarm) {
+                        map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
+                        return;
+                    }
+
+                    const talhaoName = feature.properties?.AGV_TALHAO;
+                    const talhao = App.state.fazendas
+                        .find(f => String(f.code) === String(farmCode))
+                        ?.talhoes
+                        ?.find(t => String(t.name).toUpperCase() === String(talhaoName).toUpperCase());
+
+                    const selected = Boolean(talhao && App.state.osSelectedPlots.has(talhao.id));
+                    map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected });
+                });
+            },
+
             updateTotalArea() {
                 const farmId = App.elements.osManual.farmSelect.value;
                 if (!farmId) {
