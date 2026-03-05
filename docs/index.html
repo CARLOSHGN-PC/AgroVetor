@@ -519,9 +519,9 @@
       .btn-ai { background: linear-gradient(to right, var(--color-ai), #9c27b0); }
       .btn-excluir { padding: 8px 12px; margin-left: 10px; border-radius: var(--border-radius); border: none; background-color: var(--color-danger); color: var(--color-white); cursor: pointer; font-weight: 500; font-size: 14px; transition: var(--transition); display: flex; align-items: center; gap: 6px; }
       .btn-excluir:hover { background-color: #c53030; transform: translateY(-1px); }
-      #alertContainer { position: fixed; top: calc(20px + env(safe-area-inset-top)); right: 20px; background-color: var(--color-success); color: #fff; padding: 16px 24px; border-radius: var(--border-radius); font-weight: 500; font-size: 15px; opacity: 0; pointer-events: none; transition: all 0.4s ease; transform: translateY(-20px); z-index: 9999; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-xl); max-width: 90%; }
+      #alertContainer { position: fixed; top: calc(40px + env(safe-area-inset-top)); left: 50%; transform: translate(-50%, -20px); background-color: var(--color-success); color: #fff; padding: 16px 24px; border-radius: 8px; font-weight: 500; font-size: 15px; opacity: 0; pointer-events: none; transition: all 0.4s ease; z-index: 9999; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: max-content; max-width: 90%; justify-content: center; }
       #alertContainer.error { background-color: var(--color-danger); } #alertContainer.warning { background-color: var(--color-warning); } #alertContainer.info { background-color: var(--color-info); }
-      #alertContainer.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
+      #alertContainer.show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
       
       .header-actions-container {
         display: flex;
