@@ -274,11 +274,10 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         }
 
         Log.e(TAG, "Falha final ao carregar estilo. reason=" + reason + ", attempts=" + styleFallbackChain);
-        if (!networkAvailableAtStart && hasAnyRuntimeOfflinePackage) {
-            AerialMapPlugin.notifyOfflinePackageMissing("Mapa offline indisponível para o zoom/área atual. Ajuste o zoom ou baixe novamente.");
-            return;
-        }
-        AerialMapPlugin.notifyError("Falha ao carregar mapa offline", reason + " | styles tentados=" + styleFallbackChain);
+        // Em vez de retornar "erro fatal" que derruba o mapa nativo para modo web,
+        // retornamos "offline_package_missing", para que o usuário receba apenas um alerta
+        // ou possa tentar novamente, preservando a sessão nativa para quando houver internet/cache.
+        AerialMapPlugin.notifyOfflinePackageMissing("Mapa offline indisponível para o zoom/área atual. Ajuste o zoom ou baixe novamente.");
     }
 
     private String buildDetailedFailureReason(String reasonType, String styleUri) {
