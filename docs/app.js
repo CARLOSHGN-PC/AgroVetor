@@ -2079,7 +2079,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             const draftRestored = await App.actions.checkForDraft();
                             if (!draftRestored) {
-                                const lastTab = localStorage.getItem('agrovetor_lastActiveTab');
+                                let lastTab = localStorage.getItem('agrovetor_lastActiveTab');
+                                if (window.Capacitor && window.Capacitor.isNativePlatform?.()) {
+                                    lastTab = 'dashboard';
+                                }
                                 App.ui.showTab(lastTab || 'dashboard');
                             }
 
@@ -3241,9 +3244,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, duration);
                 }
 
-                // Keep showing in system notifications (the bell and trap list) as well
-                const title = type.charAt(0).toUpperCase() + type.slice(1);
-                this.showSystemNotification(title, message, type);
+                // Removed showSystemNotification from here to prevent duplicate notifications
+                // const title = type.charAt(0).toUpperCase() + type.slice(1);
+                // this.showSystemNotification(title, message, type);
             },
             updateConnectivityStatus() {
                 const badge = App.elements.connectionStatusBadge;
@@ -19929,7 +19932,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('online', () => {
         logAereoOffline('network:browser:event', { connected: true });
         console.log("Browser reports 'online'. Starting active connection checks.");
-        App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
+        // Removed to avoid spamming the user when network fluctuates
+        // App.ui.showSystemNotification("Conexão", "Rede detetada. A verificar acesso à internet...", "info");
         App.auth.onConnectivityChanged(true);
         // Clear any previous interval just in case
         if (App.state.connectionCheckInterval) {
