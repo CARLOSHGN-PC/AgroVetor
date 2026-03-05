@@ -5286,6 +5286,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.syncPlantioVariedadeFromOrigem();
             },
 
+            getPlantioCycleContext() {
+                const selectedDate = App.elements.apontamentoPlantio.date?.value;
+                const today = new Date();
+                const referenceDate = selectedDate ? new Date(`${selectedDate}T00:00:00`) : today;
+                const safeReferenceDate = Number.isNaN(referenceDate.getTime()) ? today : referenceDate;
+                const referenceYear = safeReferenceDate.getFullYear();
+                const currentSafraCandidates = [
+                    `${referenceYear}/${referenceYear + 1}`,
+                    `${referenceYear - 1}/${referenceYear}`
+                ];
+
+                // Fallback obrigatório: quando não houver safra/ano/ciclo, usa o início do ano local atual.
+                const startOfReferenceYear = new Date(referenceYear, 0, 1);
+
+                return {
+                    referenceYear,
+                    currentCycle: String(referenceYear),
+                    currentSafraCandidates,
+                    startOfReferenceYear,
+                };
+            },
+
+            isPlantioInCurrentCycle(apontamento, cycleContext) {
+                const normalizedCycle = [apontamento.cicloPlantio, apontamento.ciclo_plantio, apontamento.cycleId]
+                    .find(value => value !== undefined && value !== null && String(value).trim() !== '');
+                if (normalizedCycle !== undefined) {
+                    const currentCycle = cycleContext.currentCycle;
+                    return currentCycle !== undefined && String(normalizedCycle).trim() === String(currentCycle).trim();
+                }
+
+                const safra = [apontamento.safra, apontamento.harvest]
+                    .find(value => value !== undefined && value !== null && String(value).trim() !== '');
+                if (safra !== undefined) {
+                    const safraNormalizada = String(safra).trim();
+                    return (cycleContext.currentSafraCandidates || []).includes(safraNormalizada);
+                }
+
+                const ano = [apontamento.ano, apontamento.year]
+                    .find(value => value !== undefined && value !== null && String(value).trim() !== '');
+                if (ano !== undefined) {
+                    return Number.parseInt(ano, 10) === cycleContext.referenceYear;
+                }
+
+                const entryDate = apontamento.date || apontamento.data || apontamento.dataApontamento || apontamento.data_apontamento;
+                if (!entryDate) return false;
+                const parsedDate = new Date(entryDate);
+                if (Number.isNaN(parsedDate.getTime())) return false;
+
+                return parsedDate >= cycleContext.startOfReferenceYear;
+            },
+
             async updateTalhaoInfo(card) {
                 const talhaoId = card.querySelector('.plantio-talhao-select').value;
                 const infoDiv = card.querySelector('.info-display');
@@ -5311,6 +5362,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let plantedAreaByOthers = 0;
                 const currentCulture = App.elements.apontamentoPlantio.culture.value;
+                const cycleContext = this.getPlantioCycleContext();
 
                 App.state.apontamentosPlantio.forEach(apontamento => {
                     // If we are editing, and this is the entry we are currently editing, skip its records from the sum.
@@ -5320,6 +5372,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Only count area from the SAME culture
                     if (apontamento.culture !== currentCulture) {
+                        return;
+                    }
+
+                    // Considera apenas apontamentos do ciclo atual (safra/ano/ciclo/data).
+                    if (!this.isPlantioInCurrentCycle(apontamento, cycleContext)) {
                         return;
                     }
 
