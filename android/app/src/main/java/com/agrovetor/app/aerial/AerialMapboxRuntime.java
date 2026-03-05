@@ -76,11 +76,12 @@ public final class AerialMapboxRuntime {
 
         TileStore runtimeTileStore = getTileStore(context);
         MapboxMapsOptions.setTileStore(runtimeTileStore);
-        // By default, mapbox tries to update tiles. When offline, READ_ONLY can prevent map load failures.
-        // We set it globally to READ_ONLY for strict offline reliability, or READ_AND_UPDATE if online.
-        boolean isOnline = isNetworkAvailable(context);
-        MapboxMapsOptions.setTileStoreUsageMode(isOnline ? TileStoreUsageMode.READ_AND_UPDATE : TileStoreUsageMode.READ_ONLY);
-        Log.i(TAG, "TileStore e TileStoreUsageMode configurados no runtime global antes da criação do MapView. UsageMode=" + (isOnline ? "READ_AND_UPDATE" : "READ_ONLY"));
+        // Sempre usamos READ_AND_UPDATE. Se estiver offline, o SDK do Mapbox v11
+        // automaticamente usará o cache disponível e falhará silenciosamente para novas tiles.
+        // O uso de READ_ONLY pode fazer com que a inicialização do mapa falhe completamente se
+        // alguns glyphs/sprites não estiverem 100% cacheados.
+        MapboxMapsOptions.setTileStoreUsageMode(TileStoreUsageMode.READ_AND_UPDATE);
+        Log.i(TAG, "TileStore e TileStoreUsageMode configurados no runtime global antes da criação do MapView. UsageMode=READ_AND_UPDATE");
 
         getOfflineManager(context);
         Log.i(TAG, "Runtime Mapbox v11 inicializado: token global, TileStore persistente e OfflineManager prontos");
