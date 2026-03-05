@@ -5308,6 +5308,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             },
 
+            parsePlantioEntryDate(entryDate) {
+                if (!entryDate) return null;
+
+                if (entryDate instanceof Date) {
+                    return Number.isNaN(entryDate.getTime()) ? null : entryDate;
+                }
+
+                if (typeof entryDate === 'string') {
+                    const trimmedDate = entryDate.trim();
+                    const isoDateOnlyMatch = trimmedDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                    if (isoDateOnlyMatch) {
+                        const [, year, month, day] = isoDateOnlyMatch;
+                        const parsedLocalDate = new Date(Number(year), Number(month) - 1, Number(day));
+                        return Number.isNaN(parsedLocalDate.getTime()) ? null : parsedLocalDate;
+                    }
+
+                    const parsedStringDate = new Date(trimmedDate);
+                    return Number.isNaN(parsedStringDate.getTime()) ? null : parsedStringDate;
+                }
+
+                const parsedDate = new Date(entryDate);
+                return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+            },
+
             isPlantioInCurrentCycle(apontamento, cycleContext) {
                 const normalizedCycle = [apontamento.cicloPlantio, apontamento.ciclo_plantio, apontamento.cycleId]
                     .find(value => value !== undefined && value !== null && String(value).trim() !== '');
@@ -5331,8 +5355,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const entryDate = apontamento.date || apontamento.data || apontamento.dataApontamento || apontamento.data_apontamento;
                 if (!entryDate) return false;
-                const parsedDate = new Date(entryDate);
-                if (Number.isNaN(parsedDate.getTime())) return false;
+                const parsedDate = this.parsePlantioEntryDate(entryDate);
+                if (!parsedDate) return false;
 
                 return parsedDate >= cycleContext.startOfReferenceYear;
             },
