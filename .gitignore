@@ -11,3 +11,6 @@ android/.gradle/
 
 # Ignorar caches do Python
 __pycache__/
+
+# Ignorar arquivo de propriedades locais do Android (como tokens secretos)
+local.properties

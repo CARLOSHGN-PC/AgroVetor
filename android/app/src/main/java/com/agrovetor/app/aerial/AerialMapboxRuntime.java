@@ -77,7 +77,9 @@ public final class AerialMapboxRuntime {
         TileStore runtimeTileStore = getTileStore(context);
         MapboxMapsOptions.setTileStore(runtimeTileStore);
         boolean networkAvailable = isNetworkAvailable(context);
-        TileStoreUsageMode usageMode = networkAvailable ? TileStoreUsageMode.READ_AND_UPDATE : TileStoreUsageMode.READ_ONLY;
+        // O TileStoreUsageMode DEVE ser permanentemente READ_AND_UPDATE no Mapbox v11
+        // para evitar falhas de inicialização com recursos offline não cacheados 100%.
+        TileStoreUsageMode usageMode = TileStoreUsageMode.READ_AND_UPDATE;
         MapboxMapsOptions.setTileStoreUsageMode(usageMode);
         Log.i(TAG, "TileStore e TileStoreUsageMode configurados no runtime global antes da criação do MapView."
                 + " path=" + getTileStorePath()
