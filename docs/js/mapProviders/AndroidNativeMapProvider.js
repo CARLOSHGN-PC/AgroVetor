@@ -9,6 +9,10 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         this.plugin = null;
         this._clickListener = null;
         this._progressListener = null;
+        this._nativeErrorListener = null;
+        this._offlineMissingListener = null;
+        this._lastNativeError = null;
+        this._lastOfflineMissing = null;
     }
 
     static isSupported() {
@@ -25,6 +29,8 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
 
     async initMap(config = {}) {
         const plugin = this._ensurePlugin();
+        this._lastNativeError = null;
+        this._lastOfflineMissing = null;
 
         if (!this._clickListener) {
             this._clickListener = await plugin.addListener('talhaoClick', (payload) => {
@@ -49,11 +55,39 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
             });
         }
 
-        return plugin.openMap({
+        if (!this._nativeErrorListener) {
+            this._nativeErrorListener = await plugin.addListener('nativeMapError', (payload) => {
+                this._lastNativeError = payload || null;
+            });
+        }
+
+        if (!this._offlineMissingListener) {
+            this._offlineMissingListener = await plugin.addListener('offlinePackageMissing', (payload) => {
+                this._lastOfflineMissing = payload || null;
+            });
+        }
+
+        const result = await plugin.openMap({
             styleUri: config.styleUri || 'mapbox://styles/mapbox/standard-satellite',
             center: config.center || [-48.45, -21.17],
             zoom: config.zoom || 12,
         });
+
+        if (this._lastOfflineMissing?.message) {
+            const error = new Error(this._lastOfflineMissing.message);
+            error.code = this._lastOfflineMissing.code || 'offline_package_missing';
+            error.details = this._lastOfflineMissing.details || null;
+            throw error;
+        }
+
+        if (this._lastNativeError?.message) {
+            const error = new Error(this._lastNativeError.message);
+            error.code = 'native_map_error';
+            error.details = this._lastNativeError.details || null;
+            throw error;
+        }
+
+        return result;
     }
 
     async loadTalhoes(geojson) {
@@ -115,6 +149,14 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         if (this._progressListener) {
             await this._progressListener.remove();
             this._progressListener = null;
+        }
+        if (this._nativeErrorListener) {
+            await this._nativeErrorListener.remove();
+            this._nativeErrorListener = null;
+        }
+        if (this._offlineMissingListener) {
+            await this._offlineMissingListener.remove();
+            this._offlineMissingListener = null;
         }
     }
 }

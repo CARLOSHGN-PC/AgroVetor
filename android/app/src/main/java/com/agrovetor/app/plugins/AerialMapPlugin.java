@@ -26,6 +26,12 @@ public class AerialMapPlugin extends Plugin {
     private static final String TAG = "AerialOfflinePackage";
     private static AerialMapPlugin instance;
 
+    public interface NativeErrorHandler {
+        void onNativeError(String message, String details);
+    }
+
+    private static NativeErrorHandler nativeErrorHandler;
+
     private AerialOfflineRegionStore regionStore;
     private AerialOfflinePackageManager packageManager;
     private AerialOfflinePackageValidator validator;
@@ -280,6 +286,10 @@ public class AerialMapPlugin extends Plugin {
         }
     }
 
+    public static void setNativeErrorHandler(NativeErrorHandler handler) {
+        nativeErrorHandler = handler;
+    }
+
     public static void notifyTalhaoClick(String featureJson) {
         if (instance == null) return;
         try {
@@ -290,6 +300,15 @@ public class AerialMapPlugin extends Plugin {
         }
     }
 
+    public static void notifyOfflinePackageMissing(String details) {
+        if (instance == null) return;
+        JSObject payload = new JSObject();
+        payload.put("message", "Região offline não baixada. Conecte-se e baixe.");
+        payload.put("details", details);
+        payload.put("code", "offline_package_missing");
+        instance.notifyListeners("offlinePackageMissing", payload, true);
+    }
+
     public static void notifyError(String message, String details) {
         if (instance == null) return;
         JSObject payload = new JSObject();
@@ -297,5 +316,8 @@ public class AerialMapPlugin extends Plugin {
         payload.put("details", details);
         instance.notifyListeners("nativeMapError", payload, true);
         instance.notifyListeners("error", payload, true);
+        if (nativeErrorHandler != null) {
+            nativeErrorHandler.onNativeError(message, details);
+        }
     }
 }

@@ -76,12 +76,13 @@ public final class AerialMapboxRuntime {
 
         TileStore runtimeTileStore = getTileStore(context);
         MapboxMapsOptions.setTileStore(runtimeTileStore);
-        // Sempre usamos READ_AND_UPDATE. Se estiver offline, o SDK do Mapbox v11
-        // automaticamente usará o cache disponível e falhará silenciosamente para novas tiles.
-        // O uso de READ_ONLY pode fazer com que a inicialização do mapa falhe completamente se
-        // alguns glyphs/sprites não estiverem 100% cacheados.
-        MapboxMapsOptions.setTileStoreUsageMode(TileStoreUsageMode.READ_AND_UPDATE);
-        Log.i(TAG, "TileStore e TileStoreUsageMode configurados no runtime global antes da criação do MapView. UsageMode=READ_AND_UPDATE");
+        boolean networkAvailable = isNetworkAvailable(context);
+        TileStoreUsageMode usageMode = networkAvailable ? TileStoreUsageMode.READ_AND_UPDATE : TileStoreUsageMode.READ_ONLY;
+        MapboxMapsOptions.setTileStoreUsageMode(usageMode);
+        Log.i(TAG, "TileStore e TileStoreUsageMode configurados no runtime global antes da criação do MapView."
+                + " path=" + getTileStorePath()
+                + " usageMode=" + usageMode
+                + " networkAvailable=" + networkAvailable);
 
         getOfflineManager(context);
         Log.i(TAG, "Runtime Mapbox v11 inicializado: token global, TileStore persistente e OfflineManager prontos");
@@ -102,6 +103,14 @@ public final class AerialMapboxRuntime {
             Log.e(TAG, "Falha ao criar TileStore com path persistente: " + path, error);
             throw new IllegalStateException("Falha ao criar TileStore persistente em " + path, error);
         }
+    }
+
+    @NonNull
+    public static String getTileStorePath() {
+        if (appContext == null) {
+            return "<uninitialized>";
+        }
+        return new File(appContext.getFilesDir(), TILESTORE_DIR).getAbsolutePath();
     }
 
     private static OfflineManager createOfflineManager() {

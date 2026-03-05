@@ -16,9 +16,11 @@ import com.mapbox.geojson.Polygon;
 import com.mapbox.maps.OfflineManager;
 import com.mapbox.maps.StylePackLoadOptions;
 import com.mapbox.maps.StylePackLoadProgress;
+import com.mapbox.maps.TilesetDescriptorOptions;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -54,17 +56,27 @@ public class AerialOfflinePackageManager {
             return;
         }
 
-        Log.i(TAG, "Início download pacote=" + metadata.packageId);
-        StylePackLoadOptions stylePackLoadOptions = new StylePackLoadOptions.Builder().acceptExpired(true).build();
+        Log.i(TAG, "Início download pacote=" + metadata.packageId
+                + " styleUri=" + metadata.styleUri
+                + " regionId=" + metadata.regionId
+                + " tileRegionId=" + metadata.tileRegionId
+                + " minZoom=" + metadata.minZoom
+                + " maxZoom=" + metadata.maxZoom
+                + " bounds=" + Arrays.toString(metadata.bounds)
+                + " tileStorePath=" + AerialMapboxRuntime.getTileStorePath());
+
+        StylePackLoadOptions stylePackLoadOptions = new StylePackLoadOptions.Builder()
+                .acceptExpired(true)
+                .build();
         offlineManager.loadStylePack(metadata.styleUri, stylePackLoadOptions, styleProgress -> listener.onProgress(metadata, calculateProgress(styleProgress, null)), styleExpected -> {
             if (styleExpected == null || styleExpected.isError()) {
                 metadata.status = AerialOfflinePackageStatus.ERROR;
-                metadata.errorMessage = "Falha no style pack: " + (styleExpected == null ? "desconhecida" : styleExpected.getError());
+                metadata.errorMessage = "Falha no style pack (styleUri=" + metadata.styleUri + "): " + (styleExpected == null ? "desconhecida" : styleExpected.getError());
                 Log.e(TAG, metadata.errorMessage);
                 listener.onFinished(metadata);
                 return;
             }
-            Log.i(TAG, "Style pack concluído pacote=" + metadata.packageId);
+            Log.i(TAG, "Style pack concluído pacote=" + metadata.packageId + " styleUri=" + metadata.styleUri);
             metadata.hasStylePack = true;
             startTileDownload(metadata, descriptor, listener);
         });
@@ -89,7 +101,7 @@ public class AerialOfflinePackageManager {
         tileStore.loadTileRegion(metadata.tileRegionId, options, tileProgress -> listener.onProgress(metadata, calculateProgress(null, tileProgress)), tileExpected -> {
             if (tileExpected == null || tileExpected.isError()) {
                 metadata.status = AerialOfflinePackageStatus.ERROR;
-                metadata.errorMessage = "Falha na tile region: " + (tileExpected == null ? "desconhecida" : tileExpected.getError());
+                metadata.errorMessage = "Falha na tile region (tileRegionId=" + metadata.tileRegionId + "): " + (tileExpected == null ? "desconhecida" : tileExpected.getError());
                 Log.e(TAG, metadata.errorMessage);
                 listener.onFinished(metadata);
                 return;
@@ -134,6 +146,18 @@ public class AerialOfflinePackageManager {
     }
 
     private TilesetDescriptor createTilesetDescriptorCompat(@NonNull OfflineRegionMetadata metadata) {
+        try {
+            TilesetDescriptorOptions descriptorOptions = new TilesetDescriptorOptions.Builder()
+                    .styleURI(metadata.styleUri)
+                    .minZoom((byte) metadata.minZoom.intValue())
+                    .maxZoom((byte) metadata.maxZoom.intValue())
+                    .pixelRatio(1.0f)
+                    .build();
+            return offlineManager.createTilesetDescriptor(descriptorOptions);
+        } catch (Exception directError) {
+            Log.w(TAG, "Falha createTilesetDescriptor direto, tentando compatibilidade", directError);
+        }
+
         try {
             for (Method method : offlineManager.getClass().getMethods()) {
                 if (!"createTilesetDescriptor".equals(method.getName())) continue;

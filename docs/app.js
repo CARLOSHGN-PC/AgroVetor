@@ -13780,7 +13780,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     } catch (e) {
                         if (App.state.useNativeAerialMap) {
                             logAereoOfflineError('init:native:fallback', e);
-                            console.warn('[AEREO_OFFLINE] fallback do provider nativo para web detectado.');
+                            if (e?.code === 'offline_package_missing') {
+                                App.ui.showAlert(e?.details || 'Região offline não baixada. Conecte-se e baixe.', 'warning', 7000);
+                                return;
+                            }
+                            console.warn('[AEREO_OFFLINE] fallback do provider nativo para web detectado.', {
+                                message: e?.message,
+                                details: e?.details || null,
+                                code: e?.code || null
+                            });
                             App.state.useNativeAerialMap = false;
                             App.state.aerialMapProvider = createAerialMapProvider({ app: App });
                             this.updateAndroidOfflineButtonsVisibility();
@@ -13794,7 +13802,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 useNativeAerialMap: App.state.useNativeAerialMap,
                                 providerKind: App.state.aerialMapProvider?.kind || null
                             });
-                            App.ui.showAlert('Falha no mapa nativo. Retornando para modo web.', 'warning', 5000);
+                            App.ui.showAlert('Falha no mapa nativo por erro fatal. Retornando para modo web.', 'warning', 5000);
                         } else {
                             logAereoOfflineError('init:error', e);
                             App.ui.showAlert("Não foi possível carregar o mapa.", "error");
@@ -13893,7 +13901,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     logAereoOfflineError('contours:load:error', error, { key });
                     App.state.geoJsonData = null;
-                    App.ui.showAlert('Não foi possível carregar os contornos offline. Baixe novamente quando estiver online.', 'warning', 8000);
+                    App.ui.showAlert('Contornos offline indisponíveis no cache local. Conecte-se para atualizar.', 'warning', 8000);
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
                 }

@@ -90,6 +90,8 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private int styleAttemptIndex;
     private List<String> styleFallbackChain = Collections.emptyList();
     private RuntimeOfflineSnapshot runtimeOfflineSnapshot = RuntimeOfflineSnapshot.empty();
+    private boolean networkAvailableAtStart;
+    private boolean hasAnyRuntimeOfflinePackage;
     @Nullable
     private String pendingTalhoesGeoJson;
     @Nullable
@@ -104,12 +106,14 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         createMapViewWithOfflineRuntime();
         subscribeMapLoadingErrors();
 
-        boolean networkAvailable = isNetworkAvailable();
-        List<OfflineRegionMetadata> metadataRegions = readOfflineMetadata(networkAvailable);
+        networkAvailableAtStart = isNetworkAvailable();
+        List<OfflineRegionMetadata> metadataRegions = readOfflineMetadata(networkAvailableAtStart);
+
+        registerPluginErrorForwarder();
 
         pendingTalhoesGeoJson = AerialMapSessionStore.talhoesGeoJson;
         pendingArmadilhasGeoJson = AerialMapSessionStore.armadilhasGeoJson;
-        prepareStyleFallbackAndLoad(networkAvailable, metadataRegions);
+        prepareStyleFallbackAndLoad(networkAvailableAtStart, metadataRegions);
 
         gesturesPlugin = (GesturesPlugin) mapView.getPlugin(Plugin.MAPBOX_GESTURES_PLUGIN_ID);
         if (gesturesPlugin != null) {
@@ -270,6 +274,10 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         }
 
         Log.e(TAG, "Falha final ao carregar estilo. reason=" + reason + ", attempts=" + styleFallbackChain);
+        if (!networkAvailableAtStart && hasAnyRuntimeOfflinePackage) {
+            AerialMapPlugin.notifyOfflinePackageMissing("Mapa offline indisponível para o zoom/área atual. Ajuste o zoom ou baixe novamente.");
+            return;
+        }
         AerialMapPlugin.notifyError("Falha ao carregar mapa offline", reason + " | styles tentados=" + styleFallbackChain);
     }
 
@@ -357,26 +365,35 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
 
             runOnUiThread(() -> {
                 runtimeOfflineSnapshot = snapshot;
+                hasAnyRuntimeOfflinePackage = !validRuntimeRegions.isEmpty();
                 Log.i(TAG, "Diagnóstico offline runtime: stylePacksReais=" + snapshot.stylePackIds.size()
                         + " tileRegionsReais=" + snapshot.tileRegionIds.size()
                         + " readyMetadata=" + readyRegions.size()
-                        + " readyValidasRuntime=" + validRuntimeRegions.size());
+                        + " readyValidasRuntime=" + validRuntimeRegions.size()
+                        + " network=" + networkAvailable
+                        + " tileStorePath=" + AerialMapboxRuntime.getTileStorePath());
 
                 if (!networkAvailable && readyRegions.isEmpty()) {
-                    String reason = "sem metadata ready";
-                    Log.e(TAG, "Falha na abertura offline: " + reason);
-                    AerialMapPlugin.notifyError("Falha ao abrir mapa offline", reason);
+                    String reason = "Região offline não baixada. Conecte-se e baixe.";
+                    Log.w(TAG, "Abertura offline sem pacote pronto: " + reason);
+                    AerialMapPlugin.notifyOfflinePackageMissing(reason);
                     return;
                 }
 
                 if (!networkAvailable && validRuntimeRegions.isEmpty()) {
-                    String reason = "sem style pack real ou tile region real para metadata ready";
+                    String reason = "Pacote offline inconsistente no runtime. Refaça o download online.";
                     Log.e(TAG, "Falha na abertura offline: " + reason + " stylePacksReais=" + snapshot.stylePackIds + " tileRegionsReais=" + snapshot.tileRegionIds);
-                    AerialMapPlugin.notifyError("Falha ao abrir mapa offline", reason);
+                    AerialMapPlugin.notifyOfflinePackageMissing(reason);
                     return;
                 }
 
                 List<OfflineRegionMetadata> styleCandidates = networkAvailable ? readyRegions : validRuntimeRegions;
+                if ((pendingTalhoesGeoJson == null || pendingTalhoesGeoJson.trim().isEmpty()) && !styleCandidates.isEmpty()) {
+                    pendingTalhoesGeoJson = styleCandidates.get(0).talhoesGeoJson;
+                }
+                if ((pendingArmadilhasGeoJson == null || pendingArmadilhasGeoJson.trim().isEmpty()) && !styleCandidates.isEmpty()) {
+                    pendingArmadilhasGeoJson = styleCandidates.get(0).armadilhasGeoJson;
+                }
                 styleFallbackChain = buildStyleFallbackChain(networkAvailable, styleCandidates);
                 styleAttemptIndex = 0;
                 Log.i(TAG, "Style fallback chain final (online=" + networkAvailable + "): " + styleFallbackChain);
@@ -687,6 +704,18 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
                         || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
     }
 
+    private void registerPluginErrorForwarder() {
+        AerialMapPlugin.setNativeErrorHandler((message, details) -> runOnUiThread(() -> {
+            String merged = (message == null ? "erro" : message) + (details == null ? "" : (": " + details));
+            Log.w(TAG, "Erro reportado para WebView: " + merged);
+            if (!networkAvailableAtStart && hasAnyRuntimeOfflinePackage) {
+                Log.i(TAG, "Erro ignorado para fallback web porque existe pacote offline válido no runtime.");
+                return;
+            }
+            finish();
+        }));
+    }
+
     private void subscribeMapLoadingErrors() {
         try {
             Method subscribeMethod = mapView.getMapboxMap().getClass().getMethod("subscribeMapLoadingError", Class.forName("com.mapbox.maps.MapLoadingErrorCallback"));
@@ -730,6 +759,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
             }
             mapLoadingErrorCancelable = null;
         }
+        AerialMapPlugin.setNativeErrorHandler(null);
         mainHandler.removeCallbacksAndMessages(null);
         if (mapView != null) {
             mapView.onDestroy();
