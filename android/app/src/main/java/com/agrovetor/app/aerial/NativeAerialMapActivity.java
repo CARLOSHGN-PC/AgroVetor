@@ -687,21 +687,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     }
 
     private boolean isNetworkAvailable() {
-        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (connectivityManager == null) {
-            return false;
-        }
-
-        Network network = connectivityManager.getActiveNetwork();
-        if (network == null) {
-            return false;
-        }
-
-        NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
-        return capabilities != null &&
-                (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
+        return NetworkUtils.isNetworkAvailable(getApplicationContext());
     }
 
     private void registerPluginErrorForwarder() {

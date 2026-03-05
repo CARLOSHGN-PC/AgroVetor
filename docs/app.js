@@ -13896,12 +13896,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     App.state.geoJsonData = null;
-                    App.ui.showAlert('Contornos offline não encontrados. Conecte-se para baixar novamente.', 'warning', 7000);
+                    if (App.state.useNativeAerialMap) {
+                        console.warn('[AEREO_OFFLINE] Contornos offline não encontrados, mas prosseguindo com inicialização do mapa nativo sem shapefiles.');
+                    } else {
+                        App.ui.showAlert('Contornos offline não encontrados. Conecte-se para baixar novamente.', 'warning', 7000);
+                    }
                     logAereoOffline('contours:load:missing', { key, online: navigator.onLine });
                 } catch (error) {
                     logAereoOfflineError('contours:load:error', error, { key });
                     App.state.geoJsonData = null;
-                    App.ui.showAlert('Contornos offline indisponíveis no cache local. Conecte-se para atualizar.', 'warning', 8000);
+                    if (App.state.useNativeAerialMap) {
+                         console.warn('[AEREO_OFFLINE] Erro ao carregar contornos, prosseguindo com inicialização do mapa nativo sem shapefiles.', error);
+                    } else {
+                        App.ui.showAlert('Contornos offline indisponíveis no cache local. Conecte-se para atualizar.', 'warning', 8000);
+                    }
                 } finally {
                     if (mapContainer) mapContainer.classList.remove('loading');
                 }
