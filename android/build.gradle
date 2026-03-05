@@ -10,7 +10,15 @@ buildscript {
             authentication { basic(BasicAuthentication) }
             credentials {
                 username = "mapbox"
-                password = project.findProperty("MAPBOX_DOWNLOADS_TOKEN") ?: System.getenv("MAPBOX_DOWNLOADS_TOKEN") ?: ""
+
+                // Carregar MAPBOX_DOWNLOADS_TOKEN do local.properties se existir
+                def localProperties = new Properties()
+                def localPropertiesFile = rootProject.file("local.properties")
+                if (localPropertiesFile.exists()) {
+                    localProperties.load(new FileInputStream(localPropertiesFile))
+                }
+
+                password = localProperties.getProperty("MAPBOX_DOWNLOADS_TOKEN") ?: project.findProperty("MAPBOX_DOWNLOADS_TOKEN") ?: System.getenv("MAPBOX_DOWNLOADS_TOKEN") ?: ""
             }
         }
     }
@@ -34,7 +42,15 @@ allprojects {
             authentication { basic(BasicAuthentication) }
             credentials {
                 username = "mapbox"
-                password = project.findProperty("MAPBOX_DOWNLOADS_TOKEN") ?: System.getenv("MAPBOX_DOWNLOADS_TOKEN") ?: ""
+
+                // Carregar MAPBOX_DOWNLOADS_TOKEN do local.properties se existir
+                def localProperties = new Properties()
+                def localPropertiesFile = rootProject.file("local.properties")
+                if (localPropertiesFile.exists()) {
+                    localProperties.load(new FileInputStream(localPropertiesFile))
+                }
+
+                password = localProperties.getProperty("MAPBOX_DOWNLOADS_TOKEN") ?: project.findProperty("MAPBOX_DOWNLOADS_TOKEN") ?: System.getenv("MAPBOX_DOWNLOADS_TOKEN") ?: ""
             }
         }
     }
