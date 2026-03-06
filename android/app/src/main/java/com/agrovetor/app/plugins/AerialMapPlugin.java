@@ -8,12 +8,9 @@ import com.agrovetor.app.aerial.AerialOfflinePackageManager;
 import com.agrovetor.app.aerial.AerialOfflinePackageStatus;
 import com.agrovetor.app.aerial.AerialOfflinePackageValidator;
 import com.agrovetor.app.aerial.AerialOfflineRegionStore;
-import com.agrovetor.app.aerial.NativeAerialMapController;
+import com.agrovetor.app.aerial.NativeAerialMapActivity;
 import com.agrovetor.app.aerial.OfflineRegionMetadata;
 import com.getcapacitor.JSArray;
-import android.graphics.Color;
-import android.view.ViewGroup;
-import android.widget.FrameLayout;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -39,9 +36,6 @@ public class AerialMapPlugin extends Plugin {
     private AerialOfflinePackageManager packageManager;
     private AerialOfflinePackageValidator validator;
 
-    private NativeAerialMapController mapController;
-    private FrameLayout mapContainer;
-
     @Override
     public void load() {
         instance = this;
@@ -65,72 +59,13 @@ public class AerialMapPlugin extends Plugin {
         }
         AerialMapSessionStore.zoom = zoom;
 
-        getActivity().runOnUiThread(() -> {
-            if (mapContainer == null) {
-                mapContainer = new FrameLayout(getContext());
-                ViewGroup parent = (ViewGroup) bridge.getWebView().getParent();
-                parent.addView(mapContainer, 0, new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                ));
-            }
+        Intent intent = new Intent(getContext(), NativeAerialMapActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        getActivity().startActivity(intent);
 
-            bridge.getWebView().setBackgroundColor(Color.TRANSPARENT);
-
-            if (mapController == null) {
-                mapController = new NativeAerialMapController(getActivity(), mapContainer);
-                mapController.onStart();
-            } else {
-                mapController.updateCameraIfVisible(AerialMapSessionStore.center, AerialMapSessionStore.zoom);
-            }
-
-            JSObject result = new JSObject();
-            result.put("status", "opened");
-            call.resolve(result);
-        });
-    }
-
-    @PluginMethod
-    public void closeMap(PluginCall call) {
-        getActivity().runOnUiThread(() -> {
-            if (mapController != null) {
-                mapController.onStop();
-                mapController.onDestroy();
-                mapController = null;
-            }
-            if (mapContainer != null) {
-                ViewGroup parent = (ViewGroup) bridge.getWebView().getParent();
-                parent.removeView(mapContainer);
-                mapContainer = null;
-            }
-            bridge.getWebView().setBackgroundColor(Color.WHITE);
-            call.resolve();
-        });
-    }
-
-    @Override
-    protected void handleOnPause() {
-        super.handleOnPause();
-        if (mapController != null) {
-            mapController.onStop();
-        }
-    }
-
-    @Override
-    protected void handleOnResume() {
-        super.handleOnResume();
-        if (mapController != null) {
-            mapController.onStart();
-        }
-    }
-
-    @Override
-    protected void handleOnDestroy() {
-        super.handleOnDestroy();
-        if (mapController != null) {
-            mapController.onDestroy();
-            mapController = null;
-        }
+        JSObject result = new JSObject();
+        result.put("status", "opened");
+        call.resolve(result);
     }
 
     @PluginMethod
@@ -165,9 +100,7 @@ public class AerialMapPlugin extends Plugin {
         }
 
         AerialMapSessionStore.talhoesGeoJson = geojson;
-        if (mapController != null) {
-            mapController.reloadTalhoesIfVisible(geojson);
-        }
+        NativeAerialMapActivity.reloadTalhoesIfVisible(geojson);
         call.resolve();
     }
 
@@ -180,18 +113,14 @@ public class AerialMapPlugin extends Plugin {
         }
 
         AerialMapSessionStore.armadilhasGeoJson = geojson;
-        if (mapController != null) {
-            mapController.reloadArmadilhasIfVisible(geojson);
-        }
+        NativeAerialMapActivity.reloadArmadilhasIfVisible(geojson);
         call.resolve();
     }
 
     @PluginMethod
     public void highlightTalhao(PluginCall call) {
         AerialMapSessionStore.highlightedTalhaoId = call.getString("talhaoId");
-        if (mapController != null) {
-            mapController.highlightTalhaoIfVisible(AerialMapSessionStore.highlightedTalhaoId);
-        }
+        NativeAerialMapActivity.highlightTalhaoIfVisible(AerialMapSessionStore.highlightedTalhaoId);
         call.resolve();
     }
 
@@ -207,9 +136,7 @@ public class AerialMapPlugin extends Plugin {
             AerialMapSessionStore.zoom = zoom;
         }
 
-        if (mapController != null) {
-            mapController.updateCameraIfVisible(AerialMapSessionStore.center, AerialMapSessionStore.zoom);
-        }
+        NativeAerialMapActivity.updateCameraIfVisible(AerialMapSessionStore.center, AerialMapSessionStore.zoom);
         call.resolve();
     }
 
