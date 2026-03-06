@@ -99,12 +99,6 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         return result;
     }
 
-
-    async closeMap() {
-        const plugin = this._ensurePlugin();
-        return plugin.closeMap();
-    }
-
     async loadTalhoes(geojson) {
         const plugin = this._ensurePlugin();
         return plugin.loadTalhoes({ geojson: JSON.stringify(geojson) });
@@ -157,14 +151,6 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
     }
 
     async destroy() {
-        if (this.plugin && typeof this.plugin.closeMap === 'function') {
-            try {
-                await this.plugin.closeMap();
-            } catch (error) {
-                console.warn('[AndroidNativeMapProvider] Falha ao fechar mapa nativo durante destroy.', error);
-            }
-        }
-
         if (this._clickListener) {
             await this._clickListener.remove();
             this._clickListener = null;
