@@ -58,12 +58,18 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         if (!this._nativeErrorListener) {
             this._nativeErrorListener = await plugin.addListener('nativeMapError', (payload) => {
                 this._lastNativeError = payload || null;
+                console.warn('[AndroidNativeMapProvider] nativeMapError recebido de forma assíncrona:', payload);
+                // Não repassamos para fatal fallback aqui, apenas logamos. A Activity não vai mais dar finish().
             });
         }
 
         if (!this._offlineMissingListener) {
             this._offlineMissingListener = await plugin.addListener('offlinePackageMissing', (payload) => {
                 this._lastOfflineMissing = payload || null;
+                console.warn('[AndroidNativeMapProvider] offlinePackageMissing recebido:', payload);
+                if (this.app && this.app.ui && this.app.ui.showAlert) {
+                    this.app.ui.showAlert('Mapa offline indisponível para esta área. Conecte-se ou mude o zoom.', 'warning', 7000);
+                }
             });
         }
 
