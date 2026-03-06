@@ -9,8 +9,8 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
         registerPlugin(AerialMapPlugin.class);
+        super.onCreate(savedInstanceState);
 
         if (getBridge() != null && getBridge().getWebView() != null) {
             WebSettings settings = getBridge().getWebView().getSettings();
