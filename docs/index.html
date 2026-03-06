@@ -9,6 +9,11 @@
       html, body {
         touch-action: pan-x pan-y; /* Permite scroll, mas bloqueia pinch-zoom */
         overscroll-behavior: none; /* Evita "pull to refresh" nativo indesejado em algumas views */
+        transition: background-color 0.3s ease;
+      }
+      html.map-active, body.map-active, body.map-active #appScreen, body.map-active main.content {
+          background-color: transparent !important;
+          background: transparent !important;
       }
     </style>
 
@@ -1211,15 +1216,24 @@
       #monitoramentoAereo-container.active {
           display: flex;
       }
+      body.map-active #monitoramentoAereo-container {
+          background-color: transparent !important;
+      }
       #map-container {
           flex-grow: 1;
           height: 100%;
           position: relative;
       }
+      body.map-active #map-container {
+          background-color: transparent !important;
+      }
       #map {
           width: 100%;
           height: 100%;
           z-index: 1;
+      }
+      body.map-active #map {
+          background-color: transparent !important;
       }
       .map-controls {
           position: absolute;
