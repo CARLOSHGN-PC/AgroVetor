@@ -1614,6 +1614,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         native: {
             init() {
+                // Block global gesture zooming on iOS/Android WebViews
+                document.addEventListener('gesturestart', function (e) {
+                    e.preventDefault();
+                });
+
                 if (window.Capacitor && Capacitor.isNativePlatform()) {
                     this.configureStatusBar();
                     this.registerPushNotifications();

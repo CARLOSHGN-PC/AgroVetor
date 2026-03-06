@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>AgroVetor - Inspeção e Planejamento</title>
+    <style>
+      /* Bloquear zoom indesejado no mobile (pinch-to-zoom) globalmente */
+      html, body {
+        touch-action: pan-x pan-y; /* Permite scroll, mas bloqueia pinch-zoom */
+        overscroll-behavior: none; /* Evita "pull to refresh" nativo indesejado em algumas views */
+      }
+    </style>
 
     <!-- PWA (Progressive Web App) Tags -->
     <link rel="manifest" href="./manifest.json">
