@@ -1,14 +1,15 @@
 package com.agrovetor.app.plugins;
 
-import android.content.Intent;
+import android.view.View;
+import android.widget.FrameLayout;
 import android.util.Log;
 
 import com.agrovetor.app.aerial.AerialMapSessionStore;
+import com.agrovetor.app.aerial.NativeAerialMapOverlay;
 import com.agrovetor.app.aerial.AerialOfflinePackageManager;
 import com.agrovetor.app.aerial.AerialOfflinePackageStatus;
 import com.agrovetor.app.aerial.AerialOfflinePackageValidator;
 import com.agrovetor.app.aerial.AerialOfflineRegionStore;
-import com.agrovetor.app.aerial.NativeAerialMapActivity;
 import com.agrovetor.app.aerial.OfflineRegionMetadata;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -31,6 +32,7 @@ public class AerialMapPlugin extends Plugin {
     }
 
     private static NativeErrorHandler nativeErrorHandler;
+    private static NativeAerialMapOverlay nativeOverlay;
 
     private AerialOfflineRegionStore regionStore;
     private AerialOfflinePackageManager packageManager;
@@ -64,15 +66,43 @@ public class AerialMapPlugin extends Plugin {
             return;
         }
 
-        Intent intent = new Intent(getActivity(), NativeAerialMapActivity.class);
-        intent.setPackage(getContext().getPackageName());
-        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        getActivity().runOnUiThread(() -> {
+            FrameLayout overlayContainer = getActivity().findViewById(com.agrovetor.app.R.id.nativeAerialMapOverlayContainer);
+            if (overlayContainer == null) {
+                call.reject("Container nativo do mapa não encontrado na Activity principal.");
+                return;
+            }
 
-        getActivity().runOnUiThread(() -> getActivity().startActivity(intent));
+            if (nativeOverlay == null) {
+                nativeOverlay = new NativeAerialMapOverlay(getActivity(), overlayContainer);
+            }
 
-        JSObject result = new JSObject();
-        result.put("status", "opened");
-        call.resolve(result);
+            overlayContainer.setVisibility(View.VISIBLE);
+            nativeOverlay.attach();
+
+            JSObject result = new JSObject();
+            result.put("status", "opened");
+            call.resolve(result);
+        });
+    }
+
+    @PluginMethod
+    public void closeMap(PluginCall call) {
+        if (getActivity() == null) {
+            call.resolve();
+            return;
+        }
+
+        getActivity().runOnUiThread(() -> {
+            if (nativeOverlay != null) {
+                nativeOverlay.detach();
+            }
+            FrameLayout overlayContainer = getActivity().findViewById(com.agrovetor.app.R.id.nativeAerialMapOverlayContainer);
+            if (overlayContainer != null) {
+                overlayContainer.setVisibility(View.GONE);
+            }
+            call.resolve();
+        });
     }
 
     @PluginMethod
@@ -107,7 +137,7 @@ public class AerialMapPlugin extends Plugin {
         }
 
         AerialMapSessionStore.talhoesGeoJson = geojson;
-        NativeAerialMapActivity.reloadTalhoesIfVisible(geojson);
+        NativeAerialMapOverlay.reloadTalhoesIfVisible(geojson);
         call.resolve();
     }
 
@@ -120,14 +150,14 @@ public class AerialMapPlugin extends Plugin {
         }
 
         AerialMapSessionStore.armadilhasGeoJson = geojson;
-        NativeAerialMapActivity.reloadArmadilhasIfVisible(geojson);
+        NativeAerialMapOverlay.reloadArmadilhasIfVisible(geojson);
         call.resolve();
     }
 
     @PluginMethod
     public void highlightTalhao(PluginCall call) {
         AerialMapSessionStore.highlightedTalhaoId = call.getString("talhaoId");
-        NativeAerialMapActivity.highlightTalhaoIfVisible(AerialMapSessionStore.highlightedTalhaoId);
+        NativeAerialMapOverlay.highlightTalhaoIfVisible(AerialMapSessionStore.highlightedTalhaoId);
         call.resolve();
     }
 
@@ -143,7 +173,7 @@ public class AerialMapPlugin extends Plugin {
             AerialMapSessionStore.zoom = zoom;
         }
 
-        NativeAerialMapActivity.updateCameraIfVisible(AerialMapSessionStore.center, AerialMapSessionStore.zoom);
+        NativeAerialMapOverlay.updateCameraIfVisible(AerialMapSessionStore.center, AerialMapSessionStore.zoom);
         call.resolve();
     }
 
