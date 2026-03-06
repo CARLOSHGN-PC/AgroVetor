@@ -14583,20 +14583,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             },
 
-            async downloadAllAerialTiles() {
+            async ensureNativeAerialOfflineReady(actionName) {
+                if (!App.state.aerialMapProvider) {
+                    await this.initMap();
+                }
+
                 if (!(App.state.useNativeAerialMap && App.state.aerialMapProvider)) {
-                    console.warn('[AEREO_OFFLINE] bloqueado: downloadAllAerialTiles requer Android nativo.', {
+                    console.warn(`[AEREO_OFFLINE] bloqueado: ${actionName} requer Android nativo.`, {
                         useNativeAerialMap: App.state.useNativeAerialMap,
                         providerKind: App.state.aerialMapProvider?.kind || null
                     });
                     App.ui.showAlert('Este recurso está disponível apenas no Android nativo.', 'warning');
-                    return;
+                    return null;
                 }
 
+                return App.state.aerialMapProvider;
+            },
+
+            async downloadAllAerialTiles() {
                 try {
+                    const provider = await this.ensureNativeAerialOfflineReady('downloadAllAerialTiles');
+                    if (!provider) return;
+
                     const payload = this.buildOfflineBatchPayload();
                     App.ui.showAlert('Iniciando download offline do Monitoramento Aéreo...', 'info');
-                    await App.state.aerialMapProvider.downloadOfflineBatch(payload);
+                    await provider.downloadOfflineBatch(payload);
                     App.ui.showAlert('Download em lote iniciado. Baixando mapa offline em segundo plano.', 'info');
                 } catch (error) {
                     logAereoOfflineError('native-offline:batch:download:error', error);
@@ -14605,18 +14616,13 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async updateAllAerialTiles() {
-                if (!(App.state.useNativeAerialMap && App.state.aerialMapProvider)) {
-                    console.warn('[AEREO_OFFLINE] bloqueado: updateAllAerialTiles requer Android nativo.', {
-                        useNativeAerialMap: App.state.useNativeAerialMap,
-                        providerKind: App.state.aerialMapProvider?.kind || null
-                    });
-                    App.ui.showAlert('Este recurso está disponível apenas no Android nativo.', 'warning');
-                    return;
-                }
                 try {
+                    const provider = await this.ensureNativeAerialOfflineReady('updateAllAerialTiles');
+                    if (!provider) return;
+
                     const payload = this.buildOfflineBatchPayload();
                     App.ui.showAlert('Atualizando tiles offline do Monitoramento Aéreo...', 'info');
-                    await App.state.aerialMapProvider.updateOfflineBatch(payload);
+                    await provider.updateOfflineBatch(payload);
                     App.ui.showAlert('Atualização em lote iniciada.', 'info');
                 } catch (error) {
                     logAereoOfflineError('native-offline:batch:update:error', error);
@@ -14625,17 +14631,12 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async removeAllAerialTiles() {
-                if (!(App.state.useNativeAerialMap && App.state.aerialMapProvider)) {
-                    console.warn('[AEREO_OFFLINE] bloqueado: removeAllAerialTiles requer Android nativo.', {
-                        useNativeAerialMap: App.state.useNativeAerialMap,
-                        providerKind: App.state.aerialMapProvider?.kind || null
-                    });
-                    App.ui.showAlert('Este recurso está disponível apenas no Android nativo.', 'warning');
-                    return;
-                }
                 try {
+                    const provider = await this.ensureNativeAerialOfflineReady('removeAllAerialTiles');
+                    if (!provider) return;
+
                     const payload = this.buildOfflineBatchPayload();
-                    await App.state.aerialMapProvider.removeOfflineBatch({ regionId: payload.regionId });
+                    await provider.removeOfflineBatch({ regionId: payload.regionId });
                     App.ui.showAlert('Tiles offline removidos com sucesso.', 'success');
                 } catch (error) {
                     logAereoOfflineError('native-offline:batch:remove:error', error);
