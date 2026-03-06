@@ -23,6 +23,8 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
     _ensurePlugin() {
         if (!this.plugin) {
             this.plugin = window.Capacitor.registerPlugin(pluginName);
+            // Optional: fallback checks could be added here if the plugin itself doesn't throw until a method is called.
+            // In Capacitor, if the plugin is not registered on the native side, method calls reject with "pluginName plugin is not implemented on android".
         }
         return this.plugin;
     }
