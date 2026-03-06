@@ -15,6 +15,7 @@ import android.net.NetworkCapabilities;
 import com.mapbox.maps.MapboxMapsOptions;
 import com.mapbox.maps.OfflineManager;
 import com.mapbox.maps.TileStoreUsageMode;
+import com.mapbox.bindgen.Value;
 
 import java.io.File;
 public final class AerialMapboxRuntime {
@@ -99,7 +100,12 @@ public final class AerialMapboxRuntime {
         String path = baseDir.getAbsolutePath();
         try {
             TileStore store = TileStore.create(path);
-            Log.i(TAG, "TileStore singleton criado com path persistente: " + path);
+            // Default Mapbox quota is usually small (e.g. 50MB for ambient cache).
+            // We set the quota to a large value (e.g., 500MB) to prevent offline
+            // packages from being evicted when the app restarts or after some time.
+            long quotaInBytes = 500L * 1024L * 1024L; // 500MB
+            store.setOption("map.api.disk-quota", Value.valueOf(quotaInBytes));
+            Log.i(TAG, "TileStore singleton criado com path persistente: " + path + " e quota=" + quotaInBytes);
             return store;
         } catch (Exception error) {
             Log.e(TAG, "Falha ao criar TileStore com path persistente: " + path, error);
