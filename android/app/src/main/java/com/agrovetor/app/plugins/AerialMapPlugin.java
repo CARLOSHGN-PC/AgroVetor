@@ -59,9 +59,16 @@ public class AerialMapPlugin extends Plugin {
         }
         AerialMapSessionStore.zoom = zoom;
 
-        Intent intent = new Intent(getContext(), NativeAerialMapActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        getActivity().startActivity(intent);
+        if (getActivity() == null) {
+            call.reject("Activity principal indisponível para abrir o mapa nativo.");
+            return;
+        }
+
+        Intent intent = new Intent(getActivity(), NativeAerialMapActivity.class);
+        intent.setPackage(getContext().getPackageName());
+        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
+        getActivity().runOnUiThread(() -> getActivity().startActivity(intent));
 
         JSObject result = new JSObject();
         result.put("status", "opened");
