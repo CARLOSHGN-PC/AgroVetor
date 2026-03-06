@@ -81,9 +81,9 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
             zoom: config.zoom || 12,
         });
 
-        // Nós aguardamos openMap retornar. A view do mapa nativo cobre a tela inteira.
+        // Nós aguardamos openMap retornar. A view do mapa nativo é anexada na Activity principal.
         // Não vamos jogar exceção com base em _lastNativeError para não derrubar a promise do JS
-        // porque openMap já resolveu com sucesso ao enviar o Intent. Os erros são apenas informativos.
+        // porque openMap já resolveu com sucesso ao anexar o container nativo. Os erros são apenas informativos.
         // Se a view nativa falhar gravemente (offline missing final), o próprio nativo pode fechar,
         // ou o usuário clica no "X". Não quebramos o estado do frontend com throw error para alertas transitórios.
 
@@ -117,6 +117,12 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
     async setCamera(camera) {
         const plugin = this._ensurePlugin();
         return plugin.setCamera(camera);
+    }
+
+
+    async setVisible(visible) {
+        const plugin = this._ensurePlugin();
+        return plugin.setMapVisible({ visible: Boolean(visible) });
     }
 
     async downloadOfflineRegion(config) {
