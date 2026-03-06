@@ -1,14 +1,13 @@
 package com.agrovetor.app.plugins;
 
-import android.content.Intent;
 import android.util.Log;
 
+import com.agrovetor.app.MainActivity;
 import com.agrovetor.app.aerial.AerialMapSessionStore;
 import com.agrovetor.app.aerial.AerialOfflinePackageManager;
 import com.agrovetor.app.aerial.AerialOfflinePackageStatus;
 import com.agrovetor.app.aerial.AerialOfflinePackageValidator;
 import com.agrovetor.app.aerial.AerialOfflineRegionStore;
-import com.agrovetor.app.aerial.NativeAerialMapActivity;
 import com.agrovetor.app.aerial.OfflineRegionMetadata;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -64,11 +63,17 @@ public class AerialMapPlugin extends Plugin {
             return;
         }
 
-        Intent intent = new Intent(getActivity(), NativeAerialMapActivity.class);
-        intent.setPackage(getContext().getPackageName());
-        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        if (!(getActivity() instanceof MainActivity)) {
+            call.reject("MainActivity indisponível para renderizar mapa nativo embutido.");
+            return;
+        }
 
-        getActivity().runOnUiThread(() -> getActivity().startActivity(intent));
+        MainActivity mainActivity = (MainActivity) getActivity();
+        getActivity().runOnUiThread(() -> {
+            if (mainActivity.getAerialMapController() != null) {
+                mainActivity.getAerialMapController().openMap(styleUri, AerialMapSessionStore.center, AerialMapSessionStore.zoom);
+            }
+        });
 
         JSObject result = new JSObject();
         result.put("status", "opened");
@@ -107,7 +112,14 @@ public class AerialMapPlugin extends Plugin {
         }
 
         AerialMapSessionStore.talhoesGeoJson = geojson;
-        NativeAerialMapActivity.reloadTalhoesIfVisible(geojson);
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            getActivity().runOnUiThread(() -> {
+                if (mainActivity.getAerialMapController() != null) {
+                    mainActivity.getAerialMapController().loadTalhoes(geojson);
+                }
+            });
+        }
         call.resolve();
     }
 
@@ -120,14 +132,28 @@ public class AerialMapPlugin extends Plugin {
         }
 
         AerialMapSessionStore.armadilhasGeoJson = geojson;
-        NativeAerialMapActivity.reloadArmadilhasIfVisible(geojson);
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            getActivity().runOnUiThread(() -> {
+                if (mainActivity.getAerialMapController() != null) {
+                    mainActivity.getAerialMapController().loadArmadilhas(geojson);
+                }
+            });
+        }
         call.resolve();
     }
 
     @PluginMethod
     public void highlightTalhao(PluginCall call) {
         AerialMapSessionStore.highlightedTalhaoId = call.getString("talhaoId");
-        NativeAerialMapActivity.highlightTalhaoIfVisible(AerialMapSessionStore.highlightedTalhaoId);
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            getActivity().runOnUiThread(() -> {
+                if (mainActivity.getAerialMapController() != null) {
+                    mainActivity.getAerialMapController().highlightTalhao(AerialMapSessionStore.highlightedTalhaoId);
+                }
+            });
+        }
         call.resolve();
     }
 
@@ -143,7 +169,14 @@ public class AerialMapPlugin extends Plugin {
             AerialMapSessionStore.zoom = zoom;
         }
 
-        NativeAerialMapActivity.updateCameraIfVisible(AerialMapSessionStore.center, AerialMapSessionStore.zoom);
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            getActivity().runOnUiThread(() -> {
+                if (mainActivity.getAerialMapController() != null) {
+                    mainActivity.getAerialMapController().setCamera(AerialMapSessionStore.center, AerialMapSessionStore.zoom);
+                }
+            });
+        }
         call.resolve();
     }
 
