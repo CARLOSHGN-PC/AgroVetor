@@ -3769,12 +3769,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     mapContainer.classList.remove('active');
                 }
 
-                if (App.state.useNativeAerialMap && App.state.aerialMapProvider?.setVisible) {
-                    App.state.aerialMapProvider.setVisible(id === 'monitoramentoAereo').catch((error) => {
-                        console.warn('[AEREO_OFFLINE] Falha ao atualizar visibilidade do mapa nativo.', error);
-                    });
-                }
-
                 document.querySelectorAll('.tab-content').forEach(tab => {
                     if (tab.id !== 'monitoramentoAereo-container') {
                         tab.classList.remove('active');

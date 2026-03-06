@@ -1,5 +1,6 @@
 package com.agrovetor.app.plugins;
 
+import android.content.Intent;
 import android.util.Log;
 
 import com.agrovetor.app.aerial.AerialMapSessionStore;
@@ -7,8 +8,7 @@ import com.agrovetor.app.aerial.AerialOfflinePackageManager;
 import com.agrovetor.app.aerial.AerialOfflinePackageStatus;
 import com.agrovetor.app.aerial.AerialOfflinePackageValidator;
 import com.agrovetor.app.aerial.AerialOfflineRegionStore;
-import com.agrovetor.app.MainActivity;
-import com.agrovetor.app.aerial.NativeAerialMapFragment;
+import com.agrovetor.app.aerial.NativeAerialMapActivity;
 import com.agrovetor.app.aerial.OfflineRegionMetadata;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -64,13 +64,11 @@ public class AerialMapPlugin extends Plugin {
             return;
         }
 
-        if (!(getActivity() instanceof MainActivity)) {
-            call.reject("Activity principal inválida para abrir o mapa nativo.");
-            return;
-        }
+        Intent intent = new Intent(getActivity(), NativeAerialMapActivity.class);
+        intent.setPackage(getContext().getPackageName());
+        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
-        MainActivity mainActivity = (MainActivity) getActivity();
-        mainActivity.setNativeAerialMapVisible(true);
+        getActivity().runOnUiThread(() -> getActivity().startActivity(intent));
 
         JSObject result = new JSObject();
         result.put("status", "opened");
@@ -109,7 +107,7 @@ public class AerialMapPlugin extends Plugin {
         }
 
         AerialMapSessionStore.talhoesGeoJson = geojson;
-        NativeAerialMapFragment.reloadTalhoesIfVisible(geojson);
+        NativeAerialMapActivity.reloadTalhoesIfVisible(geojson);
         call.resolve();
     }
 
@@ -122,32 +120,15 @@ public class AerialMapPlugin extends Plugin {
         }
 
         AerialMapSessionStore.armadilhasGeoJson = geojson;
-        NativeAerialMapFragment.reloadArmadilhasIfVisible(geojson);
+        NativeAerialMapActivity.reloadArmadilhasIfVisible(geojson);
         call.resolve();
     }
 
     @PluginMethod
     public void highlightTalhao(PluginCall call) {
         AerialMapSessionStore.highlightedTalhaoId = call.getString("talhaoId");
-        NativeAerialMapFragment.highlightTalhaoIfVisible(AerialMapSessionStore.highlightedTalhaoId);
+        NativeAerialMapActivity.highlightTalhaoIfVisible(AerialMapSessionStore.highlightedTalhaoId);
         call.resolve();
-    }
-
-
-    @PluginMethod
-    public void setMapVisible(PluginCall call) {
-        boolean visible = call.getBoolean("visible", false);
-        if (!(getActivity() instanceof MainActivity)) {
-            call.reject("Activity principal inválida para controlar visibilidade do mapa nativo.");
-            return;
-        }
-
-        MainActivity mainActivity = (MainActivity) getActivity();
-        mainActivity.setNativeAerialMapVisible(visible);
-
-        JSObject result = new JSObject();
-        result.put("visible", visible);
-        call.resolve(result);
     }
 
     @PluginMethod
@@ -162,7 +143,7 @@ public class AerialMapPlugin extends Plugin {
             AerialMapSessionStore.zoom = zoom;
         }
 
-        NativeAerialMapFragment.updateCameraIfVisible(AerialMapSessionStore.center, AerialMapSessionStore.zoom);
+        NativeAerialMapActivity.updateCameraIfVisible(AerialMapSessionStore.center, AerialMapSessionStore.zoom);
         call.resolve();
     }
 
