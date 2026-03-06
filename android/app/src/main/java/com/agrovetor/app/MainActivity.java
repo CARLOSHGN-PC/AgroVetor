@@ -5,6 +5,7 @@ import android.webkit.WebSettings;
 
 import com.agrovetor.app.plugins.AerialMapPlugin;
 import com.getcapacitor.BridgeActivity;
+import com.agrovetor.app.aerial.NativeAerialMapManager;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -13,6 +14,7 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
 
         if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().setBackgroundColor(android.graphics.Color.TRANSPARENT);
             WebSettings settings = getBridge().getWebView().getSettings();
             settings.setJavaScriptEnabled(true);
             settings.setDomStorageEnabled(true);
@@ -23,5 +25,23 @@ public class MainActivity extends BridgeActivity {
             settings.setGeolocationEnabled(true);
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         }
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        NativeAerialMapManager.getInstance(this).onStart();
+    }
+
+    @Override
+    public void onStop() {
+        NativeAerialMapManager.getInstance(this).onStop();
+        super.onStop();
+    }
+
+    @Override
+    public void onDestroy() {
+        NativeAerialMapManager.getInstance(this).onDestroy();
+        super.onDestroy();
     }
 }

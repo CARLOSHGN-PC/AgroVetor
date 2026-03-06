@@ -3752,6 +3752,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
+                    if (App.state.useNativeAerialMap) {
+                        document.body.classList.add('map-active');
+                        document.documentElement.classList.add('map-active');
+                    }
 
                     if (!App.state.mapboxMap) {
                         // Lazy Init: Initialize map only when tab is opened
@@ -3767,6 +3771,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else {
                     mapContainer.classList.remove('active');
+                    document.body.classList.remove('map-active');
+                    document.documentElement.classList.remove('map-active');
+                    if (App.state.useNativeAerialMap && App.state.aerialMapProvider && typeof App.state.aerialMapProvider.closeMap === 'function') {
+                        App.state.aerialMapProvider.closeMap();
+                    }
                 }
 
                 document.querySelectorAll('.tab-content').forEach(tab => {

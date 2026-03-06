@@ -8,8 +8,9 @@ import com.agrovetor.app.aerial.AerialOfflinePackageManager;
 import com.agrovetor.app.aerial.AerialOfflinePackageStatus;
 import com.agrovetor.app.aerial.AerialOfflinePackageValidator;
 import com.agrovetor.app.aerial.AerialOfflineRegionStore;
-import com.agrovetor.app.aerial.NativeAerialMapActivity;
+import com.agrovetor.app.aerial.NativeAerialMapManager;
 import com.agrovetor.app.aerial.OfflineRegionMetadata;
+import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -47,6 +48,18 @@ public class AerialMapPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void closeMap(PluginCall call) {
+        if (getActivity() != null && getActivity() instanceof BridgeActivity) {
+            getActivity().runOnUiThread(() -> {
+                NativeAerialMapManager.getInstance((BridgeActivity) getActivity()).closeMap();
+                call.resolve();
+            });
+        } else {
+            call.resolve();
+        }
+    }
+
+    @PluginMethod
     public void openMap(PluginCall call) {
         String styleUri = call.getString("styleUri", AerialMapSessionStore.styleUri);
         JSArray center = call.getArray("center");
@@ -59,20 +72,17 @@ public class AerialMapPlugin extends Plugin {
         }
         AerialMapSessionStore.zoom = zoom;
 
-        if (getActivity() == null) {
+        if (getActivity() == null || !(getActivity() instanceof BridgeActivity)) {
             call.reject("Activity principal indisponível para abrir o mapa nativo.");
             return;
         }
 
-        Intent intent = new Intent(getActivity(), NativeAerialMapActivity.class);
-        intent.setPackage(getContext().getPackageName());
-        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-
-        getActivity().runOnUiThread(() -> getActivity().startActivity(intent));
-
-        JSObject result = new JSObject();
-        result.put("status", "opened");
-        call.resolve(result);
+        getActivity().runOnUiThread(() -> {
+            NativeAerialMapManager.getInstance((BridgeActivity) getActivity()).openMap();
+            JSObject result = new JSObject();
+            result.put("status", "opened");
+            call.resolve(result);
+        });
     }
 
     @PluginMethod
@@ -107,7 +117,9 @@ public class AerialMapPlugin extends Plugin {
         }
 
         AerialMapSessionStore.talhoesGeoJson = geojson;
-        NativeAerialMapActivity.reloadTalhoesIfVisible(geojson);
+        if (getActivity() instanceof BridgeActivity) {
+            NativeAerialMapManager.getInstance((BridgeActivity) getActivity()).reloadTalhoesIfVisible(geojson);
+        }
         call.resolve();
     }
 
@@ -120,14 +132,18 @@ public class AerialMapPlugin extends Plugin {
         }
 
         AerialMapSessionStore.armadilhasGeoJson = geojson;
-        NativeAerialMapActivity.reloadArmadilhasIfVisible(geojson);
+        if (getActivity() instanceof BridgeActivity) {
+            NativeAerialMapManager.getInstance((BridgeActivity) getActivity()).reloadArmadilhasIfVisible(geojson);
+        }
         call.resolve();
     }
 
     @PluginMethod
     public void highlightTalhao(PluginCall call) {
         AerialMapSessionStore.highlightedTalhaoId = call.getString("talhaoId");
-        NativeAerialMapActivity.highlightTalhaoIfVisible(AerialMapSessionStore.highlightedTalhaoId);
+        if (getActivity() instanceof BridgeActivity) {
+            NativeAerialMapManager.getInstance((BridgeActivity) getActivity()).highlightTalhaoIfVisible(AerialMapSessionStore.highlightedTalhaoId);
+        }
         call.resolve();
     }
 
@@ -143,7 +159,9 @@ public class AerialMapPlugin extends Plugin {
             AerialMapSessionStore.zoom = zoom;
         }
 
-        NativeAerialMapActivity.updateCameraIfVisible(AerialMapSessionStore.center, AerialMapSessionStore.zoom);
+        if (getActivity() instanceof BridgeActivity) {
+            NativeAerialMapManager.getInstance((BridgeActivity) getActivity()).updateCameraIfVisible(AerialMapSessionStore.center, AerialMapSessionStore.zoom);
+        }
         call.resolve();
     }
 

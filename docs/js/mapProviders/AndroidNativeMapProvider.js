@@ -99,6 +99,15 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
         return result;
     }
 
+    async closeMap() {
+        const plugin = this._ensurePlugin();
+        try {
+            await plugin.closeMap();
+        } catch (e) {
+            console.warn('[AndroidNativeMapProvider] closeMap error', e);
+        }
+    }
+
     async loadTalhoes(geojson) {
         const plugin = this._ensurePlugin();
         return plugin.loadTalhoes({ geojson: JSON.stringify(geojson) });

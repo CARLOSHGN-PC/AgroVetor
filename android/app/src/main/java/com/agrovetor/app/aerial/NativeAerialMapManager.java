@@ -1,13 +1,11 @@
 package com.agrovetor.app.aerial;
 
 import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.Network;
-import android.net.NetworkCapabilities;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -16,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.agrovetor.app.R;
 import com.agrovetor.app.plugins.AerialMapPlugin;
+import com.getcapacitor.BridgeActivity;
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.Point;
@@ -50,7 +49,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-public class NativeAerialMapActivity extends AppCompatActivity implements OnMapClickListener {
+public class NativeAerialMapManager implements OnMapClickListener {
     private static final String TAG = "AerialOfflineDebug";
     private static final String TALHOES_SOURCE = "native-talhoes-source";
     private static final String TALHOES_FILL_LAYER = "native-talhoes-fill";
@@ -60,11 +59,14 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private static final String ARMADILHAS_SOURCE = "native-armadilhas-source";
     private static final String ARMADILHAS_CIRCLE_LAYER = "native-armadilhas-circle";
 
-    private static WeakReference<NativeAerialMapActivity> activeInstance = new WeakReference<>(null);
+    private static NativeAerialMapManager instance;
 
+    private BridgeActivity activity;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private MapView mapView;
+    private FrameLayout mapContainer;
+
     @Nullable
     private GesturesPlugin gesturesPlugin;
     @Nullable
@@ -96,38 +98,65 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private String pendingTalhoesGeoJson;
     @Nullable
     private String pendingArmadilhasGeoJson;
+    private boolean isMapVisible = false;
 
-    @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        Log.i(TAG, "NativeAerialMapActivity.onCreate");
-        setContentView(R.layout.activity_aerial_map);
+    private NativeAerialMapManager(BridgeActivity activity) {
+        this.activity = activity;
+        Log.i(TAG, "NativeAerialMapManager.init");
+    }
 
-        createMapViewWithOfflineRuntime();
-        subscribeMapLoadingErrors();
-
-        networkAvailableAtStart = isNetworkAvailable();
-        List<OfflineRegionMetadata> metadataRegions = readOfflineMetadata(networkAvailableAtStart);
-
-        registerPluginErrorForwarder();
-
-        pendingTalhoesGeoJson = AerialMapSessionStore.talhoesGeoJson;
-        pendingArmadilhasGeoJson = AerialMapSessionStore.armadilhasGeoJson;
-        prepareStyleFallbackAndLoad(networkAvailableAtStart, metadataRegions);
-
-        gesturesPlugin = (GesturesPlugin) mapView.getPlugin(Plugin.MAPBOX_GESTURES_PLUGIN_ID);
-        if (gesturesPlugin != null) {
-            gesturesPlugin.removeOnMapClickListener(this);
-            gesturesPlugin.addOnMapClickListener(this);
+    public static synchronized NativeAerialMapManager getInstance(BridgeActivity activity) {
+        if (instance == null) {
+            instance = new NativeAerialMapManager(activity);
         }
+        return instance;
+    }
+
+    public void openMap() {
+        if (mapView == null) {
+            createMapViewWithOfflineRuntime();
+            subscribeMapLoadingErrors();
+
+            networkAvailableAtStart = isNetworkAvailable();
+            List<OfflineRegionMetadata> metadataRegions = readOfflineMetadata(networkAvailableAtStart);
+
+            registerPluginErrorForwarder();
+
+            pendingTalhoesGeoJson = AerialMapSessionStore.talhoesGeoJson;
+            pendingArmadilhasGeoJson = AerialMapSessionStore.armadilhasGeoJson;
+            prepareStyleFallbackAndLoad(networkAvailableAtStart, metadataRegions);
+
+            gesturesPlugin = (GesturesPlugin) mapView.getPlugin(Plugin.MAPBOX_GESTURES_PLUGIN_ID);
+            if (gesturesPlugin != null) {
+                gesturesPlugin.removeOnMapClickListener(this);
+                gesturesPlugin.addOnMapClickListener(this);
+            }
+        }
+        mapContainer.setVisibility(View.VISIBLE);
+        isMapVisible = true;
+    }
+
+    public void closeMap() {
+        if (mapContainer != null) {
+            mapContainer.setVisibility(View.GONE);
+        }
+        isMapVisible = false;
     }
 
     private void createMapViewWithOfflineRuntime() {
-        FrameLayout mapContainer = findViewById(R.id.nativeAerialMapContainer);
-        String accessToken = getString(R.string.mapbox_access_token);
-        AerialMapboxRuntime.configureMapbox(getApplicationContext(), accessToken);
-        MapInitOptions mapInitOptions = new MapInitOptions(this);
-        mapView = new MapView(this, mapInitOptions);
+        mapContainer = new FrameLayout(activity);
+        mapContainer.setId(View.generateViewId());
+
+        ViewGroup parent = (ViewGroup) activity.getBridge().getWebView().getParent();
+        parent.addView(mapContainer, 0, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        String accessToken = activity.getString(R.string.mapbox_access_token);
+        AerialMapboxRuntime.configureMapbox(activity.getApplicationContext(), accessToken);
+        MapInitOptions mapInitOptions = new MapInitOptions(activity);
+        mapView = new MapView(activity, mapInitOptions);
         mapContainer.addView(mapView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -135,36 +164,24 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         Log.i(TAG, "MapView criado com MapInitOptions após configuração global de token, TileStore e TileStoreUsageMode");
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        Log.i(TAG, "NativeAerialMapActivity.onStart");
-        activeInstance = new WeakReference<>(this);
+    public void onStart() {
+        Log.i(TAG, "NativeAerialMapManager.onStart");
         if (mapView != null) {
             mapView.onStart();
         }
     }
 
-    @Override
-    protected void onStop() {
-        Log.i(TAG, "NativeAerialMapActivity.onStop");
-        NativeAerialMapActivity current = activeInstance.get();
-        if (current == this) {
-            activeInstance = new WeakReference<>(null);
-        }
+    public void onStop() {
+        Log.i(TAG, "NativeAerialMapManager.onStop");
         if (mapView != null) {
             mapView.onStop();
         }
-        super.onStop();
     }
 
-    public static void updateCameraIfVisible(double[] center, double zoom) {
-        NativeAerialMapActivity current = activeInstance.get();
-        if (current == null || current.mapView == null) {
-            return;
-        }
+    public void updateCameraIfVisible(double[] center, double zoom) {
+        if (mapView == null || !isMapVisible) return;
 
-        current.runOnUiThread(() -> current.mapView.getMapboxMap().setCamera(
+        activity.runOnUiThread(() -> mapView.getMapboxMap().setCamera(
                 new CameraOptions.Builder()
                         .center(Point.fromLngLat(center[0], center[1]))
                         .zoom(zoom)
@@ -172,56 +189,47 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         ));
     }
 
-    public static void reloadTalhoesIfVisible(String geojson) {
-        NativeAerialMapActivity current = activeInstance.get();
+    public void reloadTalhoesIfVisible(String geojson) {
         AerialMapSessionStore.talhoesGeoJson = geojson;
 
-        if (current == null || current.mapView == null) {
-            return;
-        }
+        if (mapView == null || !isMapVisible) return;
 
-        current.runOnUiThread(() -> {
-            current.pendingTalhoesGeoJson = geojson;
-            if (!current.styleReady) {
+        activity.runOnUiThread(() -> {
+            pendingTalhoesGeoJson = geojson;
+            if (!styleReady) {
                 Log.i(TAG, "Talhões recebidos antes do style pronto. Aplicação será postergada.");
                 return;
             }
 
-            current.mapView.getMapboxMap().getStyle(style -> {
-                current.setupTalhoes(style, current.pendingTalhoesGeoJson);
-                current.applyHighlight(style, AerialMapSessionStore.highlightedTalhaoId);
+            mapView.getMapboxMap().getStyle(style -> {
+                setupTalhoes(style, pendingTalhoesGeoJson);
+                applyHighlight(style, AerialMapSessionStore.highlightedTalhaoId);
             });
         });
     }
 
-    public static void reloadArmadilhasIfVisible(String geojson) {
-        NativeAerialMapActivity current = activeInstance.get();
+    public void reloadArmadilhasIfVisible(String geojson) {
         AerialMapSessionStore.armadilhasGeoJson = geojson;
 
-        if (current == null || current.mapView == null) {
-            return;
-        }
+        if (mapView == null || !isMapVisible) return;
 
-        current.runOnUiThread(() -> {
-            current.pendingArmadilhasGeoJson = geojson;
-            if (!current.styleReady) {
+        activity.runOnUiThread(() -> {
+            pendingArmadilhasGeoJson = geojson;
+            if (!styleReady) {
                 Log.i(TAG, "Armadilhas recebidas antes do style pronto. Aplicação será postergada.");
                 return;
             }
 
-            current.mapView.getMapboxMap().getStyle(style -> {
-                current.setupArmadilhas(style, current.pendingArmadilhasGeoJson);
+            mapView.getMapboxMap().getStyle(style -> {
+                setupArmadilhas(style, pendingArmadilhasGeoJson);
             });
         });
     }
 
-    public static void highlightTalhaoIfVisible(String talhaoId) {
-        NativeAerialMapActivity current = activeInstance.get();
-        if (current == null || current.mapView == null) {
-            return;
-        }
+    public void highlightTalhaoIfVisible(String talhaoId) {
+        if (mapView == null || !isMapVisible) return;
 
-        current.runOnUiThread(() -> current.mapView.getMapboxMap().getStyle(style -> current.applyHighlight(style, talhaoId)));
+        activity.runOnUiThread(() -> mapView.getMapboxMap().getStyle(style -> applyHighlight(style, talhaoId)));
     }
 
     private void setupCamera() {
@@ -234,7 +242,6 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private void loadStyleWithFallback() {
         if (styleFallbackChain.isEmpty()) {
             Log.e(TAG, "Nenhum styleUri disponível para carregar mapa.");
-            // Substituído notifyError por notifyOfflinePackageMissing para evitar derrubar a tela do mapa com erro fatal
             AerialMapPlugin.notifyOfflinePackageMissing("Nenhum estilo de mapa (styleUri) disponível para fallback offline.");
             return;
         }
@@ -275,14 +282,11 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         }
 
         Log.e(TAG, "Falha final ao carregar estilo. reason=" + reason + ", attempts=" + styleFallbackChain);
-        // Em vez de retornar "erro fatal" que derruba o mapa nativo para modo web,
-        // retornamos "offline_package_missing", para que o usuário receba apenas um alerta
-        // ou possa tentar novamente, preservando a sessão nativa para quando houver internet/cache.
         AerialMapPlugin.notifyOfflinePackageMissing("Mapa offline indisponível para o zoom/área atual. Ajuste o zoom ou baixe novamente.");
     }
 
     private String buildDetailedFailureReason(String reasonType, String styleUri) {
-        List<OfflineRegionMetadata> regions = new AerialOfflineRegionStore(getApplicationContext()).readAll();
+        List<OfflineRegionMetadata> regions = new AerialOfflineRegionStore(activity.getApplicationContext()).readAll();
         boolean readyRegionExists = false;
         boolean matchingStylePack = false;
         boolean matchingTileRegion = false;
@@ -333,7 +337,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     }
 
     private List<OfflineRegionMetadata> readOfflineMetadata(boolean networkAvailable) {
-        AerialOfflineRegionStore regionStore = new AerialOfflineRegionStore(getApplicationContext());
+        AerialOfflineRegionStore regionStore = new AerialOfflineRegionStore(activity.getApplicationContext());
         List<OfflineRegionMetadata> regions = regionStore.readAll();
         int readyCount = 0;
         for (OfflineRegionMetadata region : regions) {
@@ -350,7 +354,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
 
     private void prepareStyleFallbackAndLoad(boolean networkAvailable, List<OfflineRegionMetadata> metadataRegions) {
         Thread worker = new Thread(() -> {
-            RuntimeOfflineSnapshot snapshot = RuntimeOfflineSnapshot.resolve(getApplicationContext());
+            RuntimeOfflineSnapshot snapshot = RuntimeOfflineSnapshot.resolve(activity.getApplicationContext());
             List<OfflineRegionMetadata> readyRegions = new ArrayList<>();
             List<OfflineRegionMetadata> validRuntimeRegions = new ArrayList<>();
             for (OfflineRegionMetadata region : metadataRegions) {
@@ -363,7 +367,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
                 }
             }
 
-            runOnUiThread(() -> {
+            activity.runOnUiThread(() -> {
                 runtimeOfflineSnapshot = snapshot;
                 hasAnyRuntimeOfflinePackage = !validRuntimeRegions.isEmpty();
                 Log.i(TAG, "Diagnóstico offline runtime: stylePacksReais=" + snapshot.stylePackIds.size()
@@ -571,7 +575,6 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
 
         } catch (Exception error) {
             Log.e(TAG, "Falha ao desenhar armadilhas", error);
-            // Removido notifyError para evitar flood de alertas no frontend
         }
     }
 
@@ -622,7 +625,6 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
             }
         } catch (Exception error) {
             Log.e(TAG, "Falha ao desenhar talhões", error);
-            // Removido notifyError para evitar flood de alertas no frontend
         }
     }
 
@@ -687,23 +689,20 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     }
 
     private boolean isNetworkAvailable() {
-        return NetworkUtils.isNetworkAvailable(getApplicationContext());
+        return NetworkUtils.isNetworkAvailable(activity.getApplicationContext());
     }
 
     private void registerPluginErrorForwarder() {
-        AerialMapPlugin.setNativeErrorHandler((message, details) -> runOnUiThread(() -> {
+        AerialMapPlugin.setNativeErrorHandler((message, details) -> activity.runOnUiThread(() -> {
             String merged = (message == null ? "erro" : message) + (details == null ? "" : (": " + details));
             Log.w(TAG, "Erro reportado para WebView: " + merged);
 
-            // Não queremos mais que um erro de mapa nativo (como falha em carregar layer de armadilha)
-            // destrua a atividade via finish() nem que caia para o modo web se o usuário estiver offline
-            // e tiver algum cache.
             if (!networkAvailableAtStart || hasAnyRuntimeOfflinePackage) {
-                Log.i(TAG, "Erro interceptado sem derrubar a Activity do mapa porque o usuário está offline ou existe pacote runtime.");
-                return; // Impede que o finish() seja chamado precipitadamente
+                Log.i(TAG, "Erro interceptado sem remover mapa porque o usuário está offline ou existe pacote runtime.");
+                return;
             }
 
-            finish();
+            // Ação de erro crítica poderia ser ocultar o mapa, mas deixamos apenas o log.
         }));
     }
 
@@ -720,12 +719,6 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
                             if (args != null && args.length > 0 && args[0] != null) {
                                 String details = String.valueOf(args[0]);
                                 Log.e(TAG, "MapLoadingError recebido: " + details);
-
-                                // Não disparamos proceedToNextStyleOrFail imediato em erros granulares como falha num tile,
-                                // pois o Mapbox v11 tem resiliência interna para buscar no cache ou tentar novamente.
-                                // Um erro imediato estava matando o processo de "timeout" que aguarda 9s.
-                                // styleReady vai continuar falso, então se o mapa não carregar após 9s,
-                                // a lógica do timeout no handler cuidará de pular o estilo ou avisar que falta offline.
                             }
                             return null;
                         }
@@ -738,9 +731,8 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        Log.i(TAG, "NativeAerialMapActivity.onDestroy");
+    public void onDestroy() {
+        Log.i(TAG, "NativeAerialMapManager.onDestroy");
         if (gesturesPlugin != null) {
             gesturesPlugin.removeOnMapClickListener(this);
             gesturesPlugin = null;
@@ -759,6 +751,8 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         if (mapView != null) {
             mapView.onDestroy();
         }
-        super.onDestroy();
+        if (mapContainer != null && mapContainer.getParent() != null) {
+            ((ViewGroup) mapContainer.getParent()).removeView(mapContainer);
+        }
     }
 }
