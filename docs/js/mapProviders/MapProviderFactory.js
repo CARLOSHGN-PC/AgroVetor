@@ -2,7 +2,9 @@ import { WebMapProvider } from './WebMapProvider.js';
 import { AndroidNativeMapProvider } from './AndroidNativeMapProvider.js';
 
 const isNativeEnabled = () => {
-    return Boolean(window?.Capacitor && window.Capacitor.isNativePlatform?.() && window.Capacitor.getPlatform?.() === 'android');
+    if (window?.Capacitor && window.Capacitor.isNativePlatform?.() && window.Capacitor.getPlatform?.() === 'android') return true;
+    if (window?.APP_CONFIG?.enableNativeAerialMap === true) return true;
+    return localStorage.getItem('AGV_NATIVE_AERIAL_MAP') === '1';
 };
 
 export function createAerialMapProvider({ app }) {
