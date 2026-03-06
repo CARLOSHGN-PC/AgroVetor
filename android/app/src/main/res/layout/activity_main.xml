@@ -7,14 +7,6 @@
     tools:context=".MainActivity">
 
     <WebView
-        android:id="@+id/bridge_webview"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
-
-    <FrameLayout
-        android:id="@+id/nativeAerialMapOverlayContainer"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone"
-        android:background="#00000000" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

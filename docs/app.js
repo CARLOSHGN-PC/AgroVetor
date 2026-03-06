@@ -3767,11 +3767,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else {
                     mapContainer.classList.remove('active');
-                    if (App.state.useNativeAerialMap && App.state.aerialMapProvider && typeof App.state.aerialMapProvider.closeMap === 'function') {
-                        App.state.aerialMapProvider.closeMap().catch((error) => {
-                            console.warn('Falha ao fechar overlay nativo do mapa aéreo.', error);
-                        });
-                    }
                 }
 
                 document.querySelectorAll('.tab-content').forEach(tab => {
@@ -13750,7 +13745,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         useNativeAerialMap: App.state.useNativeAerialMap
                     });
                     this.updateAndroidOfflineButtonsVisibility();
-                    App.elements.monitoramentoAereo.mapContainer?.classList.toggle('native-provider-active', App.state.useNativeAerialMap);
 
                     if (!App.state.useNativeAerialMap && typeof mapboxgl === 'undefined') {
                         console.error("Mapbox GL JS não está carregado.");
