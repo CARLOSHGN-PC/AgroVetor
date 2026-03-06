@@ -234,7 +234,8 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
     private void loadStyleWithFallback() {
         if (styleFallbackChain.isEmpty()) {
             Log.e(TAG, "Nenhum styleUri disponível para carregar mapa.");
-            AerialMapPlugin.notifyError("Falha ao abrir mapa offline", "Nenhum styleUri disponível para fallback.");
+            // Substituído notifyError por notifyOfflinePackageMissing para evitar derrubar a tela do mapa com erro fatal
+            AerialMapPlugin.notifyOfflinePackageMissing("Nenhum estilo de mapa (styleUri) disponível para fallback offline.");
             return;
         }
 
@@ -693,10 +694,15 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
         AerialMapPlugin.setNativeErrorHandler((message, details) -> runOnUiThread(() -> {
             String merged = (message == null ? "erro" : message) + (details == null ? "" : (": " + details));
             Log.w(TAG, "Erro reportado para WebView: " + merged);
-            if (!networkAvailableAtStart && hasAnyRuntimeOfflinePackage) {
-                Log.i(TAG, "Erro ignorado para fallback web porque existe pacote offline válido no runtime.");
-                return;
+
+            // Não queremos mais que um erro de mapa nativo (como falha em carregar layer de armadilha)
+            // destrua a atividade via finish() nem que caia para o modo web se o usuário estiver offline
+            // e tiver algum cache.
+            if (!networkAvailableAtStart || hasAnyRuntimeOfflinePackage) {
+                Log.i(TAG, "Erro interceptado sem derrubar a Activity do mapa porque o usuário está offline ou existe pacote runtime.");
+                return; // Impede que o finish() seja chamado precipitadamente
             }
+
             finish();
         }));
     }
@@ -714,8 +720,12 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
                             if (args != null && args.length > 0 && args[0] != null) {
                                 String details = String.valueOf(args[0]);
                                 Log.e(TAG, "MapLoadingError recebido: " + details);
-                                String failingStyleUri = styleFallbackChain.isEmpty() ? "<none>" : styleFallbackChain.get(Math.min(styleAttemptIndex, styleFallbackChain.size() - 1));
-                                proceedToNextStyleOrFail("map_loading_error", failingStyleUri);
+
+                                // Não disparamos proceedToNextStyleOrFail imediato em erros granulares como falha num tile,
+                                // pois o Mapbox v11 tem resiliência interna para buscar no cache ou tentar novamente.
+                                // Um erro imediato estava matando o processo de "timeout" que aguarda 9s.
+                                // styleReady vai continuar falso, então se o mapa não carregar após 9s,
+                                // a lógica do timeout no handler cuidará de pular o estilo ou avisar que falta offline.
                             }
                             return null;
                         }
