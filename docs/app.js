@@ -723,11 +723,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
 
-
-    window.addEventListener('aerial-native-mode', (event) => {
-        const enabled = Boolean(event?.detail?.enabled);
-        document.body.classList.toggle('aerial-native-mode', enabled);
-    });
     const App = {
         offlineDB: OfflineDB,
         services: {
@@ -3757,9 +3752,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mapContainer = App.elements.monitoramentoAereo.container;
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
-                    if (App.state.useNativeAerialMap) {
-                        document.body.classList.add('aerial-native-mode');
-                    }
 
                     if (!App.state.mapboxMap) {
                         // Lazy Init: Initialize map only when tab is opened
@@ -3775,7 +3767,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else {
                     mapContainer.classList.remove('active');
-                    document.body.classList.remove('aerial-native-mode');
                 }
 
                 document.querySelectorAll('.tab-content').forEach(tab => {
