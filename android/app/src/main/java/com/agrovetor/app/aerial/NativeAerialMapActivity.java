@@ -571,7 +571,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
 
         } catch (Exception error) {
             Log.e(TAG, "Falha ao desenhar armadilhas", error);
-            AerialMapPlugin.notifyError("Falha ao desenhar armadilhas no mapa nativo", error.getMessage());
+            // Removido notifyError para evitar flood de alertas no frontend
         }
     }
 
@@ -622,7 +622,7 @@ public class NativeAerialMapActivity extends AppCompatActivity implements OnMapC
             }
         } catch (Exception error) {
             Log.e(TAG, "Falha ao desenhar talhões", error);
-            AerialMapPlugin.notifyError("Falha ao desenhar talhões no mapa nativo", error.getMessage());
+            // Removido notifyError para evitar flood de alertas no frontend
         }
     }
 

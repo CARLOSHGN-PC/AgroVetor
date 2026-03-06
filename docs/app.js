@@ -13783,14 +13783,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (e?.code === 'offline_package_missing') {
                                 App.ui.showAlert(e?.details || 'Região offline não baixada. Conecte-se e baixe.', 'warning', 7000);
                             } else {
-                                console.warn('[AEREO_OFFLINE] Erro nativo detectado e ignorado para evitar fallback fatal para web.', {
+                                console.warn('[AEREO_OFFLINE] Erro nativo detectado e silenciado para evitar fallback fatal e alertas falsos.', {
                                     message: e?.message,
                                     details: e?.details || null,
                                     code: e?.code || null
                                 });
-                                // Não forçamos mais useNativeAerialMap para false. A activity foi aberta ou abriu e deu erro granular.
-                                // Mostrar alerta silencioso em vez de derrubar a UI inteira.
-                                App.ui.showAlert('Ocorreu um pequeno erro ao exibir o mapa nativo. Verifique sua conexão ou pacote offline.', 'warning', 4000);
+                                // Não disparamos showAlert aqui pois Mapbox offline sempre tem instabilidades iniciais de tile load
+                                // que não são fatais. A activity já tratou de manter-se aberta.
                             }
                         } else {
                             logAereoOfflineError('init:error', e);
