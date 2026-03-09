@@ -3762,6 +3762,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (App.state.useNativeAerialMap) {
                         document.body.classList.add('map-active');
                         document.documentElement.classList.add('map-active');
+                        document.getElementById('appScreen')?.classList.add('map-active');
                     }
 
                     if (!App.state.mapboxMap) {
@@ -3780,6 +3781,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     mapContainer.classList.remove('active');
                     document.body.classList.remove('map-active');
                     document.documentElement.classList.remove('map-active');
+                    document.getElementById('appScreen')?.classList.remove('map-active');
                     if (App.state.useNativeAerialMap && App.state.aerialMapProvider && typeof App.state.aerialMapProvider.closeMap === 'function') {
                         App.state.aerialMapProvider.closeMap();
                     }

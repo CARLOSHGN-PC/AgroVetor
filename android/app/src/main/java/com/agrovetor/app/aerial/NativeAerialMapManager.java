@@ -5,7 +5,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -66,6 +65,8 @@ public class NativeAerialMapManager implements OnMapClickListener {
 
     private MapView mapView;
     private FrameLayout mapContainer;
+    private boolean activityStarted;
+    private boolean activityResumed;
 
     @Nullable
     private GesturesPlugin gesturesPlugin;
@@ -108,8 +109,20 @@ public class NativeAerialMapManager implements OnMapClickListener {
     public static synchronized NativeAerialMapManager getInstance(BridgeActivity activity) {
         if (instance == null) {
             instance = new NativeAerialMapManager(activity);
+        } else {
+            instance.attachToActivity(activity);
         }
         return instance;
+    }
+
+    public void attachToActivity(BridgeActivity activity) {
+        this.activity = activity;
+        if (mapContainer == null) {
+            mapContainer = activity.findViewById(R.id.native_aerial_map_container);
+        }
+        if (mapContainer != null) {
+            mapContainer.setVisibility(isMapVisible ? View.VISIBLE : View.GONE);
+        }
     }
 
     public void openMap() {
@@ -144,37 +157,68 @@ public class NativeAerialMapManager implements OnMapClickListener {
     }
 
     private void createMapViewWithOfflineRuntime() {
-        mapContainer = new FrameLayout(activity);
-        mapContainer.setId(View.generateViewId());
-
-        ViewGroup parent = (ViewGroup) activity.getBridge().getWebView().getParent();
-        parent.addView(mapContainer, 0, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-        ));
+        if (mapContainer == null) {
+            mapContainer = activity.findViewById(R.id.native_aerial_map_container);
+        }
+        if (mapContainer == null) {
+            throw new IllegalStateException("Container nativo do mapa não encontrado no layout da MainActivity.");
+        }
 
         String accessToken = activity.getString(R.string.mapbox_access_token);
         AerialMapboxRuntime.configureMapbox(activity.getApplicationContext(), accessToken);
         MapInitOptions mapInitOptions = new MapInitOptions(activity);
         mapView = new MapView(activity, mapInitOptions);
+        mapContainer.removeAllViews();
         mapContainer.addView(mapView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
-        Log.i(TAG, "MapView criado com MapInitOptions após configuração global de token, TileStore e TileStoreUsageMode");
+
+        if (activityStarted) {
+            mapView.onStart();
+        }
+        if (activityResumed) {
+            mapView.onResume();
+        }
+
+        Log.i(TAG, "MapView anexado ao container fixo da MainActivity com lifecycle sincronizado");
     }
 
     public void onStart() {
         Log.i(TAG, "NativeAerialMapManager.onStart");
+        activityStarted = true;
         if (mapView != null) {
             mapView.onStart();
         }
     }
 
+    public void onResume() {
+        Log.i(TAG, "NativeAerialMapManager.onResume");
+        activityResumed = true;
+        if (mapView != null) {
+            mapView.onResume();
+        }
+    }
+
+    public void onPause() {
+        Log.i(TAG, "NativeAerialMapManager.onPause");
+        activityResumed = false;
+        if (mapView != null) {
+            mapView.onPause();
+        }
+    }
+
     public void onStop() {
         Log.i(TAG, "NativeAerialMapManager.onStop");
+        activityStarted = false;
         if (mapView != null) {
             mapView.onStop();
+        }
+    }
+
+    public void onLowMemory() {
+        if (mapView != null) {
+            mapView.onLowMemory();
         }
     }
 
@@ -750,9 +794,13 @@ public class NativeAerialMapManager implements OnMapClickListener {
         mainHandler.removeCallbacksAndMessages(null);
         if (mapView != null) {
             mapView.onDestroy();
+            mapView = null;
         }
-        if (mapContainer != null && mapContainer.getParent() != null) {
-            ((ViewGroup) mapContainer.getParent()).removeView(mapContainer);
+        if (mapContainer != null) {
+            mapContainer.removeAllViews();
+            mapContainer.setVisibility(View.GONE);
         }
+        activityStarted = false;
+        activityResumed = false;
     }
 }

@@ -13,6 +13,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AerialMapPlugin.class);
         super.onCreate(savedInstanceState);
 
+        NativeAerialMapManager.getInstance(this).attachToActivity(this);
+
         if (getBridge() != null && getBridge().getWebView() != null) {
             getBridge().getWebView().setBackgroundColor(android.graphics.Color.TRANSPARENT);
             WebSettings settings = getBridge().getWebView().getSettings();
@@ -31,6 +33,24 @@ public class MainActivity extends BridgeActivity {
     public void onStart() {
         super.onStart();
         NativeAerialMapManager.getInstance(this).onStart();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        NativeAerialMapManager.getInstance(this).onResume();
+    }
+
+    @Override
+    public void onPause() {
+        NativeAerialMapManager.getInstance(this).onPause();
+        super.onPause();
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        NativeAerialMapManager.getInstance(this).onLowMemory();
     }
 
     @Override
