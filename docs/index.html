@@ -2715,15 +2715,27 @@
 
                         <div class="form-col" style="margin-bottom: 15px;">
                             <label class="required">Roteiro de Operações:</label>
-                            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; background: var(--color-surface); padding: 15px; border: 1px solid var(--color-border); border-radius: var(--border-radius); box-shadow: var(--shadow-sm);">
-                                <div style="flex-grow: 1;">
-                                    <select id="osOperationSelect" style="width: 100%; margin-top: 0;">
-                                        <option value="">Selecione uma operação...</option>
-                                    </select>
+                            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; background: var(--color-surface); padding: 15px; border: 1px solid var(--color-border); border-radius: var(--border-radius); box-shadow: var(--shadow-sm);">
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <div style="flex-grow: 1;">
+                                        <select id="osGroupSelect" style="width: 100%; margin-top: 0;">
+                                            <option value="">1. Selecione um grupo...</option>
+                                        </select>
+                                    </div>
+                                    <div style="flex-grow: 1;">
+                                        <input type="text" id="osOperationFilter" placeholder="Buscar operação..." style="width: 100%; margin-top: 0; padding: 12px;">
+                                    </div>
                                 </div>
-                                <button type="button" id="btnAddOperationToOS" class="save" style="padding: 12px 20px; margin-top: 0;" title="Adicionar ao Roteiro">
-                                    <i class="fas fa-plus"></i> Adicionar
-                                </button>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <div style="flex-grow: 1;">
+                                        <select id="osOperationSelect" style="width: 100%; margin-top: 0;">
+                                            <option value="">2. Selecione uma operação...</option>
+                                        </select>
+                                    </div>
+                                    <button type="button" id="btnAddOperationToOS" class="save" style="padding: 12px 20px; margin-top: 0;" title="Adicionar ao Roteiro">
+                                        <i class="fas fa-plus"></i> Adicionar
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- Lista de Operações do Roteiro -->
@@ -3963,7 +3975,19 @@
             
             <section id="configuracoesEmpresa" class="tab-content card" aria-label="Configurações da Empresa" tabindex="0" hidden>
                 <h2><i class="fas fa-building"></i> Configurações da Empresa</h2>
-                <div class="card" style="border-left-color: var(--color-purple);">
+
+                <div class="card" style="border-left-color: var(--color-warning);">
+                    <h3><i class="fas fa-upload"></i> Importar Operações via CSV</h3>
+                    <p>Faça o upload de um ficheiro CSV com as operações. O sistema irá <strong>adicionar</strong> novas ou <strong>atualizar</strong> existentes (baseado na OP e Nome).</p>
+                    <div class="upload-area" id="operacoesCsvUploadArea">
+                        <i class="fas fa-file-csv fa-2x" style="color: var(--color-warning);"></i>
+                        <p>Clique ou arraste um ficheiro CSV aqui</p>
+                    </div>
+                    <input type="file" id="operacoesCsvInput" accept=".csv" style="display: none;">
+                    <small class="csv-format-info" style="display: block; margin-top: 10px; text-align: center;">Formato: OP; Descrição; Grupo</small>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
                     <h3><i class="fas fa-image"></i> Logotipo da Empresa</h3>
                     <p>Faça o upload do logotipo que aparecerá no cabeçalho dos relatórios. Use uma imagem com fundo transparente (PNG) para melhores resultados.</p>
                     <div class="upload-area" id="logoUploadArea">
@@ -4575,11 +4599,14 @@
                         <input type="hidden" id="operacaoId">
                         <div class="form-row">
                             <div class="form-col"><label for="operacaoNome" class="required">Nome da Operação:</label><input type="text" id="operacaoNome" placeholder="Ex: Calagem" required></div>
-                            <div class="form-col"><label for="operacaoCodigo">Código Externo:</label><input type="text" id="operacaoCodigo" placeholder="Ex: OP-01"></div>
+                            <div class="form-col"><label for="operacaoCodigo">Código Externo (OP):</label><input type="text" id="operacaoCodigo" placeholder="Ex: OP-01"></div>
                         </div>
                         <div class="form-row">
+                            <div class="form-col"><label for="operacaoGrupo">Grupo da Operação:</label><input type="text" id="operacaoGrupo" placeholder="Ex: Aplicação Cigarrinha"></div>
                             <div class="form-col"><label for="operacaoMaxApp">Max. Aplicações no mesmo talhão (Bloqueio):</label><input type="number" id="operacaoMaxApp" placeholder="Ex: 2" value="2"></div>
-                            <div class="form-col" style="display: flex; align-items: center; margin-top: 30px;">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-col" style="display: flex; align-items: center; margin-top: 10px;">
                                 <label style="display: flex; gap: 10px; cursor: pointer; font-weight: 600; color: var(--color-text);"><input type="checkbox" id="operacaoAtivo" checked style="width: auto; transform: scale(1.2);"> Ativo</label>
                             </div>
                         </div>

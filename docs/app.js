@@ -940,6 +940,8 @@ document.addEventListener('DOMContentLoaded', () => {
             osManual: {
                 farmSelect: document.getElementById('osFarmSelect'),
                 serviceType: document.getElementById('osServiceType'),
+                groupSelect: document.getElementById('osGroupSelect'),
+                operationFilter: document.getElementById('osOperationFilter'),
                 operationSelect: document.getElementById('osOperationSelect'),
                 btnAddOperationToOS: document.getElementById('btnAddOperationToOS'),
                 selectedOperationsList: document.getElementById('osSelectedOperationsList'),
@@ -1096,6 +1098,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 cancelBtn: document.getElementById('configHistoryModalCancelBtn'),
             },
             companyConfig: {
+                operacoesCsvUploadArea: document.getElementById('operacoesCsvUploadArea'),
+                operacoesCsvInput: document.getElementById('operacoesCsvInput'),
                 logoUploadArea: document.getElementById('logoUploadArea'),
                 logoInput: document.getElementById('logoInput'),
                 logoPreview: document.getElementById('logoPreview'),
@@ -6919,6 +6923,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.personnel.btnDownloadCsvTemplate) App.elements.personnel.btnDownloadCsvTemplate.addEventListener('click', () => App.actions.downloadPersonnelCsvTemplate());
                 
                 const companyConfigEls = App.elements.companyConfig;
+                if (companyConfigEls.operacoesCsvUploadArea) companyConfigEls.operacoesCsvUploadArea.addEventListener('click', () => companyConfigEls.operacoesCsvInput.click());
+                if (companyConfigEls.operacoesCsvInput) companyConfigEls.operacoesCsvInput.addEventListener('change', (e) => App.actions.importOperacoesFromCSV(e.target.files[0]));
                 if (companyConfigEls.logoUploadArea) companyConfigEls.logoUploadArea.addEventListener('click', () => companyConfigEls.logoInput.click());
                 if (companyConfigEls.logoInput) companyConfigEls.logoInput.addEventListener('change', (e) => App.actions.handleLogoUpload(e));
                 if (companyConfigEls.removeLogoBtn) companyConfigEls.removeLogoBtn.addEventListener('click', () => App.actions.removeLogo());
@@ -13340,6 +13346,87 @@ document.addEventListener('DOMContentLoaded', () => {
                 } finally {
                     App.ui.setLoading(false);
                 }
+        },
+
+        async importOperacoesFromCSV(file) {
+            if (!file) return;
+            try {
+                const text = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result);
+                    reader.onerror = e => reject(e);
+                    reader.readAsText(file);
+                });
+
+                const lines = text.split(/\r?\n/);
+                if (lines.length < 2) throw new Error("O ficheiro CSV está vazio ou inválido.");
+
+                let importedCount = 0;
+                let updatedCount = 0;
+
+                const allOperacoes = App.state.operacoes || [];
+
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+
+                    const parts = line.split(';');
+                    if (parts.length >= 2) {
+                        const opCode = parts[0] ? parts[0].trim() : '';
+                        const desc = parts[1] ? parts[1].trim() : '';
+                        const group = parts[2] ? parts[2].trim() : '';
+
+                        if(!desc) continue;
+
+                        let existingOp = allOperacoes.find(op =>
+                            (opCode && op.codigo_externo === opCode) ||
+                            (!opCode && op.nome.toLowerCase() === desc.toLowerCase())
+                        );
+
+                        const targetCompanyId = App.state.companyId;
+
+                        if (existingOp) {
+                            const updatedData = {
+                                nome: desc,
+                                codigo_externo: opCode || existingOp.codigo_externo,
+                                grupo: group || existingOp.grupo,
+                                ativo: existingOp.ativo !== undefined ? existingOp.ativo : true,
+                                max_aplicacoes: existingOp.max_aplicacoes || 1,
+                                companyId: existingOp.companyId || targetCompanyId,
+                                _updatedAt: new Date().getTime()
+                            };
+                            await App.data.updateDocument('operacoes', existingOp.id, updatedData);
+                            updatedCount++;
+                        } else {
+                            const newOp = {
+                                id: App.generateId(),
+                                nome: desc,
+                                codigo_externo: opCode,
+                                grupo: group,
+                                ativo: true,
+                                max_aplicacoes: 1,
+                                companyId: targetCompanyId,
+                                _createdAt: new Date().getTime()
+                            };
+                            await App.data.addDocument('operacoes', newOp);
+                            importedCount++;
+                        }
+                    }
+                }
+
+                if (App.elements.companyConfig.operacoesCsvInput) {
+                    App.elements.companyConfig.operacoesCsvInput.value = '';
+                }
+
+                App.ui.showAlert(`${importedCount} operações importadas e ${updatedCount} atualizadas com sucesso!`, 'success');
+
+                // re-render UI if active
+                if (App.cadastrosAuxiliares) App.cadastrosAuxiliares.renderOperacoes();
+
+            } catch (error) {
+                console.error("Erro na importação de operações:", error);
+                App.ui.showAlert('Erro ao importar CSV: ' + error.message, 'error');
+            }
             },
 
             async importClimateData(file) {
@@ -15685,6 +15772,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             populateDropdowns() {
                 const typeSelect = App.elements.osManual.serviceType;
+                const groupSelect = App.elements.osManual.groupSelect;
                 const opSelect = App.elements.osManual.operationSelect;
 
                 if (typeSelect) {
@@ -15692,10 +15780,42 @@ document.addEventListener('DOMContentLoaded', () => {
                         (App.state.tipos_servico || []).filter(x => x.ativo).map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
                 }
 
-                if (opSelect) {
-                    opSelect.innerHTML = '<option value="">Selecione uma operação...</option>' +
-                        (App.state.operacoes || []).filter(x => x.ativo).map(o => `<option value="${o.id}">${o.codigo_externo ? o.codigo_externo + ' - ' : ''}${o.nome}</option>`).join('');
+                if (groupSelect) {
+                    const operacoes = (App.state.operacoes || []).filter(x => x.ativo);
+                    const groups = [...new Set(operacoes.map(o => (o.grupo || '').trim()).filter(g => g !== ''))].sort();
+
+                    groupSelect.innerHTML = '<option value="">1. Todos os grupos...</option>' +
+                        groups.map(g => `<option value="${g}">${g}</option>`).join('');
                 }
+
+                this.filterOperations();
+            },
+
+            filterOperations() {
+                const groupSelect = App.elements.osManual.groupSelect;
+                const filterInput = App.elements.osManual.operationFilter;
+                const opSelect = App.elements.osManual.operationSelect;
+
+                if(!opSelect) return;
+
+                const selectedGroup = groupSelect ? groupSelect.value : '';
+                const filterText = filterInput ? filterInput.value.toLowerCase() : '';
+
+                let operacoes = (App.state.operacoes || []).filter(x => x.ativo);
+
+                if (selectedGroup) {
+                    operacoes = operacoes.filter(o => (o.grupo || '').trim() === selectedGroup);
+                }
+
+                if (filterText) {
+                    operacoes = operacoes.filter(o =>
+                        (o.nome && o.nome.toLowerCase().includes(filterText)) ||
+                        (o.codigo_externo && o.codigo_externo.toLowerCase().includes(filterText))
+                    );
+                }
+
+                opSelect.innerHTML = '<option value="">2. Selecione uma operação...</option>' +
+                    operacoes.map(o => `<option value="${o.id}">${o.codigo_externo ? o.codigo_externo + ' - ' : ''}${o.nome}</option>`).join('');
             },
 
             setupEventListeners() {
@@ -15703,6 +15823,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!els.farmSelect) return;
 
                 els.farmSelect.addEventListener('change', () => this.handleFarmChange());
+
+                if (els.groupSelect) els.groupSelect.addEventListener('change', () => this.filterOperations());
+                if (els.operationFilter) els.operationFilter.addEventListener('input', () => this.filterOperations());
 
                 if (els.responsibleMatricula) {
                     els.responsibleMatricula.addEventListener('input', App.debounce((e) => this.lookupResponsible(e.target.value), 500));
@@ -19649,6 +19772,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const operacaoId = document.getElementById('operacaoId').value;
                 const maxApp = document.getElementById('operacaoMaxApp').value;
                 const codigo = document.getElementById('operacaoCodigo').value;
+                const grupo = document.getElementById('operacaoGrupo').value;
                 const ativo = document.getElementById('operacaoAtivo').checked;
 
                 if (!nome) return App.ui.showAlert('Preencha o nome.', 'warning');
@@ -19657,12 +19781,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     nome,
                     max_aplicacoes: parseInt(maxApp) || 1,
                     codigo_externo: codigo,
+                    grupo: grupo,
                     ativo
                 });
 
                 await this.persistAuxRecord('operacoes', data, operacaoId || null);
                 App.ui.showAlert('Operação salva!');
                 document.getElementById('operacaoNome').value = '';
+                document.getElementById('operacaoCodigo').value = '';
+                document.getElementById('operacaoGrupo').value = '';
                 document.getElementById('operacaoId').value = '';
                 this.renderOperacoes();
                 this.populateDropdowns();
@@ -19687,8 +19814,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                                 <div class="user-card-details">
                                     <h4>${item.nome}</h4>
-                                    <p style="margin-top: 4px; font-size: 12px;"><i class="fas fa-barcode"></i> Cód: ${item.codigo_externo || 'N/A'}</p>
-                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-layer-group"></i> Max App: ${item.max_aplicacoes}</p>
+                                    <p style="margin-top: 4px; font-size: 12px;"><i class="fas fa-barcode"></i> Cód (OP): ${item.codigo_externo || 'N/A'}</p>
+                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-layer-group"></i> Grupo: ${item.grupo || 'N/A'}</p>
+                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-shield-alt"></i> Max App: ${item.max_aplicacoes}</p>
                                     <span class="user-card-status ${item.ativo !== false ? 'active' : 'inactive'}" style="display: inline-flex; margin-top: 8px;">
                                         <i class="fas fa-circle" style="font-size: 8px;"></i> ${item.ativo !== false ? 'Ativo' : 'Inativo'}
                                     </span>
@@ -19866,6 +19994,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('operacaoNome').value = item.nome || '';
                 document.getElementById('operacaoMaxApp').value = item.max_aplicacoes || 1;
                 document.getElementById('operacaoCodigo').value = item.codigo_externo || '';
+                document.getElementById('operacaoGrupo').value = item.grupo || '';
                 document.getElementById('operacaoAtivo').checked = item.ativo !== false;
             },
 
