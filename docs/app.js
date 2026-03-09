@@ -940,10 +940,12 @@ document.addEventListener('DOMContentLoaded', () => {
             osManual: {
                 farmSelect: document.getElementById('osFarmSelect'),
                 serviceType: document.getElementById('osServiceType'),
-                groupSelect: document.getElementById('osGroupSelect'),
-                operationFilter: document.getElementById('osOperationFilter'),
-                operationSelect: document.getElementById('osOperationSelect'),
-                btnAddOperationToOS: document.getElementById('btnAddOperationToOS'),
+                btnOpenOperationModal: document.getElementById('btnOpenOperationModal'),
+                osOperationModal: document.getElementById('osOperationModal'),
+                modalGroupSelect: document.getElementById('modalGroupSelect'),
+                modalOperationSearch: document.getElementById('modalOperationSearch'),
+                modalOperationList: document.getElementById('modalOperationList'),
+                btnCloseOperationModal: document.getElementById('osCloseOperationModal'),
                 selectedOperationsList: document.getElementById('osSelectedOperationsList'),
                 productModal: document.getElementById('osProductModal'),
                 productModalTitle: document.getElementById('osProductModalTitle'),
@@ -1100,6 +1102,7 @@ document.addEventListener('DOMContentLoaded', () => {
             companyConfig: {
                 operacoesCsvUploadArea: document.getElementById('operacoesCsvUploadArea'),
                 operacoesCsvInput: document.getElementById('operacoesCsvInput'),
+                btnDownloadOperacoesCsvTemplate: document.getElementById('btnDownloadOperacoesCsvTemplate'),
                 logoUploadArea: document.getElementById('logoUploadArea'),
                 logoInput: document.getElementById('logoInput'),
                 logoPreview: document.getElementById('logoPreview'),
@@ -6925,6 +6928,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyConfigEls = App.elements.companyConfig;
                 if (companyConfigEls.operacoesCsvUploadArea) companyConfigEls.operacoesCsvUploadArea.addEventListener('click', () => companyConfigEls.operacoesCsvInput.click());
                 if (companyConfigEls.operacoesCsvInput) companyConfigEls.operacoesCsvInput.addEventListener('change', (e) => App.actions.importOperacoesFromCSV(e.target.files[0]));
+                if (companyConfigEls.btnDownloadOperacoesCsvTemplate) companyConfigEls.btnDownloadOperacoesCsvTemplate.addEventListener('click', () => App.actions.downloadOperacoesCsvTemplate());
                 if (companyConfigEls.logoUploadArea) companyConfigEls.logoUploadArea.addEventListener('click', () => companyConfigEls.logoInput.click());
                 if (companyConfigEls.logoInput) companyConfigEls.logoInput.addEventListener('change', (e) => App.actions.handleLogoUpload(e));
                 if (companyConfigEls.removeLogoBtn) companyConfigEls.removeLogoBtn.addEventListener('click', () => App.actions.removeLogo());
@@ -13348,6 +13352,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
         },
 
+        downloadOperacoesCsvTemplate() {
+            const csvContent = "OP;Descrição;Grupo\n101;1º Aplicação Cigarrinha;Aplicação Cigarrinha\n201;Adubação de Cobertura;Adubação\n";
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', 'modelo_operacoes.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        },
+
         async importOperacoesFromCSV(file) {
             if (!file) return;
             try {
@@ -15772,31 +15787,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
             populateDropdowns() {
                 const typeSelect = App.elements.osManual.serviceType;
-                const groupSelect = App.elements.osManual.groupSelect;
-                const opSelect = App.elements.osManual.operationSelect;
+                const modalGroupSelect = App.elements.osManual.modalGroupSelect;
 
                 if (typeSelect) {
                     typeSelect.innerHTML = '<option value="">Selecione...</option>' +
                         (App.state.tipos_servico || []).filter(x => x.ativo).map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
                 }
 
-                if (groupSelect) {
+                if (modalGroupSelect) {
                     const operacoes = (App.state.operacoes || []).filter(x => x.ativo);
                     const groups = [...new Set(operacoes.map(o => (o.grupo || '').trim()).filter(g => g !== ''))].sort();
 
-                    groupSelect.innerHTML = '<option value="">1. Todos os grupos...</option>' +
+                    modalGroupSelect.innerHTML = '<option value="">1. Todos os grupos...</option>' +
                         groups.map(g => `<option value="${g}">${g}</option>`).join('');
                 }
 
-                this.filterOperations();
+                this.renderModalOperationsList();
             },
 
-            filterOperations() {
-                const groupSelect = App.elements.osManual.groupSelect;
-                const filterInput = App.elements.osManual.operationFilter;
-                const opSelect = App.elements.osManual.operationSelect;
+            openOperationModal() {
+                if(App.elements.osManual.osOperationModal) {
+                    App.elements.osManual.osOperationModal.style.display = 'flex';
+                    if(App.elements.osManual.modalOperationSearch) {
+                        App.elements.osManual.modalOperationSearch.focus();
+                    }
+                }
+            },
 
-                if(!opSelect) return;
+            closeOperationModal() {
+                if(App.elements.osManual.osOperationModal) {
+                    App.elements.osManual.osOperationModal.style.display = 'none';
+                    if(App.elements.osManual.modalOperationSearch) {
+                        App.elements.osManual.modalOperationSearch.value = '';
+                    }
+                    if(App.elements.osManual.modalGroupSelect) {
+                        App.elements.osManual.modalGroupSelect.value = '';
+                    }
+                    this.renderModalOperationsList();
+                }
+            },
+
+            renderModalOperationsList() {
+                const groupSelect = App.elements.osManual.modalGroupSelect;
+                const filterInput = App.elements.osManual.modalOperationSearch;
+                const listContainer = App.elements.osManual.modalOperationList;
+
+                if(!listContainer) return;
 
                 const selectedGroup = groupSelect ? groupSelect.value : '';
                 const filterText = filterInput ? filterInput.value.toLowerCase() : '';
@@ -15810,12 +15846,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (filterText) {
                     operacoes = operacoes.filter(o =>
                         (o.nome && o.nome.toLowerCase().includes(filterText)) ||
-                        (o.codigo_externo && o.codigo_externo.toLowerCase().includes(filterText))
+                        (o.codigo_externo && o.codigo_externo.toLowerCase().includes(filterText)) ||
+                        (o.grupo && o.grupo.toLowerCase().includes(filterText))
                     );
                 }
 
-                opSelect.innerHTML = '<option value="">2. Selecione uma operação...</option>' +
-                    operacoes.map(o => `<option value="${o.id}">${o.codigo_externo ? o.codigo_externo + ' - ' : ''}${o.nome}</option>`).join('');
+                if(operacoes.length === 0) {
+                    listContainer.innerHTML = '<p style="text-align: center; color: var(--color-text-light); padding: 20px;">Nenhuma operação encontrada.</p>';
+                    return;
+                }
+
+                listContainer.innerHTML = operacoes.map(o => `
+                    <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--border-radius); padding: 15px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                        <div>
+                            <div style="font-weight: bold; color: var(--color-text); margin-bottom: 5px;">${o.codigo_externo ? o.codigo_externo + ' - ' : ''}${o.nome}</div>
+                            ${o.grupo ? `<div style="font-size: 0.85em; color: var(--color-text-light);"><i class="fas fa-layer-group"></i> ${o.grupo}</div>` : ''}
+                        </div>
+                        <button type="button" class="btn-secondary" style="background: var(--color-success); padding: 8px 15px; white-space: nowrap;" onclick="App.actions.osManual.selectOperationFromModal('${o.id}')">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                `).join('');
+            },
+
+            selectOperationFromModal(opId) {
+                this.addSelectedOperation(opId);
+                this.closeOperationModal();
             },
 
             setupEventListeners() {
@@ -15824,8 +15880,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 els.farmSelect.addEventListener('change', () => this.handleFarmChange());
 
-                if (els.groupSelect) els.groupSelect.addEventListener('change', () => this.filterOperations());
-                if (els.operationFilter) els.operationFilter.addEventListener('input', () => this.filterOperations());
+                if (els.modalGroupSelect) els.modalGroupSelect.addEventListener('change', () => this.renderModalOperationsList());
+                if (els.modalOperationSearch) els.modalOperationSearch.addEventListener('input', () => this.renderModalOperationsList());
+                if (els.btnOpenOperationModal) els.btnOpenOperationModal.addEventListener('click', () => this.openOperationModal());
+                if (els.btnCloseOperationModal) els.btnCloseOperationModal.addEventListener('click', () => this.closeOperationModal());
 
                 if (els.responsibleMatricula) {
                     els.responsibleMatricula.addEventListener('input', App.debounce((e) => this.lookupResponsible(e.target.value), 500));
@@ -15833,13 +15891,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // --- Início: Nova Lógica de Múltiplas Operações ---
                 App.state.osSelectedOperations = [];
-
-                if (els.btnAddOperationToOS) {
-                    els.btnAddOperationToOS.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        this.addSelectedOperation();
-                    });
-                }
 
                 if (els.closeProductModalBtn) {
                     els.closeProductModalBtn.addEventListener('click', () => {
@@ -15906,11 +15957,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Removed legacy search suggestions functions as they are replaced by direct code input
 
-            addSelectedOperation() {
-                const opSelect = App.elements.osManual.operationSelect;
-                if(!opSelect) return;
-
-                const opId = opSelect.value;
+            addSelectedOperation(opId) {
                 if (!opId) {
                     App.ui.showAlert('Por favor, selecione uma operação antes de adicionar.', 'warning');
                     return;
@@ -16505,14 +16552,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async generateOS() {
                 const els = App.elements.osManual;
-                const { farmSelect, serviceType, responsibleMatricula, responsibleName, observations, operationSelect } = els;
+                const { farmSelect, serviceType, responsibleMatricula, responsibleName, observations } = els;
                 let selectedOps = App.state.osSelectedOperations || [];
-
-                // Se o usuário selecionou uma operação mas esqueceu de clicar em 'Adicionar', adicione automaticamente
-                if (selectedOps.length === 0 && operationSelect && operationSelect.value) {
-                    this.addSelectedOperation();
-                    selectedOps = App.state.osSelectedOperations || [];
-                }
 
                 if (!farmSelect.value) return App.ui.showAlert("Selecione uma fazenda.", "warning");
                 if (!responsibleMatricula.value || responsibleName.value === 'Não encontrado') return App.ui.showAlert("Informe um responsável válido.", "warning");
