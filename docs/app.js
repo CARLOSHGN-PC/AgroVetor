@@ -15999,9 +15999,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     produtos: defaultProducts
                 });
 
-                // Clear search
-                opSelect.value = '';
-
                 this.renderSelectedOperations();
             },
 
