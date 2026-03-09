@@ -116,17 +116,36 @@ public class NativeAerialMapManager implements OnMapClickListener {
 
     public void attachToActivity(BridgeActivity activity) {
         this.activity = activity;
-        if (mapContainer == null) {
-            mapContainer = activity.findViewById(R.id.native_aerial_map_container);
-        }
+        mapContainer = resolveMapContainer();
         if (mapContainer != null) {
             mapContainer.setVisibility(isMapVisible ? View.VISIBLE : View.GONE);
         }
     }
 
-    public void openMap() {
+    @Nullable
+    private FrameLayout resolveMapContainer() {
+        if (activity == null) {
+            Log.e(TAG, "resolveMapContainer: activity nula");
+            return null;
+        }
+
+        View rootView = activity.getWindow() != null ? activity.getWindow().getDecorView() : null;
+        FrameLayout container = activity.findViewById(R.id.native_aerial_map_container);
+        if (container == null && rootView != null) {
+            container = rootView.findViewById(R.id.native_aerial_map_container);
+        }
+
+        Log.i(TAG, "resolveMapContainer: containerFound=" + (container != null)
+                + " activity=" + activity.getClass().getSimpleName());
+        return container;
+    }
+
+    public boolean openMap() {
         if (mapView == null) {
-            createMapViewWithOfflineRuntime();
+            if (!createMapViewWithOfflineRuntime()) {
+                Log.e(TAG, "openMap abortado: container nativo indisponível na MainActivity");
+                return false;
+            }
             subscribeMapLoadingErrors();
 
             networkAvailableAtStart = isNetworkAvailable();
@@ -146,6 +165,7 @@ public class NativeAerialMapManager implements OnMapClickListener {
         }
         mapContainer.setVisibility(View.VISIBLE);
         isMapVisible = true;
+        return true;
     }
 
     public void closeMap() {
@@ -155,12 +175,11 @@ public class NativeAerialMapManager implements OnMapClickListener {
         isMapVisible = false;
     }
 
-    private void createMapViewWithOfflineRuntime() {
+    private boolean createMapViewWithOfflineRuntime() {
+        mapContainer = resolveMapContainer();
         if (mapContainer == null) {
-            mapContainer = activity.findViewById(R.id.native_aerial_map_container);
-        }
-        if (mapContainer == null) {
-            throw new IllegalStateException("Container nativo do mapa não encontrado no layout da MainActivity.");
+            Log.e(TAG, "Container nativo do mapa não encontrado. Verifique capacitor_bridge_layout_main.xml e id native_aerial_map_container.");
+            return false;
         }
 
         String accessToken = activity.getString(R.string.mapbox_access_token);
@@ -178,6 +197,7 @@ public class NativeAerialMapManager implements OnMapClickListener {
         }
 
         Log.i(TAG, "MapView anexado ao container fixo da MainActivity com lifecycle sincronizado");
+        return true;
     }
 
     public void onStart() {

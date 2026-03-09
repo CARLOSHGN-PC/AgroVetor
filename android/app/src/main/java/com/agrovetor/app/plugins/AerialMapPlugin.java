@@ -77,7 +77,11 @@ public class AerialMapPlugin extends Plugin {
         }
 
         getActivity().runOnUiThread(() -> {
-            NativeAerialMapManager.getInstance((BridgeActivity) getActivity()).openMap();
+            boolean opened = NativeAerialMapManager.getInstance((BridgeActivity) getActivity()).openMap();
+            if (!opened) {
+                call.reject("Container nativo do mapa não encontrado na MainActivity. Verifique o layout capacitor_bridge_layout_main.xml.");
+                return;
+            }
             JSObject result = new JSObject();
             result.put("status", "opened");
             call.resolve(result);

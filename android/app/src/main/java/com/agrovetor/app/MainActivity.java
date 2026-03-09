@@ -15,6 +15,9 @@ public class MainActivity extends BridgeActivity {
 
         NativeAerialMapManager.getInstance(this).attachToActivity(this);
 
+        android.view.View container = findViewById(com.agrovetor.app.R.id.native_aerial_map_container);
+        android.util.Log.i("AerialOfflineDebug", "MainActivity.onCreate layout=capacitor_bridge_layout_main containerFound=" + (container != null));
+
         if (getBridge() != null && getBridge().getWebView() != null) {
             getBridge().getWebView().setBackgroundColor(android.graphics.Color.TRANSPARENT);
             WebSettings settings = getBridge().getWebView().getSettings();
