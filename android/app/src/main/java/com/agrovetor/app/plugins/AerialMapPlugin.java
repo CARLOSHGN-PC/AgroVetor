@@ -1,6 +1,5 @@
 package com.agrovetor.app.plugins;
 
-import android.content.Intent;
 import android.util.Log;
 
 import com.agrovetor.app.aerial.AerialMapSessionStore;

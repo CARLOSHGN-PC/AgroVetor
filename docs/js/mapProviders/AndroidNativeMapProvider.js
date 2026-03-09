@@ -81,7 +81,7 @@ export class AndroidNativeMapProvider extends AerialMapProvider {
             zoom: config.zoom || 12,
         });
 
-        // Nós aguardamos openMap retornar. A view do mapa nativo cobre a tela inteira.
+        // Nós aguardamos openMap retornar. O mapa nativo é renderizado no container da MainActivity, por trás dos overlays web.
         // Não vamos jogar exceção com base em _lastNativeError para não derrubar a promise do JS
         // porque openMap já resolveu com sucesso ao enviar o Intent. Os erros são apenas informativos.
         // Se a view nativa falhar gravemente (offline missing final), o próprio nativo pode fechar,
