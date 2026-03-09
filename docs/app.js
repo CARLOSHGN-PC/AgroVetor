@@ -15862,7 +15862,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div style="font-weight: bold; color: var(--color-text); margin-bottom: 5px;">${o.codigo_externo ? o.codigo_externo + ' - ' : ''}${o.nome}</div>
                             ${o.grupo ? `<div style="font-size: 0.85em; color: var(--color-text-light);"><i class="fas fa-layer-group"></i> ${o.grupo}</div>` : ''}
                         </div>
-                        <button type="button" class="btn-secondary" style="background: var(--color-success); padding: 8px 15px; white-space: nowrap;" onclick="App.actions.osManual.selectOperationFromModal('${o.id}')">
+                        <button type="button" class="btn-secondary" style="background: var(--color-success); padding: 8px 15px; white-space: nowrap;" onclick="App.osManual.selectOperationFromModal('${o.id}')">
                             <i class="fas fa-plus"></i>
                         </button>
                     </div>
