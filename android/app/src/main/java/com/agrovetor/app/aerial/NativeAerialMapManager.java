@@ -66,7 +66,6 @@ public class NativeAerialMapManager implements OnMapClickListener {
     private MapView mapView;
     private FrameLayout mapContainer;
     private boolean activityStarted;
-    private boolean activityResumed;
 
     @Nullable
     private GesturesPlugin gesturesPlugin;
@@ -177,9 +176,6 @@ public class NativeAerialMapManager implements OnMapClickListener {
         if (activityStarted) {
             mapView.onStart();
         }
-        if (activityResumed) {
-            mapView.onResume();
-        }
 
         Log.i(TAG, "MapView anexado ao container fixo da MainActivity com lifecycle sincronizado");
     }
@@ -189,22 +185,6 @@ public class NativeAerialMapManager implements OnMapClickListener {
         activityStarted = true;
         if (mapView != null) {
             mapView.onStart();
-        }
-    }
-
-    public void onResume() {
-        Log.i(TAG, "NativeAerialMapManager.onResume");
-        activityResumed = true;
-        if (mapView != null) {
-            mapView.onResume();
-        }
-    }
-
-    public void onPause() {
-        Log.i(TAG, "NativeAerialMapManager.onPause");
-        activityResumed = false;
-        if (mapView != null) {
-            mapView.onPause();
         }
     }
 
@@ -801,6 +781,5 @@ public class NativeAerialMapManager implements OnMapClickListener {
             mapContainer.setVisibility(View.GONE);
         }
         activityStarted = false;
-        activityResumed = false;
     }
 }
