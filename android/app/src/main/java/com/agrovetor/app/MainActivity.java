@@ -36,18 +36,6 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-        NativeAerialMapManager.getInstance(this).onResume();
-    }
-
-    @Override
-    public void onPause() {
-        NativeAerialMapManager.getInstance(this).onPause();
-        super.onPause();
-    }
-
-    @Override
     public void onLowMemory() {
         super.onLowMemory();
         NativeAerialMapManager.getInstance(this).onLowMemory();
