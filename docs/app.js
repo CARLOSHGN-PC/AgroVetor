@@ -3030,6 +3030,11 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         ui: {
+            setMapTransparencyMode(isActive) {
+                document.body.classList.toggle('map-active', isActive);
+                document.documentElement.classList.toggle('map-active', isActive);
+                document.getElementById('appScreen')?.classList.toggle('map-active', isActive);
+            },
             _getThemeColors() {
                 const styles = getComputedStyle(document.documentElement);
                 return {
@@ -3760,9 +3765,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'monitoramentoAereo') {
                     mapContainer.classList.add('active');
                     if (App.state.useNativeAerialMap) {
-                        document.body.classList.add('map-active');
-                        document.documentElement.classList.add('map-active');
-                        document.getElementById('appScreen')?.classList.add('map-active');
+                        App.ui.setMapTransparencyMode(true);
                     }
 
                     if (!App.state.mapboxMap) {
@@ -3779,9 +3782,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else {
                     mapContainer.classList.remove('active');
-                    document.body.classList.remove('map-active');
-                    document.documentElement.classList.remove('map-active');
-                    document.getElementById('appScreen')?.classList.remove('map-active');
+                    App.ui.setMapTransparencyMode(false);
                     if (App.state.useNativeAerialMap && App.state.aerialMapProvider && typeof App.state.aerialMapProvider.closeMap === 'function') {
                         App.state.aerialMapProvider.closeMap();
                     }
@@ -13853,6 +13854,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.mapboxMapInitPromise = (async () => {
                     App.state.aerialMapProvider = createAerialMapProvider({ app: App });
                     App.state.useNativeAerialMap = App.state.aerialMapProvider?.kind === 'android-native';
+                    App.ui.setMapTransparencyMode(App.state.useNativeAerialMap);
                     console.info('[AEREO_OFFLINE] init provider inicial:', {
                         providerKind: App.state.aerialMapProvider?.kind || null,
                         useNativeAerialMap: App.state.useNativeAerialMap
