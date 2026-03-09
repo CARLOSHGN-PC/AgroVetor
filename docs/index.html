@@ -2715,28 +2715,10 @@
 
                         <div class="form-col" style="margin-bottom: 15px;">
                             <label class="required">Roteiro de Operações:</label>
-                            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; background: var(--color-surface); padding: 15px; border: 1px solid var(--color-border); border-radius: var(--border-radius); box-shadow: var(--shadow-sm);">
-                                <div style="display: flex; gap: 10px; align-items: center;">
-                                    <div style="flex-grow: 1;">
-                                        <select id="osGroupSelect" style="width: 100%; margin-top: 0;">
-                                            <option value="">1. Selecione um grupo...</option>
-                                        </select>
-                                    </div>
-                                    <div style="flex-grow: 1;">
-                                        <input type="text" id="osOperationFilter" placeholder="Buscar operação..." style="width: 100%; margin-top: 0; padding: 12px;">
-                                    </div>
-                                </div>
-                                <div style="display: flex; gap: 10px; align-items: center;">
-                                    <div style="flex-grow: 1;">
-                                        <select id="osOperationSelect" style="width: 100%; margin-top: 0;">
-                                            <option value="">2. Selecione uma operação...</option>
-                                        </select>
-                                    </div>
-                                    <button type="button" id="btnAddOperationToOS" class="save" style="padding: 12px 20px; margin-top: 0;" title="Adicionar ao Roteiro">
-                                        <i class="fas fa-plus"></i> Adicionar
-                                    </button>
-                                </div>
-                            </div>
+
+                            <button type="button" id="btnOpenOperationModal" class="save" style="width: 100%; padding: 15px; margin-bottom: 10px; font-size: 16px; background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); justify-content: flex-start; gap: 10px;">
+                                <i class="fas fa-search"></i> Buscar e Adicionar Operação...
+                            </button>
 
                             <!-- Lista de Operações do Roteiro -->
                             <div id="osSelectedOperationsList" style="display: flex; flex-direction: column; gap: 8px;"></div>
@@ -2744,6 +2726,28 @@
                             <!-- Legacy elements required to not break app.js lookups while transitioning completely -->
                             <input type="hidden" id="osOperationSearch">
                             <ul id="osOperationSuggestions" style="display: none;"></ul>
+                        </div>
+
+                        <!-- Modal de Seleção de Operação -->
+                        <div id="osOperationModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: flex-start; padding: 20px; overflow-y: auto;">
+                            <div style="background: var(--color-bg); border-radius: var(--border-radius); width: 100%; max-width: 600px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); margin-top: 5vh;">
+                                <div style="padding: 15px 20px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; background: var(--color-surface); border-radius: var(--border-radius) var(--border-radius) 0 0;">
+                                    <h3 style="margin: 0; font-size: 1.2rem; color: var(--color-primary);"><i class="fas fa-search"></i> Buscar Operação</h3>
+                                    <button type="button" id="osCloseOperationModal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-text-light); transition: color 0.2s;">&times;</button>
+                                </div>
+                                <div style="padding: 15px 20px; border-bottom: 1px solid var(--color-border); background: var(--color-surface); display: flex; flex-direction: column; gap: 10px;">
+                                    <select id="modalGroupSelect" style="width: 100%; margin: 0; padding: 12px; font-size: 1rem;">
+                                        <option value="">1. Todos os grupos...</option>
+                                    </select>
+                                    <div style="position: relative;">
+                                        <i class="fas fa-search" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--color-text-light);"></i>
+                                        <input type="text" id="modalOperationSearch" placeholder="Pesquisar por nome ou OP..." style="width: 100%; padding: 12px 12px 12px 40px; margin: 0; font-size: 1rem; border: 1px solid var(--color-border); border-radius: var(--border-radius);">
+                                    </div>
+                                </div>
+                                <div id="modalOperationList" style="padding: 20px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 10px; background: var(--color-bg);">
+                                    <!-- Injetado via JS -->
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Modal de Produtos para Operação (Injetado via JS ou aqui) -->
@@ -3985,6 +3989,9 @@
                     </div>
                     <input type="file" id="operacoesCsvInput" accept=".csv" style="display: none;">
                     <small class="csv-format-info" style="display: block; margin-top: 10px; text-align: center;">Formato: OP; Descrição; Grupo</small>
+                    <div style="text-align: center; margin-top: 15px;">
+                        <button id="btnDownloadOperacoesCsvTemplate" class="btn-secondary" style="background: var(--color-info); max-width: 300px;"><i class="fas fa-download"></i> Baixar Modelo CSV</button>
+                    </div>
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-purple); margin-top: 30px;">
