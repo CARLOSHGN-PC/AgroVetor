@@ -19851,13 +19851,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     const updates = [];
 
                     // Load import history to prevent duplication
-                    let importHistory = App.state.globalConfigs?.importHistory || {};
+                    // (Will be implemented via cloud collections)
+                    let importHistory = new Set();
+                    try {
+                        const historyDocs = await App.data.getCollection('import_history', [{field: 'companyId', operator: '==', value: App.state.currentCompanyId}]);
+                        historyDocs.forEach(doc => {
+                            if (Array.isArray(doc.hashes)) {
+                                doc.hashes.forEach(h => importHistory.add(h));
+                            }
+                        });
+                    } catch (e) {
+                        console.warn("Could not load full import history, skipping deduplication check to allow import.", e);
+                    }
 
                     const activeOSs = App.state.ordens_servico.filter(os => os.status === 'PLANEJADA' || os.status === 'EM_EXECUCAO');
 
+                    const processedHashesInThisSession = [];
+
                     for (const row of parsedData) {
                         // Skip if we already processed this exact row hash
-                        if (importHistory[row.hash]) continue;
+                        if (importHistory.has(row.hash)) continue;
 
                         // Try to find matching active OS
                         const matchedOsList = activeOSs.filter(os => {
@@ -19934,7 +19947,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                             // Mark hash as processed
-                            importHistory[row.hash] = { os_id: os.id, timestamp: Date.now() };
+                            processedHashesInThisSession.push(row.hash);
                         } else {
                             // No matching OS found, save to inbox
                             unlinkedRows.push(row);
@@ -19952,19 +19965,42 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (update.data.status === 'DIVERGENTE') divergentCount++;
                     }
 
-                    // Save Unlinked rows to global state / Firestore for the Inbox
-                    let inbox = App.state.globalConfigs?.reconciliationInbox || [];
+                    // 1. Save Unlinked rows to Cloud (reconciliation_inbox collection)
+                    // We only save if they are not already there. To prevent massive read, we just query if the hash exists.
                     for (const row of unlinkedRows) {
-                         if (!inbox.some(r => r.hash === row.hash)) {
-                             inbox.push({...row, timestamp: Date.now()});
-                         }
+                         await OfflineDB.add('offline-writes', {
+                             id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                             action: 'create',
+                             collection: 'reconciliation_inbox',
+                             docId: `inbox_${row.hash}`,
+                             data: {
+                                 ...row,
+                                 companyId: App.state.currentCompanyId,
+                                 timestamp: Date.now()
+                             },
+                             timestamp: Date.now()
+                         });
                     }
 
-                    let configs = App.state.globalConfigs || {};
-                    configs.importHistory = importHistory;
-                    configs.reconciliationInbox = inbox;
-                    await App.data.setDocument('global_configs', 'main', configs);
-                    App.state.globalConfigs = configs;
+                    // 2. Save Processed Hashes to Cloud (import_history collection)
+                    if (processedHashesInThisSession.length > 0) {
+                        const historyDocId = `import_${Date.now()}`;
+                        await OfflineDB.add('offline-writes', {
+                             id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                             action: 'create',
+                             collection: 'import_history',
+                             docId: historyDocId,
+                             data: {
+                                 companyId: App.state.currentCompanyId,
+                                 timestamp: Date.now(),
+                                 hashes: processedHashesInThisSession
+                             },
+                             timestamp: Date.now()
+                         });
+                    }
+
+                    // Trigger sync
+                    App.data.syncOfflineWrites();
 
                     App.ui.showAlert(`Importação concluída! O.S. Conciliadas: ${reconciledCount}. Divergentes: ${divergentCount}. Não vinculadas: ${unlinkedRows.length}`, 'success');
 
@@ -19981,7 +20017,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            openReconciliationInbox() {
+            async openReconciliationInbox() {
                 const modal = document.getElementById('reconciliationInboxModal');
                 const list = document.getElementById('reconciliationInboxList');
                 const btnClose = document.getElementById('reconciliationInboxModalCloseBtn');
@@ -19991,8 +20027,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (!modal || !list) return;
 
-                const renderInbox = () => {
-                    const inbox = App.state.globalConfigs?.reconciliationInbox || [];
+                let inbox = [];
+
+                const renderInbox = async () => {
+                    App.ui.setLoading(true, "Carregando pendências...");
+                    try {
+                        // Fetch from cloud via standard mechanism
+                        inbox = await App.data.getCollection('reconciliation_inbox', [{field: 'companyId', operator: '==', value: App.state.currentCompanyId}]);
+                    } catch(e) {
+                        console.error("Error loading inbox", e);
+                        inbox = [];
+                    }
+                    App.ui.setLoading(false);
+
                     list.innerHTML = '';
 
                     if (inbox.length === 0) {
@@ -20078,14 +20125,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.setLoading(true, "A descartar...");
                             try {
                                 const hashesToRemove = Array.from(checkboxes).map(cb => cb.dataset.hash);
-                                let configs = App.state.globalConfigs || {};
-                                let inbox = configs.reconciliationInbox || [];
 
-                                inbox = inbox.filter(item => !hashesToRemove.includes(item.hash));
-                                configs.reconciliationInbox = inbox;
+                                for (const hash of hashesToRemove) {
+                                    await OfflineDB.add('offline-writes', {
+                                        id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                                        action: 'delete',
+                                        collection: 'reconciliation_inbox',
+                                        docId: `inbox_${hash}`,
+                                        timestamp: Date.now()
+                                    });
+                                }
 
-                                await App.data.setDocument('global_configs', 'main', configs);
-                                App.state.globalConfigs = configs;
+                                App.data.syncOfflineWrites();
 
                                 renderInbox();
                                 App.ui.showAlert('Itens descartados com sucesso.', 'success');
@@ -20114,9 +20165,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.ui.setLoading(true, "A criar O.S...");
                             try {
                                 const hashesToProcess = Array.from(checkboxes).map(cb => cb.dataset.hash);
-                                let configs = App.state.globalConfigs || {};
-                                let inbox = configs.reconciliationInbox || [];
-
                                 const itemsToProcess = inbox.filter(item => hashesToProcess.includes(item.hash));
 
                                 for (const item of itemsToProcess) {
@@ -20153,15 +20201,34 @@ document.addEventListener('DOMContentLoaded', () => {
                                     });
                                 }
 
-                                // Trigger sync and update inbox
+                                // Delete from inbox collection and add to history
+                                await OfflineDB.add('offline-writes', {
+                                     id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                                     action: 'create',
+                                     collection: 'import_history',
+                                     docId: `import_${Date.now()}_manual`,
+                                     data: {
+                                         companyId: App.state.currentCompanyId,
+                                         timestamp: Date.now(),
+                                         hashes: hashesToProcess
+                                     },
+                                     timestamp: Date.now()
+                                 });
+
+                                for (const hash of hashesToProcess) {
+                                    await OfflineDB.add('offline-writes', {
+                                        id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                                        action: 'delete',
+                                        collection: 'reconciliation_inbox',
+                                        docId: `inbox_${hash}`,
+                                        timestamp: Date.now()
+                                    });
+                                }
+
+                                // Trigger sync
                                 App.data.syncOfflineWrites();
 
-                                inbox = inbox.filter(item => !hashesToProcess.includes(item.hash));
-                                configs.reconciliationInbox = inbox;
-                                await App.data.setDocument('global_configs', 'main', configs);
-                                App.state.globalConfigs = configs;
-
-                                renderInbox();
+                                await renderInbox();
                                 App.ui.showAlert('O.S. criadas com sucesso!', 'success');
                             } catch(e) {
                                 console.error(e);
@@ -20222,8 +20289,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             const os = App.state.ordens_servico.find(o => o.id === osId);
                             if (!os) throw new Error("O.S. não encontrada.");
 
-                            let configs = App.state.globalConfigs || {};
-                            let inbox = configs.reconciliationInbox || [];
                             const itemsToProcess = inbox.filter(item => hashesToProcess.includes(item.hash));
 
                             const execLog = os.relatorio_execucao || [];
@@ -20239,13 +20304,35 @@ document.addEventListener('DOMContentLoaded', () => {
                             await App.data.updateDocument('ordens_servico', osId, updateData);
                             Object.assign(os, updateData);
 
-                            inbox = inbox.filter(item => !hashesToProcess.includes(item.hash));
-                            configs.reconciliationInbox = inbox;
-                            await App.data.setDocument('global_configs', 'main', configs);
-                            App.state.globalConfigs = configs;
+                            // Delete from inbox collection and add to history
+                            await OfflineDB.add('offline-writes', {
+                                 id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                                 action: 'create',
+                                 collection: 'import_history',
+                                 docId: `import_${Date.now()}_manual_link`,
+                                 data: {
+                                     companyId: App.state.currentCompanyId,
+                                     timestamp: Date.now(),
+                                     hashes: hashesToProcess
+                                 },
+                                 timestamp: Date.now()
+                             });
+
+                            for (const hash of hashesToProcess) {
+                                await OfflineDB.add('offline-writes', {
+                                    id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                                    action: 'delete',
+                                    collection: 'reconciliation_inbox',
+                                    docId: `inbox_${hash}`,
+                                    timestamp: Date.now()
+                                });
+                            }
+
+                            // Trigger sync
+                            App.data.syncOfflineWrites();
 
                             linkModal.classList.remove('show');
-                            renderInbox();
+                            await renderInbox();
                             App.ui.showAlert('Registros vinculados e O.S. Concluída!', 'success');
                         } catch (e) {
                             console.error(e);
