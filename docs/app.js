@@ -19649,7 +19649,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const templateId = id === 'novo' ? 'tpl_' + Date.now() : id;
                     configs.importTemplates[templateId] = newTemplate;
 
-                    await App.data.updateGlobalConfigs(configs);
+                    await App.data.setDocument('global_configs', 'main', configs);
                     App.state.globalConfigs = configs;
 
                     this.refreshTemplateDropdowns();
@@ -19677,7 +19677,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             let configs = App.state.globalConfigs || {};
                             if (configs.importTemplates && configs.importTemplates[id]) {
                                 delete configs.importTemplates[id];
-                                await App.data.updateGlobalConfigs(configs);
+                                await App.data.setDocument('global_configs', 'main', configs);
                                 App.state.globalConfigs = configs;
                                 this.refreshTemplateDropdowns();
                                 App.ui.showAlert('Template excluído!', 'success');
@@ -19963,7 +19963,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let configs = App.state.globalConfigs || {};
                     configs.importHistory = importHistory;
                     configs.reconciliationInbox = inbox;
-                    await App.data.updateGlobalConfigs(configs);
+                    await App.data.setDocument('global_configs', 'main', configs);
                     App.state.globalConfigs = configs;
 
                     App.ui.showAlert(`Importação concluída! O.S. Conciliadas: ${reconciledCount}. Divergentes: ${divergentCount}. Não vinculadas: ${unlinkedRows.length}`, 'success');
@@ -20084,7 +20084,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 inbox = inbox.filter(item => !hashesToRemove.includes(item.hash));
                                 configs.reconciliationInbox = inbox;
 
-                                await App.data.updateGlobalConfigs(configs);
+                                await App.data.setDocument('global_configs', 'main', configs);
                                 App.state.globalConfigs = configs;
 
                                 renderInbox();
@@ -20158,7 +20158,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                 inbox = inbox.filter(item => !hashesToProcess.includes(item.hash));
                                 configs.reconciliationInbox = inbox;
-                                await App.data.updateGlobalConfigs(configs);
+                                await App.data.setDocument('global_configs', 'main', configs);
                                 App.state.globalConfigs = configs;
 
                                 renderInbox();
@@ -20241,7 +20241,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             inbox = inbox.filter(item => !hashesToProcess.includes(item.hash));
                             configs.reconciliationInbox = inbox;
-                            await App.data.updateGlobalConfigs(configs);
+                            await App.data.setDocument('global_configs', 'main', configs);
                             App.state.globalConfigs = configs;
 
                             linkModal.classList.remove('show');
