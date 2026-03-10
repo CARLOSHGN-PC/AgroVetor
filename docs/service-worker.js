@@ -49,9 +49,7 @@ const networkFirst = async (request, cacheName, timeoutMs = 8000) => {
     const response = await fetch(request, { signal: controller.signal });
     clearTimeout(timeoutId);
     if (response && response.ok) {
-      // Clone and cache in background - don't block the response
-      const clone = response.clone();
-      event_waitUntil_safe(() => cache.put(request, clone));
+      await cache.put(request, response.clone());
     }
     return response;
   } catch (error) {
@@ -62,10 +60,6 @@ const networkFirst = async (request, cacheName, timeoutMs = 8000) => {
   }
 };
 
-// Helper to safely call event.waitUntil-like background tasks
-const event_waitUntil_safe = (fn) => {
-  try { fn(); } catch(e) { /* ignore */ }
-};
 
 const cacheFirst = async (request, cacheName) => {
   const cache = await caches.open(cacheName);
