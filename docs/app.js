@@ -20000,7 +20000,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // Trigger sync
-                    App.data.syncOfflineWrites();
+                    App.actions.startSync();
 
                     App.ui.showAlert(`Importação concluída! O.S. Conciliadas: ${reconciledCount}. Divergentes: ${divergentCount}. Não vinculadas: ${unlinkedRows.length}`, 'success');
 
@@ -20136,7 +20136,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     });
                                 }
 
-                                App.data.syncOfflineWrites();
+                                App.actions.startSync();
 
                                 renderInbox();
                                 App.ui.showAlert('Itens descartados com sucesso.', 'success');
@@ -20226,7 +20226,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
 
                                 // Trigger sync
-                                App.data.syncOfflineWrites();
+                                App.actions.startSync();
 
                                 await renderInbox();
                                 App.ui.showAlert('O.S. criadas com sucesso!', 'success');
@@ -20329,7 +20329,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                             // Trigger sync
-                            App.data.syncOfflineWrites();
+                            App.actions.startSync();
 
                             linkModal.classList.remove('show');
                             await renderInbox();
