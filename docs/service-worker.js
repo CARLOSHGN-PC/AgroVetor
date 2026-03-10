@@ -1,4 +1,4 @@
-const SW_VERSION = 'v23';
+const SW_VERSION = 'v24';
 const CORE_CACHE = `agrovetor-core-${SW_VERSION}`;
 const STATIC_CACHE = `agrovetor-static-${SW_VERSION}`;
 const TILE_CACHE = `agrovetor-tiles-${SW_VERSION}`;
@@ -43,18 +43,28 @@ const isFirestoreOrAuth = (url) => {
 
 const networkFirst = async (request, cacheName, timeoutMs = 8000) => {
   const cache = await caches.open(cacheName);
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error(`Network timeout ${timeoutMs}ms`)), timeoutMs);
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await Promise.race([fetch(request), timeoutPromise]);
-    if (response && response.ok) await cache.put(request, response.clone());
+    const response = await fetch(request, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (response && response.ok) {
+      // Clone and cache in background - don't block the response
+      const clone = response.clone();
+      event_waitUntil_safe(() => cache.put(request, clone));
+    }
     return response;
   } catch (error) {
+    clearTimeout(timeoutId);
     const cached = await cache.match(request);
     if (cached) return cached;
     throw error;
   }
+};
+
+// Helper to safely call event.waitUntil-like background tasks
+const event_waitUntil_safe = (fn) => {
+  try { fn(); } catch(e) { /* ignore */ }
 };
 
 const cacheFirst = async (request, cacheName) => {
@@ -106,6 +116,19 @@ self.addEventListener('fetch', (event) => {
 
   if (request.destination === 'script' || request.destination === 'style' || request.destination === 'font' || pathname.endsWith('.js') || pathname.endsWith('.css')) {
     event.respondWith(cacheFirst(request, STATIC_CACHE));
+    return;
+  }
+
+  // Cache images (icons, etc.) - cache-first for performance on mobile
+  if (request.destination === 'image' || pathname.endsWith('.png') || pathname.endsWith('.jpg') || pathname.endsWith('.svg') || pathname.endsWith('.webp')) {
+    event.respondWith(cacheFirst(request, STATIC_CACHE));
+    return;
+  }
+
+  // Cache CDN resources (fonts, etc.)
+  if (url.hostname.includes('fonts.googleapis.com') || url.hostname.includes('fonts.gstatic.com') || url.hostname.includes('cdnjs.cloudflare.com') || url.hostname.includes('cdn.jsdelivr.net')) {
+    event.respondWith(cacheFirst(request, STATIC_CACHE));
+    return;
   }
 });
 

@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Esconde a tela de abertura após a animação e um pequeno atraso
         setTimeout(() => {
             splashScreen.classList.add('hidden');
-        }, 2500); // Ajuste o tempo conforme necessário
+        }, 1500); // Reduzido de 2500ms para carregamento mais rapido
     }
 
     const firebaseConfig = {
@@ -66,8 +66,55 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-    Chart.register(ChartDataLabels);
-    Chart.defaults.font.family = "'Poppins', sans-serif";
+    // Defer Chart.js initialization until libraries are loaded (defer scripts)
+    const _initChartJS = () => {
+        if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
+            Chart.register(ChartDataLabels);
+            Chart.defaults.font.family = "'Poppins', sans-serif";
+            return true;
+        }
+        return false;
+    };
+    if (!_initChartJS()) {
+        const _chartInitInterval = setInterval(() => {
+            if (_initChartJS()) clearInterval(_chartInitInterval);
+        }, 100);
+        setTimeout(() => clearInterval(_chartInitInterval), 15000);
+    }
+
+    // --- Performance Utilities ---
+
+    // Debounce: groups rapid calls into a single execution
+    const _debounceTimers = {};
+    const _perfDebounce = (key, fn, delay = 120) => {
+        clearTimeout(_debounceTimers[key]);
+        _debounceTimers[key] = setTimeout(fn, delay);
+    };
+
+    // Batch DOM updates via requestAnimationFrame
+    const _scheduleRender = (fn) => {
+        requestAnimationFrame(fn);
+    };
+
+    // Build select options with DocumentFragment for better performance
+    const _buildSelectOptions = (select, firstOptionHTML, items, mapFn) => {
+        if (!select) return;
+        const saved = select.value;
+        const frag = document.createDocumentFragment();
+        const tmp = document.createElement('select');
+        tmp.innerHTML = firstOptionHTML;
+        while (tmp.firstChild) frag.appendChild(tmp.firstChild);
+        items.forEach(item => {
+            const opt = document.createElement('option');
+            const mapped = mapFn(item);
+            opt.value = mapped.value;
+            opt.textContent = mapped.text;
+            frag.appendChild(opt);
+        });
+        select.innerHTML = '';
+        select.appendChild(frag);
+        select.value = saved;
+    };
 
     const runOfflineOptimization = async () => {
         const essentialUrls = ['./', './index.html', './app.js', './manifest.json', './icons/icon-192x192.png'];
@@ -2722,7 +2769,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    App.ui.renderSpecificContent(collectionName);
+                    // Debounce render to avoid rapid re-renders from multiple snapshots
+                    _perfDebounce('render_' + collectionName, () => {
+                        _scheduleRender(() => App.ui.renderSpecificContent(collectionName));
+                    }, 80);
                 };
 
                 let q;
@@ -2844,9 +2894,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 const isSuperAdmin = App.state.currentUser.role === 'super-admin';
 
-                // Core Collections loaded on startup
-                const coreCollections = ['users', 'fazendas', 'personnel', 'frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'frota', 'armadilhas'];
-                coreCollections.forEach(col => this.subscribeTo(col));
+                // Core Collections - prioritize essential data, defer secondary collections
+                const criticalCollections = ['users', 'fazendas', 'personnel'];
+                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'frota', 'armadilhas'];
+                // Load critical data immediately for fast UI render
+                criticalCollections.forEach(col => this.subscribeTo(col));
+                // Defer secondary data to next idle period for better perceived performance
+                if (typeof requestIdleCallback === 'function') {
+                    requestIdleCallback(() => {
+                        deferredCollections.forEach(col => this.subscribeTo(col));
+                    }, { timeout: 3000 });
+                } else {
+                    setTimeout(() => {
+                        deferredCollections.forEach(col => this.subscribeTo(col));
+                    }, 300);
+                }
                 if (navigator.onLine) {
                     this.syncMasterData(false).catch((error) => {
                         console.warn('[MasterDataSync] Falha na pré-carga online', error?.message || error);
@@ -3199,7 +3261,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'registros':
                         if (activeTab === 'dashboard' && document.getElementById('dashboard-broca').style.display !== 'none') {
-                            App.charts.renderBrocaDashboardCharts();
+                            _perfDebounce('snap_chart_broca', () => App.charts.renderBrocaDashboardCharts(), 250);
                         }
                         if (activeTab === 'excluirDados') {
                             this.renderExclusao();
@@ -3207,7 +3269,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'perdas':
                         if (activeTab === 'dashboard' && document.getElementById('dashboard-perda').style.display !== 'none') {
-                            App.charts.renderPerdaDashboardCharts();
+                            _perfDebounce('snap_chart_perda', () => App.charts.renderPerdaDashboardCharts(), 250);
                         }
                         if (activeTab === 'excluirDados') {
                             this.renderExclusao();
@@ -3603,14 +3665,28 @@ document.addEventListener('DOMContentLoaded', () => {
             populateHarvestPlanSelect() {
                 const { select } = App.elements.relatorioColheita;
                 const savedValue = select.value;
-                select.innerHTML = '<option value="">Selecione um plano de colheita...</option>';
+                // Use DocumentFragment for better performance
+                const fragHP = document.createDocumentFragment();
+                const defHP = document.createElement('option');
+                defHP.value = '';
+                defHP.textContent = 'Selecione um plano de colheita...';
+                fragHP.appendChild(defHP);
                 if (App.state.harvestPlans.length === 0) {
-                    select.innerHTML += '<option value="" disabled>Nenhum plano salvo encontrado</option>';
+                    const emptyOpt = document.createElement('option');
+                    emptyOpt.value = '';
+                    emptyOpt.disabled = true;
+                    emptyOpt.textContent = 'Nenhum plano salvo encontrado';
+                    fragHP.appendChild(emptyOpt);
                 } else {
                     App.state.harvestPlans.forEach(plan => {
-                        select.innerHTML += `<option value="${plan.id}">${plan.frontName}</option>`;
+                        const opt = document.createElement('option');
+                        opt.value = plan.id;
+                        opt.textContent = plan.frontName;
+                        fragHP.appendChild(opt);
                     });
                 }
+                select.innerHTML = '';
+                select.appendChild(fragHP);
                 select.value = savedValue;
             },
             showTab(id) {
@@ -4025,32 +4101,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'broca':
                         dashEls.brocaView.style.display = 'block';
                         this.loadDashboardDates('broca');
-                        setTimeout(() => App.charts.renderBrocaDashboardCharts(), 150);
+                        _perfDebounce('chart_broca', () => _scheduleRender(() => App.charts.renderBrocaDashboardCharts()), 200);
                         break;
                     case 'perda':
                         dashEls.perdaView.style.display = 'block';
                         this.loadDashboardDates('perda');
-                        setTimeout(() => App.charts.renderPerdaDashboardCharts(), 150);
+                        _perfDebounce('chart_perda', () => _scheduleRender(() => App.charts.renderPerdaDashboardCharts()), 200);
                         break;
                     case 'aerea':
                         dashEls.aereaView.style.display = 'block';
                         this.loadDashboardDates('aereo');
-                        setTimeout(() => App.charts.renderAereoDashboardCharts(), 150);
+                        _perfDebounce('chart_aerea', () => _scheduleRender(() => App.charts.renderAereoDashboardCharts()), 200);
                         break;
                     case 'plantio':
                         dashEls.plantioView.style.display = 'block';
                         this.loadDashboardDates('plantio');
-                        setTimeout(() => App.charts.renderPlantioDashboardCharts(), 150);
+                        _perfDebounce('chart_plantio', () => _scheduleRender(() => App.charts.renderPlantioDashboardCharts()), 200);
                         break;
                     case 'cigarrinha':
                         dashEls.cigarrinhaView.style.display = 'block';
                         this.loadDashboardDates('cigarrinha');
-                        setTimeout(() => App.charts.renderCigarrinhaDashboardCharts(), 150);
+                        _perfDebounce('chart_cigarrinha', () => _scheduleRender(() => App.charts.renderCigarrinhaDashboardCharts()), 200);
                         break;
                     case 'clima':
                         dashEls.climaView.style.display = 'block';
                         this.loadDashboardDates('clima');
-                        setTimeout(() => App.charts.renderClimaDashboardCharts(), 150);
+                        _perfDebounce('chart_clima', () => _scheduleRender(() => App.charts.renderClimaDashboardCharts()), 200);
                         break;
                 }
             },
@@ -4729,10 +4805,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    farmsToShow.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
-                        select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
+                    const sortedFarms = farmsToShow.sort((a, b) => parseInt(a.code) - parseInt(b.code));
+                    // Use DocumentFragment to avoid layout thrashing from innerHTML +=
+                    const frag = document.createDocumentFragment();
+                    const tmpSel = document.createElement('select');
+                    tmpSel.innerHTML = firstOption;
+                    while (tmpSel.firstChild) frag.appendChild(tmpSel.firstChild);
+                    sortedFarms.forEach(farm => {
+                        const opt = document.createElement('option');
+                        opt.value = farm.id;
+                        opt.textContent = farm.code + ' - ' + farm.name;
+                        frag.appendChild(opt);
                     });
-
+                    select.innerHTML = '';
+                    select.appendChild(frag);
                     select.value = currentValue;
                 });
             },
@@ -4742,13 +4828,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 selects.forEach(select => {
                     if (!select) return;
                     const currentValue = select.value;
-                    select.innerHTML = '<option value="">Selecione um utilizador...</option>';
-                    App.state.users
+                    // Use DocumentFragment for better performance
+                    const activeUsers = App.state.users
                         .filter(u => u.active)
-                        .sort((a, b) => (a.username || '').localeCompare(b.username || ''))
-                        .forEach(user => {
-                            select.innerHTML += `<option value="${user.id}">${user.username || user.email}</option>`;
-                        });
+                        .sort((a, b) => (a.username || '').localeCompare(b.username || ''));
+                    const frag = document.createDocumentFragment();
+                    const defOpt = document.createElement('option');
+                    defOpt.value = '';
+                    defOpt.textContent = 'Selecione um utilizador...';
+                    frag.appendChild(defOpt);
+                    activeUsers.forEach(user => {
+                        const opt = document.createElement('option');
+                        opt.value = user.id;
+                        opt.textContent = user.username || user.email;
+                        frag.appendChild(opt);
+                    });
+                    select.innerHTML = '';
+                    select.appendChild(frag);
                     select.value = currentValue;
                 });
             },
@@ -4764,13 +4860,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     firstOptionHTML = select.id === 'operadorFiltroPerda'
                         ? '<option value="">Todos</option>'
                         : '<option value="">Selecione um operador...</option>';
-                    select.innerHTML = firstOptionHTML;
-                    
-                    App.state.personnel
-                        .sort((a, b) => a.name.localeCompare(b.name))
-                        .forEach(p => {
-                            select.innerHTML += `<option value="${p.matricula}">${p.matricula} - ${p.name}</option>`;
-                        });
+                    // Use DocumentFragment for better performance
+                    const sortedPersonnel = App.state.personnel.slice().sort((a, b) => a.name.localeCompare(b.name));
+                    const frag = document.createDocumentFragment();
+                    const tmpS = document.createElement('select');
+                    tmpS.innerHTML = firstOptionHTML;
+                    while (tmpS.firstChild) frag.appendChild(tmpS.firstChild);
+                    sortedPersonnel.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.matricula;
+                        opt.textContent = p.matricula + ' - ' + p.name;
+                        frag.appendChild(opt);
+                    });
+                    select.innerHTML = '';
+                    select.appendChild(frag);
                     select.value = currentValue;
                 });
             },
@@ -4791,11 +4894,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const firstOptionHTML = select.id === 'qualidadeReportPrestadorTirou'
                         ? '<option value="">Todos</option>'
                         : '<option value="">Selecione um prestador...</option>';
-                    select.innerHTML = firstOptionHTML;
-
+                    // Use DocumentFragment for better performance
+                    const frag = document.createDocumentFragment();
+                    const tmpProv = document.createElement('select');
+                    tmpProv.innerHTML = firstOptionHTML;
+                    while (tmpProv.firstChild) frag.appendChild(tmpProv.firstChild);
                     providers.forEach(provider => {
-                        select.innerHTML += `<option value="${provider}">${provider}</option>`;
+                        const opt = document.createElement('option');
+                        opt.value = provider;
+                        opt.textContent = provider;
+                        frag.appendChild(opt);
                     });
+                    select.innerHTML = '';
+                    select.appendChild(frag);
                     select.value = currentValue;
                 });
             },

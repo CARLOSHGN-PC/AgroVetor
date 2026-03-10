@@ -32,8 +32,20 @@
     <link rel="apple-touch-icon" href="./icons/icon-192x192.png">
     <link rel="icon" type="image/png" href="icons/icon-512x512.png">
 
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Resource hints for faster DNS/connection to CDN domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://api.mapbox.com" crossorigin>
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://firestore.googleapis.com">
+    <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet"></noscript>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"></noscript>
     <style>
       :root {
           --color-primary: #2e7d32;
@@ -2130,11 +2142,41 @@
           box-shadow: var(--shadow-sm);
           font-weight: 600;
       }
+      /* --- Performance: CSS Containment --- */
+      /* Ocultar conteudo de abas inativas para o motor de layout */
+      .tab-content:not(.active) {
+          content-visibility: hidden;
+          contain-intrinsic-size: 0 500px;
+      }
+      /* Otimizar composicao de elementos fora da tela */
+      nav.menu {
+          will-change: transform;
+          contain: layout style;
+      }
+      .submenu-content {
+          will-change: transform;
+          contain: layout style;
+      }
+      /* Splash screen: otimizar composicao */
+      #splash-screen {
+          will-change: opacity;
+      }
+      #splash-screen.hidden {
+          will-change: auto;
+      }
+      /* Conteudo principal: contencao de layout */
+      main.content {
+          contain: layout style;
+      }
+      /* Modais: nao renderizar quando ocultos */
+      .modal-overlay:not(.show) {
+          content-visibility: hidden;
+      }
     </style>
 </head>
 <body>
     <div id="splash-screen">
-        <img src="icons/icon-512x512.png" alt="AgroVetor Logo" class="splash-logo">
+        <img src="icons/icon-512x512.png" alt="AgroVetor Logo" class="splash-logo" width="128" height="128">
         <p class="splash-message">Bem-vindo ao futuro do agronegócio.</p>
     </div>
 
@@ -5192,28 +5234,48 @@
 
     </div>
 
-    <!-- Bibliotecas Externas -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-    <script src="js/lib/shp.js"></script>
+    <!-- Bibliotecas Criticas (necessarias antes do app.js) -->
     <script src="js/lib/idb-lib.js"></script>
-    
-    <!-- Mapbox GL JS -->
-    <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
-    <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
-    <!-- Turf.js for spatial analysis -->
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
-
-    <!-- Proj4.js local para evitar bloqueios de SRI/CDN -->
-    <script src="./vendor/proj4.js"></script>
-
-    <!-- Crypto-JS for hashing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
-    <!-- Capacitor script -->
     <script src="capacitor.js"></script>
+
+    <!-- Bibliotecas Externas - defer para nao bloquear o parsing do HTML -->
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <script defer src="js/lib/shp.js"></script>
+
+    <!-- Mapbox GL JS - defer para carregar apos o HTML -->
+    <link rel="preload" href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet"></noscript>
+    <script defer src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+    <!-- Turf.js for spatial analysis - defer -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+
+    <!-- Proj4.js local - defer -->
+    <script defer src="./vendor/proj4.js"></script>
+
+    <!-- Crypto-JS for hashing - defer -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <!-- jsPDF - carregamento lazy (so quando necessario para exportar PDF) -->
+    <script>
+      window._loadJsPDF = function() {
+        if (window._jsPDFLoaded) return window._jsPDFLoaded;
+        window._jsPDFLoaded = new Promise(function(resolve, reject) {
+          var s1 = document.createElement('script');
+          s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+          s1.onload = function() {
+            var s2 = document.createElement('script');
+            s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js';
+            s2.onload = resolve;
+            s2.onerror = reject;
+            document.head.appendChild(s2);
+          };
+          s1.onerror = reject;
+          document.head.appendChild(s1);
+        });
+        return window._jsPDFLoaded;
+      };
+    </script>
 
     <!-- Script principal da aplicação -->
     <script type="module" src="./app.js"></script>
