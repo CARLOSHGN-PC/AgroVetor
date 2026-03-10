@@ -2318,8 +2318,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         await withTimeout(auth.currentUser.getIdToken(true), 8000, 'refreshToken');
                         await this._afterOnlineSessionReady();
                     } catch (error) {
-                        console.error("Falha ao atualizar token:", error);
-                        this._markReauthRequired();
+                        console.warn("Falha ao atualizar token (provável falha de rede/timeout). Entrando em modo offline/necessita reautenticação:", error?.message || error);
+
+                        // Treat timeouts specifically as network errors if offline, else mark reauth
+                        if (!navigator.onLine || error.message.includes('Timeout')) {
+                            App.state.syncStatus = 'error';
+                            App.ui.updateConnectivityStatus();
+                        } else {
+                            this._markReauthRequired();
+                        }
                     }
                 } else {
                     this._markReauthRequired();
@@ -2387,6 +2394,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                         App.ui.showAlert("A senha está incorreta.", "error");
+                    } else if (error.code === 'auth/network-request-failed' || !navigator.onLine) {
+                        App.ui.showAlert("Sem conexão com a internet. Verifique sua rede e tente novamente.", "warning");
                     } else {
                         App.ui.showAlert("Não foi possível reautenticar. Tente novamente.", "error");
                     }
