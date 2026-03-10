@@ -4141,26 +4141,38 @@
                 </div>
 
                 <div class="card" style="border-left-color: var(--color-primary); margin-top: 30px;">
-                    <h3><i class="fas fa-tractor"></i> Importar Relatório de Máquina (O.S)</h3>
-                    <p>Faça o upload do relatório da máquina (formato CSV/Excel). O sistema irá conciliar os dados de Fazenda, Talhão, Produto e Operação com as O.S. Planejadas para baixa automática ou apontamento de divergências.</p>
+                    <h3><i class="fas fa-tractor"></i> Motor Universal de Importação (O.S)</h3>
+                    <p>Faça o upload de relatórios de máquinas ou ERPs (CHB, TOTVS, etc.). O sistema conciliará os dados inteligentemente.</p>
 
-                    <div style="margin-bottom: 15px;">
-                        <label style="font-size: 0.9em; display: flex; align-items: center; gap: 5px;">
-                            Margem de Tolerância de Dosagem: <input type="number" id="osImportTolerance" value="5" min="0" max="100" style="width: 80px; margin-top: 0; padding: 6px;"> %
-                        </label>
+                    <div style="margin-bottom: 15px; display: flex; gap: 15px; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-size: 0.9em; display: flex; align-items: center; gap: 5px;">
+                                Margem de Tolerância (Área/Dosagem): <input type="number" id="osImportTolerance" value="5" min="0" max="100" style="width: 80px; margin-top: 0; padding: 6px;"> %
+                            </label>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-size: 0.9em;">Template de Leitura (Mapeamento de Colunas):</label>
+                            <div style="display: flex; gap: 10px;">
+                                <select id="osImportTemplateSelect" style="margin-top: 0; padding: 6px; flex-grow: 1;">
+                                    <option value="padrao">Padrão (AgroVetor)</option>
+                                    <!-- Dinamicamente preenchido -->
+                                </select>
+                                <button id="btnManageImportTemplates" class="btn-secondary" style="margin-top: 0; padding: 6px 12px; width: auto;" title="Criar ou Editar Templates"><i class="fas fa-cog"></i></button>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="upload-area" id="osImportUploadArea" onclick="document.getElementById('osImportFile').click()">
                         <i class="fas fa-file-csv fa-2x" style="color: var(--color-primary);"></i>
-                        <p>Clique ou arraste o relatório de <strong>máquina</strong> aqui</p>
+                        <p>Clique ou arraste o relatório CSV aqui</p>
                     </div>
-                    <input type="file" id="osImportFile" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" style="display: none;">
+                    <input type="file" id="osImportFile" accept=".csv" style="display: none;">
 
                     <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; justify-content: center;">
-                        <button id="btnDownloadOsImportTemplate" class="save" style="max-width: 300px; margin-top: 0; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo CSV</button>
+                        <button id="btnDownloadOsImportTemplate" class="save" style="max-width: 300px; margin-top: 0; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo Padrão</button>
                         <button id="btnProcessImport" class="save" style="max-width: 300px; margin-top: 0; background: var(--color-primary);"><i class="fas fa-cogs"></i> Processar Importação</button>
+                        <button id="btnOpenInbox" class="btn-secondary" style="max-width: 300px; margin-top: 0; background: var(--color-warning); color: #000; border: none; font-weight: 600;"><i class="fas fa-inbox"></i> Ver Pendências</button>
                     </div>
-                    <small class="csv-format-info" style="display: block; margin-top: 10px; text-align: center;">Formato: Data; Propriedade; Operação; Descrição; Fazenda; Etapa; Produto; Grupo; Talhão; Ha.Aplic; Qtde.Aplic; Dos.Aplic; Dos.Rec; Vlr.Unit; Total R$</small>
                 </div>
 
                 <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid var(--color-border); text-align: right;">
@@ -4902,6 +4914,141 @@
                 <div class="modal-footer">
                     <button id="editFarmModalCancelBtn" class="btn-secondary">Cancelar</button>
                     <button id="editFarmModalSaveBtn" class="save">Guardar Alterações</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="reconciliationInboxModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 900px;">
+                <div class="modal-header">
+                    <h2><i class="fas fa-inbox"></i> Caixa de Conciliação (Pendências)</h2>
+                    <button id="reconciliationInboxModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <p style="font-size: 14px; color: var(--color-text-light); margin-bottom: 15px;">
+                        Abaixo estão os registros do relatório que não puderam ser casados automaticamente com nenhuma O.S. aberta (PLANEJADA ou EM_EXECUCAO) baseada na exata combinação de Fazenda + Talhão + Operação, ou que estão aguardando resolução.
+                    </p>
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                        <button id="btnSelectAllInbox" class="btn-secondary" style="margin: 0;"><i class="fas fa-check-square"></i> Selecionar Todos</button>
+                        <button id="btnDismissSelectedInbox" class="btn-excluir" style="margin: 0;"><i class="fas fa-trash"></i> Descartar Selecionados</button>
+                        <button id="btnCreateOsFromInbox" class="save" style="margin: 0; background: var(--color-primary);"><i class="fas fa-plus"></i> Criar Nova O.S.</button>
+                        <button id="btnLinkOsFromInbox" class="save" style="margin: 0; background: var(--color-info);"><i class="fas fa-link"></i> Vincular a O.S. Existente</button>
+                    </div>
+
+                    <div id="reconciliationInboxList" style="display: flex; flex-direction: column; gap: 15px;">
+                        <!-- Injetado via JS -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="reconciliationInboxModalCancelBtn" class="btn-secondary">Fechar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal para selecionar O.S. Existente -->
+        <div id="linkOsInboxModal" class="modal-overlay" style="z-index: 2001;">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2><i class="fas fa-link"></i> Vincular a O.S. Existente</h2>
+                    <button id="linkOsInboxModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                    <p style="margin-bottom: 15px; color: var(--color-text-light);">Selecione uma Ordem de Serviço aberta para vincular os registros selecionados. Eles serão adicionados ao relatório de execução da O.S. e ela será marcada como CONCLUÍDA se não houver divergências adicionais.</p>
+
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="linkOsSelect" class="required">O.S. Ativas (Planejada / Em Execução):</label>
+                            <select id="linkOsSelect" required style="width: 100%;">
+                                <option value="">Carregando O.S...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="linkOsInboxModalCancelBtn" class="btn-secondary">Cancelar</button>
+                    <button id="btnConfirmLinkOs" class="save"><i class="fas fa-check"></i> Confirmar Vínculo</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="importTemplateModal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2><i class="fas fa-list-alt"></i> Gerenciar Templates de Importação</h2>
+                    <button id="importTemplateModalCloseBtn" class="modal-close-btn">&times;</button>
+                </div>
+                <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+                    <p style="font-size: 14px; color: var(--color-text-light); margin-bottom: 15px;">
+                        Crie mapeamentos personalizados para relatórios de diferentes sistemas (Ex: CHB, TOTVS).
+                        Informe o nome EXATO da coluna que vem no CSV para cada campo do nosso sistema.
+                    </p>
+
+                    <div style="margin-bottom: 20px;">
+                        <label for="templateSelector" style="font-weight: 600;">Templates Salvos:</label>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-top: 5px;">
+                            <select id="templateSelector" style="margin-top: 0; flex-grow: 1;">
+                                <option value="novo">+ Criar Novo Template</option>
+                            </select>
+                            <button id="btnDeleteTemplate" class="btn-excluir" style="margin: 0; display: none;"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+
+                    <div id="templateForm" style="background: var(--color-bg); padding: 15px; border-radius: var(--border-radius); border: 1px solid var(--color-border);">
+                        <div class="form-row" style="margin-bottom: 15px;">
+                            <div class="form-col">
+                                <label for="tplName" class="required">Nome do Template:</label>
+                                <input type="text" id="tplName" placeholder="Ex: Relatório CHB" required>
+                            </div>
+                        </div>
+
+                        <h4 style="margin-bottom: 10px; color: var(--color-primary); border-bottom: 1px solid var(--color-border); padding-bottom: 5px;">Mapeamento de Colunas CSV</h4>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label for="tplData">Data:</label>
+                                <input type="text" id="tplData" placeholder="Ex: Data_Exec">
+                            </div>
+                            <div>
+                                <label for="tplFazenda">Fazenda (Nome):</label>
+                                <input type="text" id="tplFazenda" placeholder="Ex: Nome_Propriedade">
+                            </div>
+                            <div>
+                                <label for="tplTalhao">Talhão:</label>
+                                <input type="text" id="tplTalhao" placeholder="Ex: Talhao">
+                            </div>
+                            <div>
+                                <label for="tplProduto">Produto:</label>
+                                <input type="text" id="tplProduto" placeholder="Ex: Nome_Produto">
+                            </div>
+                            <div>
+                                <label for="tplOperacao">Operação (Nome):</label>
+                                <input type="text" id="tplOperacao" placeholder="Ex: Nome_Operacao">
+                            </div>
+                            <div>
+                                <label for="tplAreaAplic">Área Aplicada (ha):</label>
+                                <input type="text" id="tplAreaAplic" placeholder="Ex: Ha_Aplic">
+                            </div>
+                            <div>
+                                <label for="tplDosagemAplic">Dosagem Aplicada:</label>
+                                <input type="text" id="tplDosagemAplic" placeholder="Ex: Dos_Aplic">
+                            </div>
+                        </div>
+
+                        <h4 style="margin: 20px 0 10px; color: var(--color-primary); border-bottom: 1px solid var(--color-border); padding-bottom: 5px;">Operação (Avançado: Regras de Concatenação)</h4>
+                        <p style="font-size: 12px; color: var(--color-text-light); margin-bottom: 10px;">
+                            (Opcional) Se o sistema enviar Grupo, Subgrupo e Operação separados, deixe o campo acima vazio e crie uma regra. Use chaves { } para nomes de colunas. Ex: <code>{Grupo} - {Operacao}</code>
+                        </p>
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="tplOperacaoRule">Regra para formar a Operação:</label>
+                                <input type="text" id="tplOperacaoRule" placeholder="Ex: {Cod_Subgrupo} - {Nome_Operacao}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="importTemplateModalCancelBtn" class="btn-secondary">Cancelar</button>
+                    <button id="btnSaveTemplate" class="save"><i class="fas fa-save"></i> Salvar Template</button>
                 </div>
             </div>
         </div>

@@ -19259,6 +19259,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 const btnProcessImport = document.getElementById('btnProcessImport');
                 if (btnProcessImport) btnProcessImport.addEventListener('click', () => this.processMachineReport());
 
+                const btnOpenInbox = document.getElementById('btnOpenInbox');
+                if (btnOpenInbox) btnOpenInbox.addEventListener('click', () => this.openReconciliationInbox());
+
+                const btnManageImportTemplates = document.getElementById('btnManageImportTemplates');
+                if (btnManageImportTemplates) btnManageImportTemplates.addEventListener('click', () => this.openImportTemplateManager());
+
+                const btnSaveTemplate = document.getElementById('btnSaveTemplate');
+                if (btnSaveTemplate) btnSaveTemplate.addEventListener('click', () => this.saveImportTemplate());
+
+                const btnDeleteTemplate = document.getElementById('btnDeleteTemplate');
+                if (btnDeleteTemplate) btnDeleteTemplate.addEventListener('click', () => this.deleteImportTemplate());
+
+                const importTemplateModalCloseBtn = document.getElementById('importTemplateModalCloseBtn');
+                if (importTemplateModalCloseBtn) importTemplateModalCloseBtn.addEventListener('click', () => document.getElementById('importTemplateModal').classList.remove('show'));
+
+                const importTemplateModalCancelBtn = document.getElementById('importTemplateModalCancelBtn');
+                if (importTemplateModalCancelBtn) importTemplateModalCancelBtn.addEventListener('click', () => document.getElementById('importTemplateModal').classList.remove('show'));
+
+                const templateSelector = document.getElementById('templateSelector');
+                if (templateSelector) templateSelector.addEventListener('change', (e) => this.loadImportTemplateFields(e.target.value));
+
+                this.refreshTemplateDropdowns();
+
                 const btnDownloadOsImportTemplate = document.getElementById('btnDownloadOsImportTemplate');
                 if (btnDownloadOsImportTemplate) btnDownloadOsImportTemplate.addEventListener('click', () => {
                     const csvContent = "Data;Propriedade;Operação:;Descrição;Fazenda;Etapa;Produto;Grupo;Talhão;Ha.Aplic;Qtde.Aplic;Dos.Aplic;Dos.Rec;Vlr.Unit;Total R$\n";
@@ -19539,9 +19562,191 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
+            openImportTemplateManager() {
+                this.refreshTemplateDropdowns();
+                document.getElementById('importTemplateModal').classList.add('show');
+            },
+
+            refreshTemplateDropdowns() {
+                const selectModal = document.getElementById('templateSelector');
+                const selectMain = document.getElementById('osImportTemplateSelect');
+                if (!selectModal || !selectMain) return;
+
+                const templates = App.state.globalConfigs?.importTemplates || {};
+
+                selectModal.innerHTML = '<option value="novo">+ Criar Novo Template</option>';
+                selectMain.innerHTML = '<option value="padrao">Padrão (AgroVetor)</option>';
+
+                for (const [id, tpl] of Object.entries(templates)) {
+                    selectModal.innerHTML += `<option value="${id}">${tpl.name}</option>`;
+                    selectMain.innerHTML += `<option value="${id}">${tpl.name}</option>`;
+                }
+
+                // If currently "novo", clear fields
+                this.loadImportTemplateFields('novo');
+            },
+
+            loadImportTemplateFields(templateId) {
+                const btnDelete = document.getElementById('btnDeleteTemplate');
+                if (templateId === 'novo') {
+                    document.getElementById('tplName').value = '';
+                    document.getElementById('tplData').value = '';
+                    document.getElementById('tplFazenda').value = '';
+                    document.getElementById('tplTalhao').value = '';
+                    document.getElementById('tplProduto').value = '';
+                    document.getElementById('tplOperacao').value = '';
+                    document.getElementById('tplAreaAplic').value = '';
+                    document.getElementById('tplDosagemAplic').value = '';
+                    document.getElementById('tplOperacaoRule').value = '';
+                    if(btnDelete) btnDelete.style.display = 'none';
+                    return;
+                }
+
+                const templates = App.state.globalConfigs?.importTemplates || {};
+                const tpl = templates[templateId];
+                if (tpl) {
+                    document.getElementById('tplName').value = tpl.name || '';
+                    document.getElementById('tplData').value = tpl.mapping.data || '';
+                    document.getElementById('tplFazenda').value = tpl.mapping.fazenda || '';
+                    document.getElementById('tplTalhao').value = tpl.mapping.talhao || '';
+                    document.getElementById('tplProduto').value = tpl.mapping.produto || '';
+                    document.getElementById('tplOperacao').value = tpl.mapping.operacao || '';
+                    document.getElementById('tplAreaAplic').value = tpl.mapping.areaAplic || '';
+                    document.getElementById('tplDosagemAplic').value = tpl.mapping.dosagemAplic || '';
+                    document.getElementById('tplOperacaoRule').value = tpl.mapping.operacaoRule || '';
+                    if(btnDelete) btnDelete.style.display = 'block';
+                }
+            },
+
+            async saveImportTemplate() {
+                const id = document.getElementById('templateSelector').value;
+                const name = document.getElementById('tplName').value.trim();
+
+                if (!name) {
+                    App.ui.showAlert('O nome do template é obrigatório.', 'warning');
+                    return;
+                }
+
+                const newTemplate = {
+                    name: name,
+                    mapping: {
+                        data: document.getElementById('tplData').value.trim(),
+                        fazenda: document.getElementById('tplFazenda').value.trim(),
+                        talhao: document.getElementById('tplTalhao').value.trim(),
+                        produto: document.getElementById('tplProduto').value.trim(),
+                        operacao: document.getElementById('tplOperacao').value.trim(),
+                        areaAplic: document.getElementById('tplAreaAplic').value.trim(),
+                        dosagemAplic: document.getElementById('tplDosagemAplic').value.trim(),
+                        operacaoRule: document.getElementById('tplOperacaoRule').value.trim()
+                    }
+                };
+
+                App.ui.setLoading(true, "A salvar template...");
+                try {
+                    let configs = App.state.globalConfigs || {};
+                    if (!configs.importTemplates) configs.importTemplates = {};
+
+                    const templateId = id === 'novo' ? 'tpl_' + Date.now() : id;
+                    configs.importTemplates[templateId] = newTemplate;
+
+                    await App.data.updateGlobalConfigs(configs);
+                    App.state.globalConfigs = configs;
+
+                    this.refreshTemplateDropdowns();
+                    document.getElementById('templateSelector').value = templateId;
+
+                    App.ui.showAlert('Template salvo com sucesso!', 'success');
+                } catch (e) {
+                    console.error("Erro ao salvar template:", e);
+                    App.ui.showAlert('Erro ao salvar template.', 'error');
+                } finally {
+                    App.ui.setLoading(false);
+                }
+            },
+
+            async deleteImportTemplate() {
+                const id = document.getElementById('templateSelector').value;
+                if (id === 'novo') return;
+
+                App.ui.showConfirmationModal(
+                    'Excluir Template',
+                    'Tem certeza que deseja excluir este template de importação?',
+                    async () => {
+                        App.ui.setLoading(true, "A excluir...");
+                        try {
+                            let configs = App.state.globalConfigs || {};
+                            if (configs.importTemplates && configs.importTemplates[id]) {
+                                delete configs.importTemplates[id];
+                                await App.data.updateGlobalConfigs(configs);
+                                App.state.globalConfigs = configs;
+                                this.refreshTemplateDropdowns();
+                                App.ui.showAlert('Template excluído!', 'success');
+                            }
+                        } catch (e) {
+                            console.error(e);
+                            App.ui.showAlert('Erro ao excluir', 'error');
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    }
+                );
+            },
+
+            levenshteinDistance(a, b) {
+                if (a.length === 0) return b.length;
+                if (b.length === 0) return a.length;
+
+                const matrix = [];
+                for (let i = 0; i <= b.length; i++) {
+                    matrix[i] = [i];
+                }
+                for (let j = 0; j <= a.length; j++) {
+                    matrix[0][j] = j;
+                }
+
+                for (let i = 1; i <= b.length; i++) {
+                    for (let j = 1; j <= a.length; j++) {
+                        if (b.charAt(i - 1) == a.charAt(j - 1)) {
+                            matrix[i][j] = matrix[i - 1][j - 1];
+                        } else {
+                            matrix[i][j] = Math.min(
+                                matrix[i - 1][j - 1] + 1,
+                                matrix[i][j - 1] + 1,
+                                matrix[i - 1][j] + 1
+                            );
+                        }
+                    }
+                }
+                return matrix[b.length][a.length];
+            },
+
+            fuzzyMatch(source, target, threshold = 0.8) {
+                if (!source || !target) return false;
+                const s1 = String(source).trim().toLowerCase();
+                const s2 = String(target).trim().toLowerCase();
+                if (s1 === s2) return true;
+
+                const distance = this.levenshteinDistance(s1, s2);
+                const maxLen = Math.max(s1.length, s2.length);
+                const similarity = (maxLen - distance) / maxLen;
+
+                return similarity >= threshold;
+            },
+
+            generateHash(str) {
+                let hash = 0;
+                for (let i = 0, len = str.length; i < len; i++) {
+                    let chr = str.charCodeAt(i);
+                    hash = (hash << 5) - hash + chr;
+                    hash |= 0; // Convert to 32bit integer
+                }
+                return hash.toString(36) + str.length;
+            },
+
             async processMachineReport() {
                 const fileInput = document.getElementById('osImportFile');
                 const tolerance = parseFloat(document.getElementById('osImportTolerance').value) || 5;
+                const templateId = document.getElementById('osImportTemplateSelect').value;
 
                 if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
                     App.ui.showAlert('Por favor, selecione um arquivo CSV.', 'warning');
@@ -19549,127 +19754,223 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const file = fileInput.files[0];
-                App.ui.setLoading(true, "A processar relatório da máquina...");
+                App.ui.setLoading(true, "A processar relatório...");
 
                 try {
                     const text = await file.text();
                     const lines = text.split(/\r?\n/);
-                    // Data	Propriedade	Operação:	Descrição	Fazenda	Etapa	Produto	Grupo	Talhão	Ha.Aplic	Qtde.Aplic	Dos.Aplic	Dos.Rec	Vlr.Unit	Total R$
-                    const headers = lines[0].split(';').map(h => h.trim().toLowerCase());
+                    const headers = lines[0].split(';').map(h => h.trim());
+                    const headersLower = headers.map(h => h.toLowerCase());
 
-                    const colIndex = {
-                        data: headers.findIndex(h => h.includes('data')),
-                        fazendaNome: headers.findIndex(h => h.includes('fazenda')),
-                        fazendaCode: headers.findIndex(h => h.includes('propriedade')),
-                        operacaoCode: headers.findIndex(h => h.includes('operação') || h.includes('operacao')),
-                        operacaoDesc: headers.findIndex(h => h.includes('descrição') || h.includes('descricao')),
-                        produto: headers.findIndex(h => h.includes('produto')),
-                        talhao: headers.findIndex(h => h.includes('talhão') || h.includes('talhao')),
-                        dosagemAplic: headers.findIndex(h => h.includes('dos.aplic')),
-                        dosagemRec: headers.findIndex(h => h.includes('dos.rec')),
-                        areaAplic: headers.findIndex(h => h.includes('ha.aplic')),
-                    };
+                    let colIndex = {};
+                    let operacaoRule = '';
 
-                    if (colIndex.fazendaNome === -1 || colIndex.talhao === -1 || colIndex.produto === -1) {
-                         App.ui.showAlert('Colunas obrigatórias não encontradas (Fazenda, Talhão, Produto). Verifique o formato do CSV.', 'error');
+                    if (templateId === 'padrao') {
+                        colIndex = {
+                            data: headersLower.findIndex(h => h.includes('data')),
+                            fazenda: headersLower.findIndex(h => h.includes('fazenda')),
+                            talhao: headersLower.findIndex(h => h.includes('talhão') || h.includes('talhao')),
+                            produto: headersLower.findIndex(h => h.includes('produto')),
+                            operacao: headersLower.findIndex(h => h.includes('descrição') || h.includes('descricao')),
+                            areaAplic: headersLower.findIndex(h => h.includes('ha.aplic')),
+                            dosagemAplic: headersLower.findIndex(h => h.includes('dos.aplic')),
+                        };
+                    } else {
+                        const templates = App.state.globalConfigs?.importTemplates || {};
+                        const tpl = templates[templateId];
+                        if (!tpl) {
+                            App.ui.showAlert('Template selecionado não encontrado.', 'error');
+                            App.ui.setLoading(false);
+                            return;
+                        }
+                        const findIndexIgnoreCase = (str) => {
+                            if (!str) return -1;
+                            const term = str.toLowerCase();
+                            return headersLower.findIndex(h => h === term);
+                        };
+
+                        colIndex = {
+                            data: findIndexIgnoreCase(tpl.mapping.data),
+                            fazenda: findIndexIgnoreCase(tpl.mapping.fazenda),
+                            talhao: findIndexIgnoreCase(tpl.mapping.talhao),
+                            produto: findIndexIgnoreCase(tpl.mapping.produto),
+                            areaAplic: findIndexIgnoreCase(tpl.mapping.areaAplic),
+                            dosagemAplic: findIndexIgnoreCase(tpl.mapping.dosagemAplic),
+                            operacao: findIndexIgnoreCase(tpl.mapping.operacao)
+                        };
+                        operacaoRule = tpl.mapping.operacaoRule;
+                    }
+
+                    if (colIndex.fazenda === -1 || colIndex.talhao === -1) {
+                         App.ui.showAlert('Colunas obrigatórias não encontradas (Fazenda, Talhão). Verifique o template ou o cabeçalho do arquivo.', 'error');
                          App.ui.setLoading(false);
                          return;
                     }
 
-                    // Parse CSV data into structured array grouped by OS keys (Date + Farm + Plot + Op)
                     const parsedData = [];
                     for (let i = 1; i < lines.length; i++) {
                         const line = lines[i].trim();
                         if (!line) continue;
                         const cols = line.split(';');
 
-                        parsedData.push({
-                            data: colIndex.data > -1 ? cols[colIndex.data] : '',
-                            fazendaNome: cols[colIndex.fazendaNome],
-                            fazendaCode: colIndex.fazendaCode > -1 ? cols[colIndex.fazendaCode] : '',
-                            operacao: colIndex.operacaoDesc > -1 ? cols[colIndex.operacaoDesc] : '',
-                            talhao: cols[colIndex.talhao],
-                            produto: cols[colIndex.produto],
-                            dosagemAplic: colIndex.dosagemAplic > -1 ? parseFloat(cols[colIndex.dosagemAplic].replace(',','.')) : 0,
-                            dosagemRec: colIndex.dosagemRec > -1 ? parseFloat(cols[colIndex.dosagemRec].replace(',','.')) : 0,
-                        });
-                    }
-
-                    // Logic to reconcile parsedData with App.state.ordens_servico
-                    let reconciledCount = 0;
-                    let divergentCount = 0;
-
-                    const activeOSs = App.state.ordens_servico.filter(os => os.status === 'PLANEJADA' || os.status === 'EM_EXECUCAO');
-
-                    const updates = [];
-
-                    for (const os of activeOSs) {
-                        let isFullyExecuted = true;
-                        let hasDivergence = false;
-                        let divergenceNotes = [];
-
-                        // Simplified check: we look for the exact plot in the OS within the imported data
-                        // This logic needs refining based on actual operation matching
-                        const osPlots = Array.isArray(os.selectedPlots) ? os.selectedPlots : (os.itens ? os.itens.map(i => i.talhao_nome) : []);
-                        const osProducts = os.produtos || []; // Needs adaptation for 'operacoes_multiplas'
-
-                        if (osPlots.length === 0 || osProducts.length === 0) continue; // Not a standard OS
-
-                        for (const plot of osPlots) {
-                            for (const osProd of osProducts) {
-                                const expectedDosage = parseFloat(osProd.dosagem_por_ha) || 0;
-
-                                // Find matching record in CSV
-                                const match = parsedData.find(pd =>
-                                    (String(pd.talhao) === String(plot)) &&
-                                    (pd.produto.toUpperCase().includes(osProd.produto_nome.toUpperCase()) || osProd.produto_nome.toUpperCase().includes(pd.produto.toUpperCase()))
-                                );
-
-                                if (match) {
-                                    const appliedDosage = match.dosagemAplic;
-                                    const diffPercent = expectedDosage > 0 ? Math.abs((appliedDosage - expectedDosage) / expectedDosage) * 100 : 0;
-
-                                    if (diffPercent > tolerance) {
-                                        hasDivergence = true;
-                                        divergenceNotes.push(`Divergência Talhão ${plot} - Prod: ${osProd.produto_nome}. Rec: ${expectedDosage}, Apl: ${appliedDosage} (${diffPercent.toFixed(1)}% dif)`);
-                                    }
-                                } else {
-                                    // Plot/Product combo from OS not found in execution report
-                                    isFullyExecuted = false;
-                                }
+                        let operacaoName = '';
+                        if (templateId === 'padrao' && colIndex.operacao > -1) {
+                            operacaoName = cols[colIndex.operacao];
+                        } else {
+                            if (colIndex.operacao > -1) {
+                                operacaoName = cols[colIndex.operacao];
+                            } else if (operacaoRule) {
+                                operacaoName = operacaoRule.replace(/\{([^}]+)\}/g, (match, colName) => {
+                                    const idx = headersLower.findIndex(h => h === colName.trim().toLowerCase());
+                                    return idx > -1 ? cols[idx] : '';
+                                });
                             }
                         }
 
-                        if (isFullyExecuted || hasDivergence) {
-                            const newStatus = hasDivergence ? 'DIVERGENTE' : 'FINALIZADA';
-                            const updatePayload = {
+                        const parseNumber = (str) => {
+                            if (!str) return 0;
+                            return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+                        };
+
+                        parsedData.push({
+                            hash: this.generateHash(line),
+                            data: colIndex.data > -1 ? cols[colIndex.data] : '',
+                            fazendaNome: cols[colIndex.fazenda],
+                            operacao: operacaoName,
+                            talhao: cols[colIndex.talhao],
+                            produto: colIndex.produto > -1 ? cols[colIndex.produto] : '',
+                            areaAplic: colIndex.areaAplic > -1 ? parseNumber(cols[colIndex.areaAplic]) : 0,
+                            dosagemAplic: colIndex.dosagemAplic > -1 ? parseNumber(cols[colIndex.dosagemAplic]) : 0,
+                            raw: line
+                        });
+                    }
+
+                    let reconciledCount = 0;
+                    let divergentCount = 0;
+                    const unlinkedRows = [];
+                    const updates = [];
+
+                    // Load import history to prevent duplication
+                    let importHistory = App.state.globalConfigs?.importHistory || {};
+
+                    const activeOSs = App.state.ordens_servico.filter(os => os.status === 'PLANEJADA' || os.status === 'EM_EXECUCAO');
+
+                    for (const row of parsedData) {
+                        // Skip if we already processed this exact row hash
+                        if (importHistory[row.hash]) continue;
+
+                        // Try to find matching active OS
+                        const matchedOsList = activeOSs.filter(os => {
+                            // Match Farm Name (fuzzy)
+                            const farmMatch = this.fuzzyMatch(os.fazenda_nome, row.fazendaNome, 0.85);
+                            if (!farmMatch) return false;
+
+                            // Match Plots (exact)
+                            const osPlots = Array.isArray(os.selectedPlots) ? os.selectedPlots : (os.itens ? os.itens.map(i => i.talhao_nome) : []);
+                            const plotMatch = osPlots.some(p => String(p).trim() === String(row.talhao).trim());
+                            if (!plotMatch) return false;
+
+                            // Match Operation (fuzzy)
+                            const osOpNames = os.operacoes_multiplas ? os.operacoes_multiplas.map(op => op.operacao_nome) : [os.operacao_nome || os.operacao];
+                            const opMatch = osOpNames.some(opName => this.fuzzyMatch(opName, row.operacao, 0.8));
+
+                            return opMatch;
+                        });
+
+                        if (matchedOsList.length > 0) {
+                            // Found OS, reconcile data
+                            const os = matchedOsList[0]; // Take first match
+
+                            // Determine divergence based on Area and Dosage
+                            let hasDivergence = false;
+                            let divergenceNotes = [];
+
+                            // Compare Products and Dosage
+                            const osProducts = os.operacoes_multiplas ? os.operacoes_multiplas.flatMap(op => op.produtos) : (os.produtos || []);
+
+                            // Find product match in OS
+                            const prodMatch = osProducts.find(p => this.fuzzyMatch(p.produto_nome, row.produto, 0.7));
+
+                            if (prodMatch) {
+                                const expectedDosage = parseFloat(prodMatch.dosagem_por_ha) || 0;
+                                const appliedDosage = row.dosagemAplic;
+                                const diffPercent = expectedDosage > 0 ? Math.abs((appliedDosage - expectedDosage) / expectedDosage) * 100 : 0;
+
+                                if (diffPercent > tolerance) {
+                                    hasDivergence = true;
+                                    divergenceNotes.push(`Divergência Talhão ${row.talhao} - Prod: ${prodMatch.produto_nome}. Rec: ${expectedDosage}, Apl: ${appliedDosage} (${diffPercent.toFixed(1)}% dif)`);
+                                }
+                            } else if (row.produto) {
+                                hasDivergence = true;
+                                divergenceNotes.push(`Produto não previsto na OS: ${row.produto}`);
+                            }
+
+                            // If Area is provided in CSV, could also compare here if OS tracks area per plot.
+
+                            const newStatus = hasDivergence ? 'DIVERGENTE' : 'CONCLUIDA';
+                            const existingUpdate = updates.find(u => u.id === os.id);
+
+                            const updateData = existingUpdate ? existingUpdate.data : {
                                 status: newStatus,
                                 observacoes_execucao: divergenceNotes.join(' | '),
-                                data_conciliacao: new Date().toISOString()
+                                data_execucao: row.data || new Date().toISOString(),
+                                data_conciliacao: new Date().toISOString(),
+                                // Add execution logs
+                                relatorio_execucao: []
                             };
 
-                            updates.push({ id: os.id, data: updatePayload });
+                            // Add this row's raw data to OS execution log
+                            const execLog = updateData.relatorio_execucao || (os.relatorio_execucao || []);
+                            execLog.push(row);
+                            updateData.relatorio_execucao = execLog;
 
-                            if (newStatus === 'FINALIZADA') reconciledCount++;
-                            if (newStatus === 'DIVERGENTE') divergentCount++;
+                            // If any row causes divergence, keep OS as DIVERGENTE
+                            if (hasDivergence) updateData.status = 'DIVERGENTE';
+
+                            if (existingUpdate) {
+                                existingUpdate.data = updateData;
+                            } else {
+                                updates.push({ id: os.id, data: updateData });
+                            }
+
+                            // Mark hash as processed
+                            importHistory[row.hash] = { os_id: os.id, timestamp: Date.now() };
+                        } else {
+                            // No matching OS found, save to inbox
+                            unlinkedRows.push(row);
                         }
                     }
 
-                    // Apply updates
+                    // Apply OS updates
                     for (const update of updates) {
                         await App.data.updateDocument('ordens_servico', update.id, update.data);
                         const stateOs = App.state.ordens_servico.find(o => o.id === update.id);
                         if (stateOs) {
                             Object.assign(stateOs, update.data);
                         }
+                        if (update.data.status === 'CONCLUIDA') reconciledCount++;
+                        if (update.data.status === 'DIVERGENTE') divergentCount++;
                     }
 
-                    if (document.getElementById('osImportModal')) {
-                        document.getElementById('osImportModal').style.display = 'none';
+                    // Save Unlinked rows to global state / Firestore for the Inbox
+                    let inbox = App.state.globalConfigs?.reconciliationInbox || [];
+                    for (const row of unlinkedRows) {
+                         if (!inbox.some(r => r.hash === row.hash)) {
+                             inbox.push({...row, timestamp: Date.now()});
+                         }
                     }
-                    this.renderList();
 
-                    App.ui.showConfirmationModal(`Importação concluída.<br><br>Conciliadas e Finalizadas: ${reconciledCount}<br>Divergentes: ${divergentCount}<br><br>As O.S. divergentes precisam de revisão manual.`, () => {});
+                    let configs = App.state.globalConfigs || {};
+                    configs.importHistory = importHistory;
+                    configs.reconciliationInbox = inbox;
+                    await App.data.updateGlobalConfigs(configs);
+                    App.state.globalConfigs = configs;
+
+                    App.ui.showAlert(`Importação concluída! O.S. Conciliadas: ${reconciledCount}. Divergentes: ${divergentCount}. Não vinculadas: ${unlinkedRows.length}`, 'success');
+
+                    if (divergentCount > 0 || unlinkedRows.length > 0) {
+                         this.openReconciliationInbox();
+                    }
 
                 } catch (error) {
                     console.error("Erro ao processar arquivo:", error);
@@ -19678,6 +19979,284 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(false);
                     if(fileInput) fileInput.value = '';
                 }
+            },
+
+            openReconciliationInbox() {
+                const modal = document.getElementById('reconciliationInboxModal');
+                const list = document.getElementById('reconciliationInboxList');
+                const btnClose = document.getElementById('reconciliationInboxModalCloseBtn');
+                const btnCancel = document.getElementById('reconciliationInboxModalCancelBtn');
+                const btnSelectAll = document.getElementById('btnSelectAllInbox');
+                const btnDismiss = document.getElementById('btnDismissSelectedInbox');
+
+                if (!modal || !list) return;
+
+                const renderInbox = () => {
+                    const inbox = App.state.globalConfigs?.reconciliationInbox || [];
+                    list.innerHTML = '';
+
+                    if (inbox.length === 0) {
+                        list.innerHTML = '<p style="text-align: center; color: var(--color-text-light); padding: 20px;">Não há pendências na caixa de conciliação.</p>';
+                        return;
+                    }
+
+                    const escapeHtml = (unsafe) => {
+                        return (unsafe || '').toString()
+                            .replace(/&/g, "&amp;")
+                            .replace(/</g, "&lt;")
+                            .replace(/>/g, "&gt;")
+                            .replace(/"/g, "&quot;")
+                            .replace(/'/g, "&#039;");
+                    };
+
+                    inbox.forEach((item, index) => {
+                        const dateStr = escapeHtml(item.data || new Date(item.timestamp).toLocaleDateString('pt-BR'));
+                        const card = document.createElement('div');
+                        card.style.cssText = `
+                            background: var(--color-surface);
+                            border: 1px solid var(--color-border);
+                            border-radius: var(--border-radius);
+                            padding: 15px;
+                            display: flex;
+                            align-items: flex-start;
+                            gap: 15px;
+                        `;
+
+                        card.innerHTML = `
+                            <input type="checkbox" class="inbox-cb" data-hash="${escapeHtml(item.hash)}" style="margin-top: 5px; transform: scale(1.2);">
+                            <div style="flex-grow: 1;">
+                                <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                                    <strong><i class="fas fa-calendar"></i> ${dateStr} - Fazenda: ${escapeHtml(item.fazendaNome)} | Talhão: ${escapeHtml(item.talhao)}</strong>
+                                    <span style="font-size: 12px; color: var(--color-text-light);">Hash: ${escapeHtml(item.hash).substring(0,8)}</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; font-size: 14px;">
+                                    <div><strong>Operação:</strong> ${escapeHtml(item.operacao) || '-'}</div>
+                                    <div><strong>Produto:</strong> ${escapeHtml(item.produto) || '-'}</div>
+                                    <div><strong>Área:</strong> ${escapeHtml(item.areaAplic)} ha</div>
+                                    <div><strong>Dosagem:</strong> ${escapeHtml(item.dosagemAplic)}</div>
+                                </div>
+                            </div>
+                        `;
+                        list.appendChild(card);
+                    });
+                };
+
+                renderInbox();
+
+                // Setup events
+                const closeHandler = () => modal.classList.remove('show');
+                if (btnClose) {
+                    btnClose.replaceWith(btnClose.cloneNode(true));
+                    document.getElementById('reconciliationInboxModalCloseBtn').addEventListener('click', closeHandler);
+                }
+                if (btnCancel) {
+                    btnCancel.replaceWith(btnCancel.cloneNode(true));
+                    document.getElementById('reconciliationInboxModalCancelBtn').addEventListener('click', closeHandler);
+                }
+
+                if (btnSelectAll) {
+                    btnSelectAll.replaceWith(btnSelectAll.cloneNode(true));
+                    const btn = document.getElementById('btnSelectAllInbox');
+                    btn.addEventListener('click', () => {
+                        const checkboxes = list.querySelectorAll('.inbox-cb');
+                        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+                        checkboxes.forEach(cb => cb.checked = !allChecked);
+                    });
+                }
+
+                if (btnDismiss) {
+                    btnDismiss.replaceWith(btnDismiss.cloneNode(true));
+                    const btn = document.getElementById('btnDismissSelectedInbox');
+                    btn.addEventListener('click', async () => {
+                        const checkboxes = list.querySelectorAll('.inbox-cb:checked');
+                        if (checkboxes.length === 0) {
+                            App.ui.showAlert('Selecione pelo menos um item para descartar.', 'warning');
+                            return;
+                        }
+
+                        App.ui.showConfirmationModal('Descartar Pendências', `Tem certeza que deseja descartar ${checkboxes.length} itens?`, async () => {
+                            App.ui.setLoading(true, "A descartar...");
+                            try {
+                                const hashesToRemove = Array.from(checkboxes).map(cb => cb.dataset.hash);
+                                let configs = App.state.globalConfigs || {};
+                                let inbox = configs.reconciliationInbox || [];
+
+                                inbox = inbox.filter(item => !hashesToRemove.includes(item.hash));
+                                configs.reconciliationInbox = inbox;
+
+                                await App.data.updateGlobalConfigs(configs);
+                                App.state.globalConfigs = configs;
+
+                                renderInbox();
+                                App.ui.showAlert('Itens descartados com sucesso.', 'success');
+                            } catch(e) {
+                                console.error(e);
+                                App.ui.showAlert('Erro ao descartar itens.', 'error');
+                            } finally {
+                                App.ui.setLoading(false);
+                            }
+                        });
+                    });
+                }
+
+                const btnCreate = document.getElementById('btnCreateOsFromInbox');
+                if (btnCreate) {
+                    btnCreate.replaceWith(btnCreate.cloneNode(true));
+                    const btnC = document.getElementById('btnCreateOsFromInbox');
+                    btnC.addEventListener('click', async () => {
+                        const checkboxes = list.querySelectorAll('.inbox-cb:checked');
+                        if (checkboxes.length === 0) {
+                            App.ui.showAlert('Selecione pelo menos um item para criar O.S.', 'warning');
+                            return;
+                        }
+
+                        App.ui.showConfirmationModal('Criar O.S. a partir de Pendências', `Serão criadas novas Ordens de Serviço FINALIZADAS baseadas nos ${checkboxes.length} itens selecionados. Confirma?`, async () => {
+                            App.ui.setLoading(true, "A criar O.S...");
+                            try {
+                                const hashesToProcess = Array.from(checkboxes).map(cb => cb.dataset.hash);
+                                let configs = App.state.globalConfigs || {};
+                                let inbox = configs.reconciliationInbox || [];
+
+                                const itemsToProcess = inbox.filter(item => hashesToProcess.includes(item.hash));
+
+                                for (const item of itemsToProcess) {
+                                    // Generate a new OS object based on the report
+                                    const nextNum = await App.actions.osManual.getNextOsNumber();
+
+                                    const osPayload = {
+                                        id: 'os_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                                        os_numero: nextNum,
+                                        empresaId: App.state.currentCompanyId,
+                                        criado_por: App.state.currentUser.email,
+                                        data_criacao: new Date().toISOString(),
+                                        data_execucao: item.data || new Date().toISOString(),
+                                        data_conciliacao: new Date().toISOString(),
+                                        status: 'FINALIZADA', // It comes from execution report, so it's finished
+                                        fazenda_nome: item.fazendaNome,
+                                        tipo_servico: 'IMPORTADO_SISTEMA',
+                                        operacao_nome: item.operacao || 'Operação Importada',
+                                        produtos: [{ produto_nome: item.produto || 'N/A', dosagem_por_ha: item.dosagemAplic }],
+                                        selectedPlots: [item.talhao],
+                                        observacoes: 'Gerado automaticamente via importação de relatório.',
+                                        relatorio_execucao: [item]
+                                    };
+
+                                    // Add to global state and write to DB
+                                    App.state.ordens_servico.push(osPayload);
+                                    await OfflineDB.add('offline-writes', {
+                                        id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                                        action: 'create',
+                                        collection: 'ordens_servico',
+                                        docId: osPayload.id,
+                                        data: osPayload,
+                                        timestamp: Date.now()
+                                    });
+                                }
+
+                                // Trigger sync and update inbox
+                                App.data.syncOfflineWrites();
+
+                                inbox = inbox.filter(item => !hashesToProcess.includes(item.hash));
+                                configs.reconciliationInbox = inbox;
+                                await App.data.updateGlobalConfigs(configs);
+                                App.state.globalConfigs = configs;
+
+                                renderInbox();
+                                App.ui.showAlert('O.S. criadas com sucesso!', 'success');
+                            } catch(e) {
+                                console.error(e);
+                                App.ui.showAlert('Erro ao criar O.S.', 'error');
+                            } finally {
+                                App.ui.setLoading(false);
+                            }
+                        });
+                    });
+                }
+
+                const btnLink = document.getElementById('btnLinkOsFromInbox');
+                const linkModal = document.getElementById('linkOsInboxModal');
+                if (btnLink && linkModal) {
+                    btnLink.replaceWith(btnLink.cloneNode(true));
+                    document.getElementById('btnLinkOsFromInbox').addEventListener('click', () => {
+                        const checkboxes = list.querySelectorAll('.inbox-cb:checked');
+                        if (checkboxes.length === 0) {
+                            App.ui.showAlert('Selecione pelo menos um item para vincular.', 'warning');
+                            return;
+                        }
+
+                        const select = document.getElementById('linkOsSelect');
+                        select.innerHTML = '<option value="">Selecione a O.S...</option>';
+
+                        const activeOSs = App.state.ordens_servico.filter(os => os.status === 'PLANEJADA' || os.status === 'EM_EXECUCAO');
+                        if (activeOSs.length === 0) {
+                            select.innerHTML = '<option value="">Nenhuma O.S. ativa encontrada.</option>';
+                        } else {
+                            activeOSs.forEach(os => {
+                                const num = String(os.os_numero || '').padStart(5, '0');
+                                const op = os.operacoes_multiplas ? os.operacoes_multiplas.map(o => o.operacao_nome).join(', ') : (os.operacao_nome || 'N/A');
+                                select.innerHTML += `<option value="${os.id}">OS-${num} | Faz: ${os.fazenda_nome} | Op: ${op}</option>`;
+                            });
+                        }
+
+                        linkModal.classList.add('show');
+                        linkModal.style.display = 'flex';
+                    });
+
+                    document.getElementById('linkOsInboxModalCloseBtn').addEventListener('click', () => linkModal.classList.remove('show'));
+                    document.getElementById('linkOsInboxModalCancelBtn').addEventListener('click', () => linkModal.classList.remove('show'));
+
+                    const btnConfirmLink = document.getElementById('btnConfirmLinkOs');
+                    btnConfirmLink.replaceWith(btnConfirmLink.cloneNode(true));
+                    document.getElementById('btnConfirmLinkOs').addEventListener('click', async () => {
+                        const osId = document.getElementById('linkOsSelect').value;
+                        if (!osId) {
+                            App.ui.showAlert('Selecione uma O.S. para vincular.', 'warning');
+                            return;
+                        }
+
+                        const checkboxes = list.querySelectorAll('.inbox-cb:checked');
+                        const hashesToProcess = Array.from(checkboxes).map(cb => cb.dataset.hash);
+
+                        App.ui.setLoading(true, "A vincular registros...");
+                        try {
+                            const os = App.state.ordens_servico.find(o => o.id === osId);
+                            if (!os) throw new Error("O.S. não encontrada.");
+
+                            let configs = App.state.globalConfigs || {};
+                            let inbox = configs.reconciliationInbox || [];
+                            const itemsToProcess = inbox.filter(item => hashesToProcess.includes(item.hash));
+
+                            const execLog = os.relatorio_execucao || [];
+                            execLog.push(...itemsToProcess);
+
+                            const updateData = {
+                                status: 'CONCLUIDA',
+                                data_conciliacao: new Date().toISOString(),
+                                relatorio_execucao: execLog,
+                                observacoes_execucao: (os.observacoes_execucao ? os.observacoes_execucao + ' | ' : '') + 'Vinculado manualmente via Pendências.'
+                            };
+
+                            await App.data.updateDocument('ordens_servico', osId, updateData);
+                            Object.assign(os, updateData);
+
+                            inbox = inbox.filter(item => !hashesToProcess.includes(item.hash));
+                            configs.reconciliationInbox = inbox;
+                            await App.data.updateGlobalConfigs(configs);
+                            App.state.globalConfigs = configs;
+
+                            linkModal.classList.remove('show');
+                            renderInbox();
+                            App.ui.showAlert('Registros vinculados e O.S. Concluída!', 'success');
+                        } catch (e) {
+                            console.error(e);
+                            App.ui.showAlert('Erro ao vincular O.S.', 'error');
+                        } finally {
+                            App.ui.setLoading(false);
+                        }
+                    });
+                }
+
+                modal.classList.add('show');
             }
         },
 
