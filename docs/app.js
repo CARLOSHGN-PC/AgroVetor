@@ -12188,7 +12188,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const key = keysToSync[i];
                         try {
                             // Verificação de segurança para o objeto de escrita
-                            if (!write || typeof write !== 'object' || !write.collection || !write.data || !write.id) {
+                            if (!write || typeof write !== 'object' || !write.collection || !write.id) {
+                                throw new Error('Item de sincronização offline malformado ou inválido.');
+                            }
+                            if (write.action !== 'delete' && !write.data) {
                                 throw new Error('Item de sincronização offline malformado ou inválido.');
                             }
 
@@ -12197,7 +12200,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 continue;
                             }
 
-                            let dataToSync = write.data;
+                            let dataToSync = write.data || {};
                             if (write.collection === 'qualidadePlantio') {
                                 const syncedAt = new Date().toISOString();
                                 dataToSync = { ...dataToSync, syncStatus: 'synced', syncedAt };
@@ -12207,12 +12210,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                             const syncWrite = async () => {
-                                if (write.type === 'delete' && write.docId) {
+                                const action = write.action || write.type;
+                                if (action === 'delete' && write.docId) {
                                     await App.data.deleteDocument(write.collection, write.docId);
-                                } else if (write.type === 'update' && write.docId) {
+                                } else if (action === 'update' && write.docId) {
                                     await App.data.updateDocument(write.collection, write.docId, dataToSync);
                                 } else {
-                                    await App.data.setDocument(write.collection, write.id, dataToSync);
+                                    await App.data.setDocument(write.collection, write.docId || write.id, dataToSync);
                                 }
                             };
 
@@ -12234,15 +12238,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
 
+                            const logData = write.collection === 'registros' ? { ...write.data, relatorio_execucao: '[OMITTED FOR LOG SIZE]' } : write.data;
+
                             logEntry.items.push({
-                                status: 'success', collection: write.collection, data: write.data, error: null
+                                status: 'success', collection: write.collection, data: logData, error: null
                             });
                             successfulWrites++;
                             successfulKeys.push(key);
 
                             if (write.collection === 'controleFrota') {
                                 const recordId = write.docId || write.id;
-                                if (write.type === 'delete') {
+                                if (write.action === 'delete' || write.type === 'delete') {
                                     await OfflineDB.delete('km_records', recordId);
                                 } else {
                                     const kmRecord = await OfflineDB.get('km_records', recordId);
@@ -20144,7 +20150,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             return;
                         }
 
-                        App.ui.showConfirmationModal('Descartar Pendências', `Tem certeza que deseja descartar ${checkboxes.length} itens?`, async () => {
+                        App.ui.showConfirmationModal(`Tem certeza que deseja descartar ${checkboxes.length} itens (Descartar Pendências)?`, async () => {
                             App.ui.setLoading(true, "A descartar...");
                             try {
                                 const hashesToRemove = Array.from(checkboxes).map(cb => cb.dataset.hash);
@@ -20184,7 +20190,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             return;
                         }
 
-                        App.ui.showConfirmationModal('Criar O.S. a partir de Pendências', `Serão criadas novas Ordens de Serviço FINALIZADAS baseadas nos ${checkboxes.length} itens selecionados. Confirma?`, async () => {
+                        App.ui.showConfirmationModal(`Serão criadas novas Ordens de Serviço FINALIZADAS baseadas nos ${checkboxes.length} itens selecionados (Criar O.S.). Confirma?`, async () => {
                             App.ui.setLoading(true, "A criar O.S...");
                             try {
                                 const hashesToProcess = Array.from(checkboxes).map(cb => cb.dataset.hash);
