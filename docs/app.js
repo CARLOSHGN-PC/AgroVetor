@@ -14785,7 +14785,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const bounds = turf.bbox(App.state.geoJsonData);
-                const companyId = App.state.currentCompanyId || null;
+                const companyId = App.state.currentUser.companyId || null;
                 const farmId = App.elements.monitoramentoAereo.mapFarmSearchInput?.dataset?.farmId || null;
                 const talhoesGeoJson = JSON.stringify(App.state.geoJsonData);
                 const traps = (App.state.armadilhas || [])
@@ -19975,7 +19975,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         // Store history inside 'registros' with a specific 'tipo_registro' to bypass permission blocks
                         const q = query(collection(db, 'registros'),
-                            where("companyId", "==", App.state.currentCompanyId),
+                            where("companyId", "==", App.state.currentUser.companyId),
                             where("tipo_registro", "==", "import_history")
                         );
                         const querySnapshot = await getDocs(q);
@@ -20101,7 +20101,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              data: {
                                  ...row,
                                  tipo_registro: 'reconciliation_inbox',
-                                 companyId: App.state.currentCompanyId,
+                                 companyId: App.state.currentUser.companyId,
                                  timestamp: Date.now()
                              },
                              timestamp: Date.now()
@@ -20118,7 +20118,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              docId: historyDocId,
                              data: {
                                  tipo_registro: 'import_history',
-                                 companyId: App.state.currentCompanyId,
+                                 companyId: App.state.currentUser.companyId,
                                  timestamp: Date.now(),
                                  hashes: processedHashesInThisSession
                              },
@@ -20160,7 +20160,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(true, "Carregando pendências...");
                     try {
                         const q = query(collection(db, 'registros'),
-                            where("companyId", "==", App.state.currentCompanyId),
+                            where("companyId", "==", App.state.currentUser.companyId),
                             where("tipo_registro", "==", "reconciliation_inbox")
                         );
                         const querySnapshot = await getDocs(q);
@@ -20308,7 +20308,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     const osPayload = {
                                         id: 'os_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                                         os_numero: nextNum,
-                                        empresaId: App.state.currentCompanyId,
+                                        empresaId: App.state.currentUser.companyId,
                                         criado_por: App.state.currentUser.email,
                                         data_criacao: new Date().toISOString(),
                                         data_execucao: item.data || new Date().toISOString(),
@@ -20343,7 +20343,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                      docId: `import_${Date.now()}_manual`,
                                      data: {
                                          tipo_registro: 'import_history',
-                                         companyId: App.state.currentCompanyId,
+                                         companyId: App.state.currentUser.companyId,
                                          timestamp: Date.now(),
                                          hashes: hashesToProcess
                                      },
@@ -20447,7 +20447,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                  docId: `import_${Date.now()}_manual_link`,
                                  data: {
                                      tipo_registro: 'import_history',
-                                     companyId: App.state.currentCompanyId,
+                                     companyId: App.state.currentUser.companyId,
                                      timestamp: Date.now(),
                                      hashes: hashesToProcess
                                  },
