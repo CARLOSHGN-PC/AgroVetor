@@ -18,12 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Lógica da Tela de Abertura
     const splashScreen = document.getElementById('splash-screen');
-    if (splashScreen) {
-        // Esconde a tela de abertura após a animação e um pequeno atraso
-        setTimeout(() => {
-            splashScreen.classList.add('hidden');
-        }, 1500); // Reduzido de 2500ms para carregamento mais rapido
-    }
+    // We now hide splashScreen in showAppScreen or showLoginScreen instead of using a timeout
 
     const firebaseConfig = {
         apiKey: "AIzaSyBFXgXKDIBo9JD9vuGik5VDYZFDb_tbCrY",
@@ -3120,6 +3115,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loadingProgressText.textContent = progressText;
             },
             showLoginScreen(options = {}) {
+                const splashScreen = document.getElementById('splash-screen');
+                if (splashScreen) {
+                    splashScreen.classList.add('hidden');
+                }
+
                 App.elements.loginForm.style.display = 'block';
                 App.elements.offlineUserSelection.style.display = 'none';
                 App.elements.loginScreen.style.display = 'flex';
@@ -3157,6 +3157,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.ui.updateConnectivityStatus();
             },
             showAppScreen() {
+                const splashScreen = document.getElementById('splash-screen');
+                if (splashScreen) {
+                    splashScreen.classList.add('hidden');
+                }
+
                 const { currentUser } = App.state;
                 App.auth._clearLoginWatchdog();
                 App.state.loginUiRenderedAt = nowIso();
