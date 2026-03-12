@@ -11,6 +11,7 @@ import { perfLogger } from './js/lib/PerfLogger.js';
 import VirtualList from './js/lib/VirtualList.js';
 import { appDiagnostics } from './js/lib/AppDiagnostics.js';
 import { createAerialMapProvider } from './js/mapProviders/MapProviderFactory.js';
+import PlanejamentoOSModule from './js/modules/PlanejamentoOSModule.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     perfLogger.start('App Boot');
@@ -791,6 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     submenu: [
                         { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
                         { label: 'O.S. Escritório', icon: 'fas fa-list', target: 'ordemServicoEscritorio', permission: 'ordemServico' },
+                        { label: 'Planejamento O.S.', icon: 'fas fa-calendar-check', target: 'planejamentoOS', permission: 'ordemServico' },
                     ]
                 },
                 {
@@ -912,6 +914,8 @@ document.addEventListener('DOMContentLoaded', () => {
             produtos: [],
             operacao_produtos: [],
             ordens_servico: [],
+            os_planejamento_cabecalho: [],
+            os_planejamento_itens: [],
             inactivityTimer: null,
             inactivityWarningTimer: null,
             unsubscribeListeners: [],
@@ -970,6 +974,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         fleet: FleetModule,
+        planejamentoOS: PlanejamentoOSModule,
 
         elements: {
             regApp: {
@@ -2896,7 +2901,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Core Collections - prioritize essential data, defer secondary collections
                 const criticalCollections = ['users', 'fazendas', 'personnel'];
-                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'frota', 'armadilhas'];
+                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'frota', 'armadilhas', 'os_planejamento_cabecalho', 'os_planejamento_itens'];
                 // Load critical data immediately for fast UI render
                 criticalCollections.forEach(col => this.subscribeTo(col));
                 // Defer secondary data to next idle period for better perceived performance
@@ -3713,7 +3718,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     'relatorioQualidadePlantio': ['qualidadePlantio'],
                     'relatorioMonitoramento': ['armadilhas'],
                     'relatorioPlantio': ['apontamentosPlantio', 'frentesDePlantio'],
-                    'frenteDePlantio': ['frentesDePlantio']
+                    'frenteDePlantio': ['frentesDePlantio'],
+                    'planejamentoOS': ['ordens_servico', 'os_planejamento_cabecalho']
                 };
 
                 if (tabDataRequirements[id]) {
@@ -3984,6 +3990,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha', 'relatorioQualidadePlantio'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                 if (id === 'ordemServicoEscritorio' && App.osEscritorio) App.osEscritorio.renderList();
+                if (id === 'planejamentoOS' && App.planejamentoOS) {
+                    App.planejamentoOS.init(App);
+                }
                 if (['lancamentoBroca', 'lancamentoPerda', 'lancamentoCigarrinha', 'apontamentoPlantio', 'qualidadePlantio'].includes(id)) this.setDefaultDatesForEntryForms();
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);

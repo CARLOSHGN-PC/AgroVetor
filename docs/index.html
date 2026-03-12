@@ -2949,6 +2949,78 @@
 
             </section>
 
+
+            <section id="planejamentoOS" class="tab-content card" aria-label="Planejamento O.S." tabindex="0" hidden>
+                <div class="card-header-actions">
+                    <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-calendar-check"></i> Planejamento O.S.</h2>
+                </div>
+
+                <div id="planejamentoOSModeWarning" class="card" style="display:none; border-left-color: var(--color-warning);">
+                    <strong><i class="fas fa-desktop"></i> Módulo web-only:</strong> use esta funcionalidade preferencialmente no computador.
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-info);">
+                    <input type="hidden" id="planOSId">
+                    <div class="form-row">
+                        <div class="form-col"><label for="planOSEmpresa">Empresa</label><select id="planOSEmpresa"></select></div>
+                        <div class="form-col"><label for="planOSFazenda" class="required">Fazenda</label><select id="planOSFazenda"></select></div>
+                        <div class="form-col"><label for="planOSSubgrupo">Subgrupo</label><input id="planOSSubgrupo" type="text" placeholder="Ex: Herbicidas"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="planOSOperacao">Operação</label><select id="planOSOperacao"></select></div>
+                        <div class="form-col"><label for="planOSTipoServico">Tipo de serviço</label><select id="planOSTipoServico"></select></div>
+                        <div class="form-col"><label for="planOSPrograma">Programa</label><input id="planOSPrograma" type="text" placeholder="Ex: Programa Safra 25/26"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="planOSDataPlanejada">Data planejada</label><input id="planOSDataPlanejada" type="date"></div>
+                        <div class="form-col"><label for="planOSResponsavel">Responsável</label><input id="planOSResponsavel" type="text" placeholder="Nome do responsável"></div>
+                    </div>
+                    <div class="form-row"><div class="form-col"><label for="planOSObservacoes">Observações</label><textarea id="planOSObservacoes" placeholder="Observações operacionais..."></textarea></div></div>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-success);">
+                    <h3><i class="fas fa-vector-square"></i> Talhões (lista + mapa SHP)</h3>
+                    <p style="font-size: 13px; color: var(--color-text-light); margin-bottom: 8px;">Fase 1: seleção por lista ativa e infraestrutura pronta para seleção por mapa SHP na Fase 2.</p>
+                    <div id="planOSTalhoesList" style="max-height: 220px; overflow-y: auto; padding: 8px; border: 1px solid var(--color-border); border-radius: 8px;"></div>
+                    <p id="planOSSelectedCounter" style="margin-top: 8px; color: var(--color-text-light);">0 selecionados</p>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-purple);">
+                    <h3><i class="fas fa-lightbulb"></i> Sugestão automática por histórico</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Talhão</th>
+                                    <th>Área (ha)</th>
+                                    <th>Última aplicação</th>
+                                    <th>Data última aplicação</th>
+                                    <th>Sequência atual</th>
+                                    <th>Próxima sequência</th>
+                                    <th>Próxima aplicação</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="planOSItemsTbody">
+                                <tr><td colspan="8" style="text-align:center; color:var(--color-text-light);">Selecione talhões para visualizar sugestões.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="button-group" style="margin-top: 16px;">
+                        <button id="btnSavePlanOSDraft" class="btn-secondary"><i class="fas fa-save"></i> Salvar rascunho</button>
+                        <button id="btnSavePlanOS" class="save"><i class="fas fa-check"></i> Salvar planejamento</button>
+                        <button id="btnSavePlanOSReady" class="save" style="background: var(--color-success);"><i class="fas fa-flag-checkered"></i> Pronto para O.S.</button>
+                        <button id="btnPlanAndOpenOSNow" class="save" style="background: var(--color-info);"><i class="fas fa-bolt"></i> Planejar e abrir O.S. agora</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fas fa-folder-open"></i> Planejamentos salvos (resumo)</h3>
+                    <div id="planOSSavedList"></div>
+                </div>
+            </section>
+
             <section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>
                 <div class="card-header-actions">
                     <h2 style="color: var(--color-success); margin: 0;"><i class="fas fa-stream"></i> Planejamento de Colheita</h2>
