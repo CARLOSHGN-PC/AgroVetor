@@ -2829,6 +2829,16 @@
                             <textarea id="osObservations" placeholder="Instruções..." style="min-height: 60px;"></textarea>
                         </div>
 
+                        <div class="form-col" style="margin-bottom: 15px;">
+                            <label>Opções da O.S. Manual:</label>
+                            <div style="display:grid; gap:6px; margin-top:8px;">
+                                <label><input type="checkbox" id="osManualAffectsCycle" checked style="width:auto; margin-right:8px;"> Entra no histórico do ciclo</label>
+                                <label><input type="checkbox" id="osManualInfluencesPlanning" checked style="width:auto; margin-right:8px;"> Influencia o próximo planejamento</label>
+                                <label><input type="checkbox" id="osManualAvulsa" style="width:auto; margin-right:8px;"> Operação avulsa</label>
+                                <label><input type="checkbox" id="osManualServicoExterno" style="width:auto; margin-right:8px;"> Serviço externo</label>
+                            </div>
+                        </div>
+
                         <hr style="margin: 10px 0; border-color: var(--color-border);">
 
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -2885,9 +2895,14 @@
                             <select id="osOfficeStatus">
                                 <option value="">Todos</option>
                                 <option value="PLANEJADA">Planejada</option>
+                                <option value="ABERTA">Aberta</option>
                                 <option value="EM_EXECUCAO">Em Execução</option>
+                                <option value="AGUARDANDO_APONTAMENTO">Aguardando Apontamento</option>
+                                <option value="CONCILIADA">Conciliada</option>
                                 <option value="DIVERGENTE">Divergente</option>
+                                <option value="PARCIAL">Parcial</option>
                                 <option value="CONCLUIDA">Concluída</option>
+                                <option value="FINALIZADA_FORA_TIMER">Finalizada Fora do Timer</option>
                                 <option value="FINALIZADA">Finalizada (Legado)</option>
                                 <option value="CANCELADA">Cancelada</option>
                             </select>
@@ -2912,9 +2927,14 @@
                                 <label for="osEditStatus">Status:</label>
                                 <select id="osEditStatus">
                                     <option value="PLANEJADA">Planejada</option>
+                                    <option value="ABERTA">Aberta</option>
                                     <option value="EM_EXECUCAO">Em Execução</option>
+                                    <option value="AGUARDANDO_APONTAMENTO">Aguardando Apontamento</option>
+                                    <option value="CONCILIADA">Conciliada</option>
                                     <option value="DIVERGENTE">Divergente</option>
+                                    <option value="PARCIAL">Parcial</option>
                                     <option value="CONCLUIDA">Concluída</option>
+                                    <option value="FINALIZADA_FORA_TIMER">Finalizada Fora do Timer</option>
                                     <option value="FINALIZADA">Finalizada (Legado)</option>
                                     <option value="CANCELADA">Cancelada</option>
                                 </select>
@@ -3042,6 +3062,35 @@
                         <button id="btnCancelHarvestPlan" class="btn-secondary"><i class="fas fa-times"></i> Voltar para a Lista</button>
                     </div>
                 </div>
+            </section>
+
+            <section id="planejamentoOS" class="tab-content card" aria-label="Planejamento O.S." tabindex="0" hidden>
+                <h2><i class="fas fa-calendar-check"></i> Planejamento O.S.</h2>
+                <p style="margin-top: -8px; color: var(--color-text-light);">Ciclo operacional por talhão com base na última execução real validada.</p>
+
+                <div id="planningOsCards" class="kpi-grid" style="margin-top: 16px;"></div>
+
+                <div class="card" style="border-left-color: var(--color-info); margin-top: 20px;">
+                    <h3><i class="fas fa-filter"></i> Filtros</h3>
+                    <div class="form-row">
+                        <div class="form-col"><label for="planningOsFarmFilter">Fazenda</label><select id="planningOsFarmFilter"></select></div>
+                        <div class="form-col"><label for="planningOsTalhaoFilter">Talhão</label><input id="planningOsTalhaoFilter" type="text" placeholder="Nome do talhão"></div>
+                        <div class="form-col"><label for="planningOsOperacaoFilter">Operação</label><input id="planningOsOperacaoFilter" type="text" placeholder="Operação"></div>
+                        <div class="form-col"><label for="planningOsStatusFilter">Status Planejamento</label><select id="planningOsStatusFilter"></select></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col"><label for="planningOsOsStatusFilter">Status O.S.</label><select id="planningOsOsStatusFilter"></select></div>
+                        <div class="form-col"><label for="planningOsResponsavelFilter">Responsável</label><input id="planningOsResponsavelFilter" type="text" placeholder="Responsável"></div>
+                        <div class="form-col"><label for="planningOsPeriodStart">Período Início</label><input id="planningOsPeriodStart" type="date"></div>
+                        <div class="form-col"><label for="planningOsPeriodEnd">Período Fim</label><input id="planningOsPeriodEnd" type="date"></div>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button id="btnPlanningOsFilter" class="save" style="max-width:240px;"><i class="fas fa-search"></i> Aplicar filtros</button>
+                        <button id="btnPlanningOsReprocess" class="btn-secondary" style="max-width:240px;"><i class="fas fa-sync-alt"></i> Reprocessar cálculo</button>
+                    </div>
+                </div>
+
+                <div id="planningOsList" class="table-responsive" style="margin-top: 16px;"></div>
             </section>
 
             <section id="planejamento" class="tab-content card" aria-label="Planejamento de Inspeções" tabindex="0" hidden>
