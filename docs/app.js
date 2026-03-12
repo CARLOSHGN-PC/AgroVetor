@@ -20165,9 +20165,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     const text = await file.text();
-                    const lines = text.split(/
-?
-/).filter(Boolean);
+                    const lines = text.split(/\r?\n/).filter(Boolean);
                     if (lines.length < 2) throw new Error('Arquivo sem dados para importação.');
 
                     const headers = lines[0].split(';').map(h => h.trim());
@@ -20250,14 +20248,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    const preview = parsedData.slice(0, 3).map(p => `${p.dataApontamento} | ${p.fazendaNome} | ${p.talhaoNome} | ${p.operacao}`).join('
-');
-                    await new Promise((resolve) => {
-                        App.ui.showConfirmationModal(`Pré-visualização (${parsedData.length} linhas):
-${preview || 'sem linhas'}
-
-Deseja importar e conciliar agora?`, resolve);
+                    const preview = parsedData.slice(0, 3).map(p => `${p.dataApontamento} | ${p.fazendaNome} | ${p.talhaoNome} | ${p.operacao}`).join('\n');
+                    const shouldImport = await new Promise((resolve) => {
+                        App.ui.showConfirmationModal(
+                            `Pré-visualização (${parsedData.length} linhas):\n${preview || 'sem linhas'}\n\nDeseja importar e conciliar agora?`,
+                            () => resolve(true),
+                            false,
+                            () => resolve(false)
+                        );
                     });
+
+                    if (!shouldImport) {
+                        App.ui.showAlert('Importação cancelada pelo usuário.', 'info');
+                        return;
+                    }
 
                     const activeOSs = (App.state.ordens_servico || []).filter(os => App.osFlow.activeOsStatuses.includes(os.status));
                     let reconciledCount = 0;
@@ -20310,6 +20314,7 @@ Deseja importar e conciliar agora?`, resolve);
                             }
                         } else if (row.produto) {
                             partial = true;
+                            hasDivergence = true;
                             divergenceNotes.push('Produto não previsto na O.S.');
                         }
 
@@ -20349,7 +20354,7 @@ Deseja importar e conciliar agora?`, resolve);
 
                         await App.data.updateDocument('ordens_servico', os.id, osUpdate);
                         Object.assign(os, osUpdate);
-                        const importedStatus = hasDivergence ? (partial ? 'DIVERGENTE' : 'DIVERGENTE') : 'CONCILIADO';
+                        const importedStatus = partial ? 'PARCIAL' : (hasDivergence ? 'DIVERGENTE' : 'CONCILIADO');
                         try {
                             await App.data.updateDocument('apontamentos_os_importados', importedId, {
                                 statusConciliacao: importedStatus,
