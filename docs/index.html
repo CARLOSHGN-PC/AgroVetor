@@ -2888,9 +2888,6 @@
                                 <option value="EM_EXECUCAO">Em Execução</option>
                                 <option value="DIVERGENTE">Divergente</option>
                                 <option value="CONCLUIDA">Concluída</option>
-                                <option value="FINALIZADA_AUTOMATICAMENTE">Finalizada Automaticamente</option>
-                                <option value="FINALIZADA_FORA_TIMER">Finalizada Fora do Timer</option>
-                                <option value="PARCIAL">Parcial</option>
                                 <option value="FINALIZADA">Finalizada (Legado)</option>
                                 <option value="CANCELADA">Cancelada</option>
                             </select>
@@ -2918,9 +2915,6 @@
                                     <option value="EM_EXECUCAO">Em Execução</option>
                                     <option value="DIVERGENTE">Divergente</option>
                                     <option value="CONCLUIDA">Concluída</option>
-                                    <option value="FINALIZADA_AUTOMATICAMENTE">Finalizada Automaticamente</option>
-                                    <option value="FINALIZADA_FORA_TIMER">Finalizada Fora do Timer</option>
-                                    <option value="PARCIAL">Parcial</option>
                                     <option value="FINALIZADA">Finalizada (Legado)</option>
                                     <option value="CANCELADA">Cancelada</option>
                                 </select>
@@ -3048,33 +3042,6 @@
                         <button id="btnCancelHarvestPlan" class="btn-secondary"><i class="fas fa-times"></i> Voltar para a Lista</button>
                     </div>
                 </div>
-            </section>
-
-
-            <section id="planejamentoOS" class="tab-content card" aria-label="Planejamento OS" tabindex="0" hidden>
-                <h2><i class="fas fa-calendar-check"></i> Planejamento O.S.</h2>
-                <div class="kpi-grid" style="margin-bottom: 16px;">
-                    <div class="kpi-card"><div class="text"><p class="value" id="osCardToday">0</p><p class="label">Vencendo hoje</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osCardNext3">0</p><p class="label">Próximos 3 dias</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osCardNext7">0</p><p class="label">Próximos 7 dias</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osCardDelayed">0</p><p class="label">Atrasados</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osCardAwaiting">0</p><p class="label">Aguardando apontamento</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osCardOutTimer">0</p><p class="label">Finalizadas fora timer</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osCardDivergent">0</p><p class="label">Divergentes</p></div></div>
-                </div>
-
-                <div class="card" style="border-left-color: var(--color-info);">
-                    <h3><i class="fas fa-file-import"></i> Importação de Apontamentos</h3>
-                    <div class="form-row">
-                        <div class="form-col"><input type="file" id="osImportFile" accept=".csv"></div>
-                        <div class="form-col"><button id="btnProcessImport" class="save"><i class="fas fa-upload"></i> Importar</button></div>
-                    </div>
-                    <p id="osImportSummary" style="margin: 8px 0; color: var(--color-text-light);">Nenhuma importação recente.</p>
-                    <div class="table-responsive"><table class="os-table"><thead><tr><th>Data</th><th>Fazenda</th><th>Talhão</th><th>Operação</th><th>Área</th><th>Equipe</th><th>Status</th></tr></thead><tbody id="osImportPreview"></tbody></table></div>
-                </div>
-
-                <h3><i class="fas fa-stream"></i> Planejamento Calculado</h3>
-                <div class="table-responsive"><table class="os-table"><thead><tr><th>Fazenda</th><th>Talhão</th><th>Última Operação</th><th>Próxima</th><th>Data Prevista</th><th>Status</th><th>Ações</th></tr></thead><tbody id="planningOsList"></tbody></table></div>
             </section>
 
             <section id="planejamento" class="tab-content card" aria-label="Planejamento de Inspeções" tabindex="0" hidden>
