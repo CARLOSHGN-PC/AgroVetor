@@ -2868,89 +2868,6 @@
                 </div>
             </section>
 
-            <section id="planejamentoOS" class="tab-content card" aria-label="Planejamento O.S." tabindex="0" hidden>
-                <div class="card-header-actions">
-                    <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-calendar-check"></i> Planejamento O.S.</h2>
-                    <div class="button-group">
-                        <button id="btnRefreshPlanOS" class="save"><i class="fas fa-sync"></i> Atualizar</button>
-                    </div>
-                </div>
-
-                <div class="card" style="border-left-color: var(--color-info); margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
-                        <h3 style="margin: 0;"><i class="fas fa-filter"></i> Filtros de Planejamento</h3>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-col">
-                            <label for="planOsFarmFilter">Fazenda:</label>
-                            <select id="planOsFarmFilter"><option value="">Todas</option></select>
-                        </div>
-                        <div class="form-col">
-                            <label for="planOsTalhaoFilter">Talhão:</label>
-                            <input type="text" id="planOsTalhaoFilter" placeholder="Buscar por talhão">
-                        </div>
-                        <div class="form-col">
-                            <label for="planOsOpFilter">Operação Sugerida:</label>
-                            <select id="planOsOpFilter"><option value="">Todas</option></select>
-                        </div>
-                        <div class="form-col">
-                            <label for="planOsStatusFilter">Status Planejamento:</label>
-                            <select id="planOsStatusFilter">
-                                <option value="">Todos</option>
-                                <option value="SUGERIDO">Sugeridos</option>
-                                <option value="EM_ALERTA">Em Alerta</option>
-                                <option value="PRONTO_PARA_OS">Prontos p/ O.S.</option>
-                                <option value="OS_GERADA">O.S. Gerada</option>
-                                <option value="AGUARDANDO_APONTAMENTO">Aguardando Apontamento</option>
-                                <option value="ATRASADO">Atrasados</option>
-                                <option value="DIVERGENTE">Divergentes</option>
-                                <option value="BLOQUEADO">Bloqueados</option>
-                                <option value="SEM_HISTORICO">Sem Histórico</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
-                    <div class="card" style="flex: 1; min-width: 150px; text-align: center; border-left-color: var(--color-warning);">
-                        <h3 style="margin: 0; font-size: 1.2rem; color: var(--color-warning);">Vencendo Hoje</h3>
-                        <p id="statPlanOsHoje" style="font-size: 2rem; font-weight: bold; margin: 10px 0 0 0;">0</p>
-                    </div>
-                    <div class="card" style="flex: 1; min-width: 150px; text-align: center; border-left-color: var(--color-info);">
-                        <h3 style="margin: 0; font-size: 1.2rem; color: var(--color-info);">Próx 7 Dias</h3>
-                        <p id="statPlanOs7Dias" style="font-size: 2rem; font-weight: bold; margin: 10px 0 0 0;">0</p>
-                    </div>
-                    <div class="card" style="flex: 1; min-width: 150px; text-align: center; border-left-color: var(--color-danger);">
-                        <h3 style="margin: 0; font-size: 1.2rem; color: var(--color-danger);">Atrasados</h3>
-                        <p id="statPlanOsAtrasados" style="font-size: 2rem; font-weight: bold; margin: 10px 0 0 0;">0</p>
-                    </div>
-                    <div class="card" style="flex: 1; min-width: 150px; text-align: center; border-left-color: #9c27b0;">
-                        <h3 style="margin: 0; font-size: 1.2rem; color: #9c27b0;">Aguar. Apontamento</h3>
-                        <p id="statPlanOsAguardando" style="font-size: 2rem; font-weight: bold; margin: 10px 0 0 0;">0</p>
-                    </div>
-                </div>
-
-                <div class="table-responsive">
-                    <table class="styled-table">
-                        <thead>
-                            <tr>
-                                <th>Fazenda</th>
-                                <th>Talhão (Área)</th>
-                                <th>Última Op. Confirmada</th>
-                                <th>Próxima Op. Sugerida</th>
-                                <th>Data Prevista</th>
-                                <th>Dias Restantes</th>
-                                <th>Status Planejamento</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="planOsListBody">
-                            <tr><td colspan="8" style="text-align: center;">Nenhum dado encontrado.</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
             <section id="ordemServicoEscritorio" class="tab-content card" aria-label="Ordem de Serviço (Escritório)" tabindex="0" hidden>
                 <div class="card-header-actions">
                     <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-file-signature"></i> O.S. - Escritório</h2>
@@ -2969,11 +2886,6 @@
                                 <option value="">Todos</option>
                                 <option value="PLANEJADA">Planejada</option>
                                 <option value="EM_EXECUCAO">Em Execução</option>
-                                <option value="AGUARDANDO_APONTAMENTO">Aguardando Apontamento</option>
-                                <option value="CONCILIADA">Conciliada</option>
-                                <option value="FINALIZADA_AUTOMATICAMENTE">Finalizada Auto</option>
-                                <option value="FINALIZADA_FORA_TIMER">Finalizada Fora Timer</option>
-                                <option value="PARCIAL">Parcial</option>
                                 <option value="DIVERGENTE">Divergente</option>
                                 <option value="CONCLUIDA">Concluída</option>
                                 <option value="FINALIZADA">Finalizada (Legado)</option>
