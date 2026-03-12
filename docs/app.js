@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         worker.postMessage({ type: 'PARSE_SHP_BUFFER', payload: arrayBuffer });
     });
 
-    const OFFLINE_DB_VERSION = 12;
+    const OFFLINE_DB_VERSION = 11;
     const MASTER_DATA_COLLECTIONS = [
         'fazendas',
         'personnel',
@@ -180,10 +180,6 @@ document.addEventListener('DOMContentLoaded', () => {
         'produtos',
         'operacao_produtos',
         'ordens_servico',
-        'planejamento_os',
-        'apontamentos_os_importados',
-        'regras_planejamento_os',
-        'estado_operacional_talhoes',
         'frota',
         'armadilhas'
     ];
@@ -691,12 +687,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (oldVersion < 11) {
                         db.createObjectStore('data_cache', { keyPath: 'id' });
                     }
-                    if (oldVersion < 12) {
-                        if (!db.objectStoreNames.contains('planejamento_os')) db.createObjectStore('planejamento_os', { keyPath: 'id' });
-                        if (!db.objectStoreNames.contains('apontamentos_os_importados')) db.createObjectStore('apontamentos_os_importados', { keyPath: 'id' });
-                        if (!db.objectStoreNames.contains('regras_planejamento_os')) db.createObjectStore('regras_planejamento_os', { keyPath: 'id' });
-                        if (!db.objectStoreNames.contains('estado_operacional_talhoes')) db.createObjectStore('estado_operacional_talhoes', { keyPath: 'id' });
-                    }
                 },
             });
         },
@@ -801,7 +791,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     submenu: [
                         { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
                         { label: 'O.S. Escritório', icon: 'fas fa-list', target: 'ordemServicoEscritorio', permission: 'ordemServico' },
-                        { label: 'Planejamento O.S.', icon: 'fas fa-calendar-check', target: 'planejamentoOS', permission: 'ordemServico' },
                     ]
                 },
                 {
@@ -923,10 +912,6 @@ document.addEventListener('DOMContentLoaded', () => {
             produtos: [],
             operacao_produtos: [],
             ordens_servico: [],
-            planejamento_os: [],
-            apontamentos_os_importados: [],
-            regras_planejamento_os: [],
-            estado_operacional_talhoes: [],
             inactivityTimer: null,
             inactivityWarningTimer: null,
             unsubscribeListeners: [],
@@ -2911,7 +2896,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Core Collections - prioritize essential data, defer secondary collections
                 const criticalCollections = ['users', 'fazendas', 'personnel'];
-                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'planejamento_os', 'apontamentos_os_importados', 'regras_planejamento_os', 'estado_operacional_talhoes', 'frota', 'armadilhas'];
+                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'frota', 'armadilhas'];
                 // Load critical data immediately for fast UI render
                 criticalCollections.forEach(col => this.subscribeTo(col));
                 // Defer secondary data to next idle period for better perceived performance
@@ -3289,14 +3274,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (activeTab === 'excluirDados') {
                             this.renderExclusao();
                         }
-                        break;
-                    case 'ordens_servico':
-                    case 'planejamento_os':
-                    case 'apontamentos_os_importados':
-                    case 'regras_planejamento_os':
-                    case 'estado_operacional_talhoes':
-                        if (activeTab === 'ordemServicoEscritorio' && App.osEscritorio) App.osEscritorio.renderList();
-                        if (activeTab === 'planejamentoOS' && App.osPlanning) App.osPlanning.render();
                         break;
                     // No specific actions needed for 'cigarrinha' or 'armadilhas' on snapshot,
                     // as their primary UIs are user-triggered or handled elsewhere.
@@ -4007,7 +3984,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (['relatorioBroca', 'relatorioPerda', 'relatorioMonitoramento', 'relatorioCigarrinha', 'relatorioQualidadePlantio'].includes(id)) this.setDefaultDatesForReportForms();
                 if (id === 'relatorioColheitaCustom') this.populateHarvestPlanSelect();
                 if (id === 'ordemServicoEscritorio' && App.osEscritorio) App.osEscritorio.renderList();
-                if (id === 'planejamentoOS' && App.osPlanning) App.osPlanning.render();
                 if (['lancamentoBroca', 'lancamentoPerda', 'lancamentoCigarrinha', 'apontamentoPlantio', 'qualidadePlantio'].includes(id)) this.setDefaultDatesForEntryForms();
                 
                 localStorage.setItem('agrovetor_lastActiveTab', id);
@@ -8126,7 +8102,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (App.cadastrosAuxiliares) App.cadastrosAuxiliares.setup();
                 if (App.osEscritorio) App.osEscritorio.setup();
-                if (App.osPlanning) App.osPlanning.setup();
             }
         },
 
@@ -16822,24 +16797,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const novoNumeroOS = await this.getNextOsNumber();
 
-                const dataAberturaOS = new Date().toISOString().split('T')[0];
                 const osData = {
                     os_numero: novoNumeroOS,
-                    data: dataAberturaOS,
-                    dataAberturaOS,
-                    origemOS: 'manual',
-                    planningSourceId: null,
-                    dataApontamentoConciliado: null,
-                    diasExecucao: null,
-                    prazoExecucaoDias: Number(primaryOpData?.prazo_execucao_dias || 0),
-                    situacaoTimer: null,
-                    apontamentoConciliadoId: null,
-                    finalizadaAutomaticamente: false,
-                    motivoDivergencia: '',
-                    influenciaHistoricoCiclo: true,
-                    influenciaProximoPlanejamento: false,
-                    operacaoAvulsa: true,
-                    servicoExterno: false,
+                    data: new Date().toISOString().split('T')[0],
                     safra: App.state.globalConfigs?.safra || '24/25',
                     ciclo: App.state.globalConfigs?.ciclo || '1',
                     fazenda_id: farm.id,
@@ -16866,17 +16826,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     produtos: products, // Mantido por compatibilidade
                     created_at: new Date().toISOString(),
                 };
-
-                const hasDuplicidade = (App.state.ordens_servico || []).some(existing =>
-                    existing.id !== App.state.osEditingId &&
-                    App.osWorkflow.isOsActive(existing.status) &&
-                    existing.fazenda_id === osData.fazenda_id &&
-                    (existing.operacao_nome || '').toLowerCase() === (osData.operacao_nome || '').toLowerCase() &&
-                    (existing.itens || []).some(item => osData.itens.some(nItem => (nItem.talhao_nome || nItem.talhao_id) === (item.talhao_nome || item.talhao_id)))
-                );
-                if (hasDuplicidade) {
-                    return App.ui.showAlert('Já existe O.S. ativa para a mesma combinação Fazenda + Talhão + Operação.', 'warning');
-                }
 
                 try {
                     if (App.state.osEditingId) {
@@ -19413,297 +19362,6 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         },
 
-
-        osWorkflow: {
-            PLANNING_STATUS: ['SEM_HISTORICO','IDENTIFICADO','SUGERIDO','PLANEJADO','EM_ALERTA','PRONTO_PARA_OS','OS_GERADA','AGUARDANDO_APONTAMENTO','EXECUTADO','ATRASADO','DIVERGENTE','BLOQUEADO','CANCELADO'],
-            OS_STATUS: ['PLANEJADA','ABERTA','EM_EXECUCAO','AGUARDANDO_APONTAMENTO','CONCILIADA','FINALIZADA','FINALIZADA_FORA_TIMER','DIVERGENTE','PARCIAL','CANCELADA'],
-            IMPORT_STATUS: ['IMPORTADO','EM_ANALISE','CONCILIADO','SEM_MATCH','DIVERGENTE','REJEITADO'],
-
-            normalizeDate(dateValue) {
-                if (!dateValue) return null;
-                const date = new Date(dateValue);
-                if (Number.isNaN(date.getTime())) return null;
-                return date.toISOString().split('T')[0];
-            },
-
-            toDate(value) {
-                if (!value) return null;
-                const d = new Date(value);
-                return Number.isNaN(d.getTime()) ? null : d;
-            },
-
-            calculateTimer(dataAberturaOS, dataApontamento, prazoExecucaoDias = 0) {
-                const abertura = this.toDate(dataAberturaOS);
-                const apontamento = this.toDate(dataApontamento);
-                if (!abertura || !apontamento) return { diasExecucao: null, situacaoTimer: 'DATA_INVALIDA' };
-                const diffMs = apontamento.getTime() - abertura.getTime();
-                const diasExecucao = Math.floor(diffMs / 86400000);
-                if (diasExecucao < 0) return { diasExecucao, situacaoTimer: 'DATA_INVALIDA' };
-                const prazo = Number(prazoExecucaoDias || 0);
-                if (!prazo || prazo < 0) return { diasExecucao, situacaoTimer: 'NO_TIMER' };
-                if (diasExecucao < prazo) return { diasExecucao, situacaoTimer: 'NO_TIMER' };
-                if (diasExecucao === prazo) return { diasExecucao, situacaoTimer: 'NO_LIMITE' };
-                return { diasExecucao, situacaoTimer: 'FORA_TIMER' };
-            },
-
-            isOsActive(status) {
-                return ['PLANEJADA', 'ABERTA', 'EM_EXECUCAO', 'AGUARDANDO_APONTAMENTO', 'CONCILIADA', 'PARCIAL', 'DIVERGENTE'].includes(status);
-            },
-
-            findMatchingOS(apontamento) {
-                const targetDate = this.toDate(apontamento.dataApontamento);
-                const candidates = (App.state.ordens_servico || []).filter(os => {
-                    if (!this.isOsActive(os.status)) return false;
-                    if ((os.fazenda_nome || '').toLowerCase() !== (apontamento.fazendaNome || '').toLowerCase()) return false;
-                    const hasTalhao = (os.itens || []).some(item => (item.talhao_nome || item.talhao_id || '').toLowerCase() === (apontamento.talhaoNome || '').toLowerCase());
-                    if (!hasTalhao) return false;
-                    const opList = os.operacoes_multiplas?.map(o => (o.operacao_nome || '').toLowerCase()) || [(os.operacao_nome || '').toLowerCase()];
-                    if (!opList.some(op => op === (apontamento.operacao || '').toLowerCase())) return false;
-                    if (!targetDate) return true;
-                    const abertura = this.toDate(os.dataAberturaOS || os.created_at || os.data);
-                    if (!abertura) return true;
-                    const diff = Math.floor((targetDate.getTime() - abertura.getTime()) / 86400000);
-                    return diff >= -2 && diff <= 45;
-                });
-                if (!candidates.length) return { level: 'SEM_MATCH', os: null };
-
-                const strong = candidates.find(os => {
-                    if (!apontamento.equipe) return true;
-                    return (os.responsavel_nome || '').toLowerCase().includes((apontamento.equipe || '').toLowerCase()) || (apontamento.equipe || '').toLowerCase().includes((os.responsavel_nome || '').toLowerCase());
-                }) || candidates[0];
-
-                const areaOs = Number((strong.itens || []).reduce((a, i) => a + Number(i.area_ha || 0), 0));
-                const areaAp = Number(apontamento.areaExecutada || 0);
-                if (Number.isFinite(areaAp) && areaAp > 0 && Number.isFinite(areaOs) && areaOs > 0) {
-                    const delta = Math.abs((areaAp - areaOs) / areaOs);
-                    if (delta > 0.5) return { level: 'MATCH_PARCIAL', os: strong, motivo: 'Diferença de área relevante' };
-                }
-
-                return { level: 'MATCH_FORTE', os: strong };
-            },
-
-            async updateOperationalStateFromOS(os, apontamento) {
-                const talhao = os?.itens?.[0]?.talhao_nome || os?.itens?.[0]?.talhao_id;
-                if (!talhao) return;
-                const payload = {
-                    talhaoId: talhao,
-                    fazendaId: os.fazenda_id || null,
-                    ultimaOperacaoValida: apontamento?.operacao || os.operacao_nome || null,
-                    dataUltimaOperacaoValida: apontamento?.dataApontamento || os.dataApontamentoConciliado || null,
-                    origemUltimaOperacao: apontamento ? 'apontamento_conciliado' : 'ordem_servico',
-                    ultimaOsId: os.id,
-                    ultimoApontamentoId: apontamento?.id || null,
-                    statusPlanejamento: 'EXECUTADO',
-                    updatedAt: new Date().toISOString(),
-                    companyId: App.state.currentUser.companyId,
-                };
-                const existing = (App.state.estado_operacional_talhoes || []).find(i => i.talhaoId === talhao && i.fazendaId === payload.fazendaId);
-                if (existing?.id) {
-                    await App.data.updateDocument('estado_operacional_talhoes', existing.id, payload);
-                    Object.assign(existing, payload);
-                } else {
-                    const docRef = await App.data.addDocument('estado_operacional_talhoes', payload);
-                    App.state.estado_operacional_talhoes.push({ id: docRef.id, ...payload });
-                }
-            },
-
-            getOperationalTruthForTalhao(fazendaId, talhaoId) {
-                const reconciled = (App.state.apontamentos_os_importados || [])
-                    .filter(a => a.statusConciliacao === 'CONCILIADO' && (a.fazendaId || a.fazendaNome) === fazendaId && (a.talhaoId || a.talhaoNome) === talhaoId)
-                    .sort((a, b) => String(b.dataApontamento || '').localeCompare(String(a.dataApontamento || '')))[0];
-                if (reconciled) return { origem: 'apontamento_conciliado', operacao: reconciled.operacao, data: reconciled.dataApontamento, osId: reconciled.osVinculadaId, apontamentoId: reconciled.id };
-
-                const regApp = (App.state.registros || []).filter(r => r.tipo_registro === 'registro_aplicacao' && (r.fazendaId === fazendaId || r.fazenda_nome === fazendaId) && (r.talhaoId === talhaoId || r.talhao_nome === talhaoId)).sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')))[0];
-                if (regApp) return { origem: 'registro_aplicacao', operacao: regApp.operacao_nome || regApp.operacao, data: regApp.data, osId: regApp.osId || null, apontamentoId: null };
-
-                const osFinal = (App.state.ordens_servico || []).filter(os => ['FINALIZADA', 'FINALIZADA_FORA_TIMER', 'CONCILIADA'].includes(os.status) && os.fazenda_id === fazendaId && (os.itens || []).some(i => (i.talhao_nome || i.talhao_id) === talhaoId)).sort((a, b) => String(b.dataApontamentoConciliado || b.data || '').localeCompare(String(a.dataApontamentoConciliado || a.data || '')))[0];
-                if (osFinal) return { origem: 'ordem_servico', operacao: osFinal.operacao_nome, data: osFinal.dataApontamentoConciliado || osFinal.data, osId: osFinal.id, apontamentoId: osFinal.apontamentoConciliadoId || null };
-
-                const planning = (App.state.planejamento_os || []).filter(p => p.fazendaId === fazendaId && p.talhaoId === talhaoId).sort((a,b)=>String(b.dataUltimaOperacaoValida||'').localeCompare(String(a.dataUltimaOperacaoValida||'')))[0];
-                if (planning) return { origem: 'planejamento_anterior', operacao: planning.ultimaOperacaoValida, data: planning.dataUltimaOperacaoValida, osId: planning.ultimaOsId, apontamentoId: planning.ultimoApontamentoId };
-                return null;
-            },
-        },
-
-        osPlanning: {
-            setup() {
-                const btn = document.getElementById('btnReprocessOsPlanning');
-                if (btn && !btn.dataset.bound) {
-                    btn.dataset.bound = '1';
-                    btn.addEventListener('click', () => this.reprocess());
-                }
-                const btnBatch = document.getElementById('btnGenerateBatchOsPlanning');
-                if (btnBatch && !btnBatch.dataset.bound) {
-                    btnBatch.dataset.bound = '1';
-                    btnBatch.addEventListener('click', () => this.generateBatchOs());
-                }
-            },
-
-            getRules() {
-                return (App.state.regras_planejamento_os || []).filter(r => r.ativo !== false);
-            },
-
-            getRuleForOperation(operacaoAtual) {
-                return this.getRules().find(r => (r.operacaoAtual || '').toLowerCase() === String(operacaoAtual || '').toLowerCase()) || null;
-            },
-
-            evaluatePlanningEntry(entry) {
-                const hoje = new Date();
-                const dataPrevista = App.osWorkflow.toDate(entry.dataPrevista);
-                if (!dataPrevista) return 'SEM_HISTORICO';
-                const diff = Math.ceil((dataPrevista.getTime() - hoje.getTime()) / 86400000);
-                if (entry.bloqueado) return 'BLOQUEADO';
-                if (entry.osGeradaId) return 'AGUARDANDO_APONTAMENTO';
-                if (diff < 0) return 'ATRASADO';
-                if (diff === 0) return 'EM_ALERTA';
-                if (diff <= 3) return 'PRONTO_PARA_OS';
-                if (diff <= 7) return 'SUGERIDO';
-                return 'PLANEJADO';
-            },
-
-            async reprocess() {
-                App.ui.setLoading(true, 'Reprocessando planejamento de O.S...');
-                try {
-                    const companyId = App.state.currentUser.companyId;
-                    const farmEntries = [];
-                    (App.state.fazendas || []).forEach(f => (f.talhoes || []).forEach(t => farmEntries.push({ fazenda: f, talhao: t })));
-
-                    for (const item of farmEntries) {
-                        const truth = App.osWorkflow.getOperationalTruthForTalhao(item.fazenda.id, item.talhao.id || item.talhao.name);
-                        if (!truth) continue;
-                        const rule = this.getRuleForOperation(truth.operacao);
-                        const baseDate = App.osWorkflow.toDate(truth.data);
-                        const interval = Number(rule?.intervaloDiasProxima || 0);
-                        const dataPrevista = baseDate ? new Date(baseDate.getTime() + interval * 86400000) : null;
-                        const planningPayload = {
-                            companyId,
-                            fazendaId: item.fazenda.id,
-                            fazendaNome: item.fazenda.name,
-                            talhaoId: item.talhao.id || item.talhao.name,
-                            talhaoNome: item.talhao.name,
-                            areaHa: Number(item.talhao.area || 0),
-                            ultimaOperacaoValida: truth.operacao,
-                            dataUltimaOperacaoValida: App.osWorkflow.normalizeDate(truth.data),
-                            origemUltimaOperacao: truth.origem,
-                            ultimaOsId: truth.osId || null,
-                            ultimoApontamentoId: truth.apontamentoId || null,
-                            proximaOperacaoSugerida: rule?.proximaOperacao || null,
-                            intervaloDiasProxima: interval,
-                            dataPrevista: dataPrevista ? dataPrevista.toISOString().split('T')[0] : null,
-                            prioridade: 'MEDIA',
-                            statusPlanejamento: 'IDENTIFICADO',
-                            updatedAt: new Date().toISOString(),
-                            createdAt: new Date().toISOString(),
-                            bloqueado: false,
-                        };
-                        planningPayload.statusPlanejamento = this.evaluatePlanningEntry(planningPayload);
-
-                        const existing = (App.state.planejamento_os || []).find(p => p.fazendaId === planningPayload.fazendaId && p.talhaoId === planningPayload.talhaoId);
-                        if (existing?.id) {
-                            await App.data.updateDocument('planejamento_os', existing.id, planningPayload);
-                            Object.assign(existing, planningPayload);
-                        } else {
-                            const docRef = await App.data.addDocument('planejamento_os', planningPayload);
-                            App.state.planejamento_os.push({ id: docRef.id, ...planningPayload });
-                        }
-                    }
-                    this.render();
-                    App.ui.showAlert('Planejamento O.S. reprocessado com sucesso.', 'success');
-                } catch (error) {
-                    console.error(error);
-                    App.ui.showAlert(`Erro ao reprocessar planejamento: ${error.message}`, 'error');
-                } finally {
-                    App.ui.setLoading(false);
-                }
-            },
-
-            async generateBatchOs() {
-                const pendings = (App.state.planejamento_os || []).filter(p => ['PRONTO_PARA_OS', 'EM_ALERTA', 'ATRASADO'].includes(p.statusPlanejamento) && !p.osGeradaId && !p.bloqueado);
-                for (const p of pendings) {
-                    await this.generateOSFromPlanning(p.id, { silent: true });
-                }
-                this.render();
-                App.ui.showAlert(`${pendings.length} O.S. geradas via planejamento.`, 'success');
-            },
-
-            async generateOSFromPlanning(planningId, opts = {}) {
-                const planning = (App.state.planejamento_os || []).find(p => p.id === planningId);
-                if (!planning) return;
-                const duplicated = (App.state.ordens_servico || []).find(os =>
-                    App.osWorkflow.isOsActive(os.status) &&
-                    os.fazenda_id === planning.fazendaId &&
-                    (os.operacao_nome || '').toLowerCase() === (planning.proximaOperacaoSugerida || '').toLowerCase() &&
-                    (os.itens || []).some(i => (i.talhao_nome || i.talhao_id) === planning.talhaoNome)
-                );
-                if (duplicated) {
-                    planning.statusPlanejamento = 'DIVERGENTE';
-                    planning.observacoes = `Duplicidade detectada com O.S. ${duplicated.os_numero}`;
-                    await App.data.updateDocument('planejamento_os', planning.id, { statusPlanejamento: planning.statusPlanejamento, observacoes: planning.observacoes });
-                    return;
-                }
-
-                const numero = await App.osManual.getNextOsNumber();
-                const osPayload = {
-                    os_numero: numero,
-                    data: new Date().toISOString().split('T')[0],
-                    dataAberturaOS: new Date().toISOString().split('T')[0],
-                    origemOS: 'planejamento',
-                    planningSourceId: planning.id,
-                    companyId: App.state.currentUser.companyId,
-                    fazenda_id: planning.fazendaId,
-                    fazenda_nome: planning.fazendaNome,
-                    responsavel_nome: planning.responsavelPlanejado || 'Planejamento O.S.',
-                    responsavel_matricula: planning.responsavelPlanejado || 'N/A',
-                    operacao_nome: planning.proximaOperacaoSugerida || 'Operação não definida',
-                    status: 'ABERTA',
-                    itens: [{ talhao_id: planning.talhaoNome, talhao_nome: planning.talhaoNome, area_ha: planning.areaHa || 0 }],
-                    created_at: new Date().toISOString(),
-                    prazoExecucaoDias: Number((this.getRuleForOperation(planning.ultimaOperacaoValida) || {}).prazoExecucaoDias || 0),
-                };
-                const docRef = await App.data.addDocument('ordens_servico', sanitizeFirestoreData(osPayload));
-                App.state.ordens_servico.push({ id: docRef.id, ...osPayload });
-                planning.osGeradaId = docRef.id;
-                planning.statusPlanejamento = 'OS_GERADA';
-                await App.data.updateDocument('planejamento_os', planning.id, { osGeradaId: docRef.id, statusPlanejamento: planning.statusPlanejamento, updatedAt: new Date().toISOString() });
-                if (!opts.silent) App.ui.showAlert(`O.S. ${numero} criada a partir do planejamento.`, 'success');
-            },
-
-            render() {
-                const container = document.getElementById('osPlanningList');
-                const summary = document.getElementById('osPlanningSummary');
-                if (!container || !summary) return;
-                const entries = [...(App.state.planejamento_os || [])];
-                const count = (status) => entries.filter(e => e.statusPlanejamento === status).length;
-                summary.innerHTML = `
-                    <div class="card"><strong>Vencendo hoje</strong><div>${count('EM_ALERTA')}</div></div>
-                    <div class="card"><strong>Próximos 3 dias</strong><div>${entries.filter(e => ['PRONTO_PARA_OS','SUGERIDO'].includes(e.statusPlanejamento)).length}</div></div>
-                    <div class="card"><strong>Próximos 7 dias</strong><div>${count('PLANEJADO')}</div></div>
-                    <div class="card"><strong>Atrasados</strong><div>${count('ATRASADO')}</div></div>
-                    <div class="card"><strong>Aguardando apontamento</strong><div>${count('AGUARDANDO_APONTAMENTO') + count('OS_GERADA')}</div></div>
-                    <div class="card"><strong>Finalizadas fora do timer</strong><div>${(App.state.ordens_servico || []).filter(o => o.status === 'FINALIZADA_FORA_TIMER').length}</div></div>
-                    <div class="card"><strong>Divergentes</strong><div>${count('DIVERGENTE')}</div></div>
-                `;
-
-                if (!entries.length) {
-                    container.innerHTML = '<p style="padding:10px;">Sem dados de planejamento O.S. Reprocesse para gerar sugestões.</p>';
-                    return;
-                }
-
-                container.innerHTML = `<table class="os-table"><thead><tr><th>Fazenda</th><th>Talhão</th><th>Última operação</th><th>Próxima</th><th>Data prevista</th><th>Status</th><th>Ações</th></tr></thead><tbody>${entries.map(e => `
-                    <tr>
-                        <td>${e.fazendaNome || '-'}</td>
-                        <td>${e.talhaoNome || '-'}</td>
-                        <td>${e.ultimaOperacaoValida || '-'}<br><small>${e.dataUltimaOperacaoValida || ''} (${e.origemUltimaOperacao || '-'})</small></td>
-                        <td>${e.proximaOperacaoSugerida || '-'}</td>
-                        <td>${e.dataPrevista || '-'}</td>
-                        <td><span class="plano-status">${e.statusPlanejamento || '-'}</span></td>
-                        <td><button class="btn-secondary" onclick="App.osPlanning.generateOSFromPlanning('${e.id}')"><i class="fas fa-plus"></i> Gerar O.S.</button></td>
-                    </tr>
-                `).join('')}</tbody></table>`;
-            }
-        },
-
-
         osEscritorio: {
             currentPage: 1,
             itemsPerPage: 10,
@@ -19811,7 +19469,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const endIndex = startIndex + this.itemsPerPage;
                 const paginatedData = data.slice(startIndex, endIndex);
 
-                let html = '<table class="os-table"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Timer</th><th>Ações</th></tr></thead><tbody>';
+                let html = '<table class="os-table"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
 
                 html += paginatedData.map(os => `
                     <tr>
@@ -19819,8 +19477,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Nº OS">${os.os_numero}</td>
                         <td data-label="Responsável">${os.responsavel_nome}</td>
                         <td data-label="Operação">${os.operacao_nome}</td>
-                        <td data-label="Status"><span class="plano-status ${['FINALIZADA','FINALIZADA_FORA_TIMER','CONCLUIDA','CONCILIADA'].includes(os.status) ? 'concluido' : (os.status === 'DIVERGENTE' ? 'atrasado' : 'pendente')}">${os.status}</span><br><small>${os.finalizadaAutomaticamente ? 'Auto' : 'Manual'} ${os.motivoDivergencia ? '| ' + os.motivoDivergencia : ''}</small></td>
-                        <td data-label="Timer">${os.situacaoTimer || '-'}<br><small>Abertura: ${os.dataAberturaOS || os.data || '-'} | Apont.: ${os.dataApontamentoConciliado || '-'}</small><br><small>Dias: ${os.diasExecucao ?? '-'}</small></td>
+                        <td data-label="Status"><span class="plano-status ${os.status === 'FINALIZADA' ? 'concluido' : (os.status === 'DIVERGENTE' ? 'atrasado' : 'pendente')}">${os.status}</span></td>
                         <td data-label="Ações">
                             <div style="display: flex; gap: 8px; justify-content: flex-end;">
                                 <button class="btn-secondary" style="padding: 6px;" title="Atualizar Status/Obs" onclick="App.osEscritorio.openEditModal('${os.id}')"><i class="fas fa-tasks"></i></button>
@@ -20211,147 +19868,289 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return hash.toString(36) + str.length;
             },
+
             async processMachineReport() {
                 const fileInput = document.getElementById('osImportFile');
-                const templateId = document.getElementById('osImportTemplateSelect')?.value || 'padrao';
+                const tolerance = parseFloat(document.getElementById('osImportTolerance').value) || 5;
+                const templateId = document.getElementById('osImportTemplateSelect').value;
 
                 if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
                     App.ui.showAlert('Por favor, selecione um arquivo CSV.', 'warning');
                     return;
                 }
 
-                App.ui.setLoading(true, 'A processar relatório...');
+                const file = fileInput.files[0];
+                App.ui.setLoading(true, "A processar relatório...");
+
                 try {
-                    const file = fileInput.files[0];
                     const text = await file.text();
-                    const lines = text.split(/
-?
-/).filter(Boolean);
-                    const headers = (lines[0] || '').split(';').map(h => h.trim());
+                    const lines = text.split(/\r?\n/);
+                    const headers = lines[0].split(';').map(h => h.trim());
                     const headersLower = headers.map(h => h.toLowerCase());
 
-                    const getIndex = (aliases = []) => headersLower.findIndex(h => aliases.some(a => h.includes(a)));
-                    const colIndex = {
-                        dataApontamento: getIndex(['data']),
-                        fazendaNome: getIndex(['fazenda', 'propriedade']),
-                        talhaoNome: getIndex(['talhão', 'talhao']),
-                        operacao: getIndex(['descrição', 'descricao', 'operação', 'operacao']),
-                        areaExecutada: getIndex(['ha.aplic', 'área', 'area']),
-                        equipe: getIndex(['equipe', 'responsável', 'responsavel']),
-                        observacoes: getIndex(['observação', 'observacao']),
-                        idExterno: getIndex(['id', 'externo'])
-                    };
+                    let colIndex = {};
+                    let operacaoRule = '';
 
-                    const required = ['dataApontamento', 'fazendaNome', 'talhaoNome', 'operacao', 'areaExecutada'];
-                    const missing = required.filter(key => colIndex[key] === -1);
-                    if (missing.length) {
-                        App.ui.showAlert(`Colunas obrigatórias ausentes: ${missing.join(', ')}`, 'error');
-                        return;
-                    }
-
-                    const importedRows = [];
-                    for (let i = 1; i < lines.length; i++) {
-                        const cols = lines[i].split(';');
-                        const row = {
-                            id: `ap_os_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
-                            companyId: App.state.currentUser.companyId,
-                            arquivoOrigem: file.name,
-                            dataImportacao: new Date().toISOString(),
-                            dataApontamento: (cols[colIndex.dataApontamento] || '').trim(),
-                            fazendaNome: (cols[colIndex.fazendaNome] || '').trim(),
-                            talhaoNome: (cols[colIndex.talhaoNome] || '').trim(),
-                            operacao: (cols[colIndex.operacao] || '').trim(),
-                            areaExecutada: Number(String(cols[colIndex.areaExecutada] || '0').replace(',', '.')) || 0,
-                            equipe: colIndex.equipe > -1 ? (cols[colIndex.equipe] || '').trim() : '',
-                            observacoes: colIndex.observacoes > -1 ? (cols[colIndex.observacoes] || '').trim() : '',
-                            idExterno: colIndex.idExterno > -1 ? (cols[colIndex.idExterno] || '').trim() : '',
-                            statusConciliacao: 'IMPORTADO',
-                            osVinculadaId: null,
-                            planejamentoId: null,
-                            diasExecucaoCalculado: null,
-                            situacaoTimer: null,
-                            createdAt: new Date().toISOString(),
-                            importTemplateId: templateId,
+                    if (templateId === 'padrao') {
+                        colIndex = {
+                            data: headersLower.findIndex(h => h.includes('data')),
+                            fazenda: headersLower.findIndex(h => h.includes('fazenda')),
+                            talhao: headersLower.findIndex(h => h.includes('talhão') || h.includes('talhao')),
+                            produto: headersLower.findIndex(h => h.includes('produto')),
+                            operacao: headersLower.findIndex(h => h.includes('descrição') || h.includes('descricao')),
+                            areaAplic: headersLower.findIndex(h => h.includes('ha.aplic')),
+                            dosagemAplic: headersLower.findIndex(h => h.includes('dos.aplic')),
                         };
-                        importedRows.push(row);
+                    } else {
+                        const templates = App.state.globalConfigs?.importTemplates || {};
+                        const tpl = templates[templateId];
+                        if (!tpl) {
+                            App.ui.showAlert('Template selecionado não encontrado.', 'error');
+                            App.ui.setLoading(false);
+                            return;
+                        }
+                        const findIndexIgnoreCase = (str) => {
+                            if (!str) return -1;
+                            const term = str.toLowerCase();
+                            return headersLower.findIndex(h => h === term);
+                        };
+
+                        colIndex = {
+                            data: findIndexIgnoreCase(tpl.mapping.data),
+                            fazenda: findIndexIgnoreCase(tpl.mapping.fazenda),
+                            talhao: findIndexIgnoreCase(tpl.mapping.talhao),
+                            produto: findIndexIgnoreCase(tpl.mapping.produto),
+                            areaAplic: findIndexIgnoreCase(tpl.mapping.areaAplic),
+                            dosagemAplic: findIndexIgnoreCase(tpl.mapping.dosagemAplic),
+                            operacao: findIndexIgnoreCase(tpl.mapping.operacao)
+                        };
+                        operacaoRule = tpl.mapping.operacaoRule;
                     }
 
-                    const previewEl = document.getElementById('osImportPreview');
-                    if (previewEl) {
-                        previewEl.innerHTML = `<p><strong>Preview:</strong> ${importedRows.length} registros lidos do arquivo <code>${file.name}</code>.</p>`;
+                    if (colIndex.fazenda === -1 || colIndex.talhao === -1) {
+                         App.ui.showAlert('Colunas obrigatórias não encontradas (Fazenda, Talhão). Verifique o template ou o cabeçalho do arquivo.', 'error');
+                         App.ui.setLoading(false);
+                         return;
                     }
 
-                    let conciliated = 0;
-                    let divergentes = 0;
-                    let semMatch = 0;
+                    const parsedData = [];
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (!line) continue;
+                        const cols = line.split(';');
 
-                    for (const row of importedRows) {
-                        const match = App.osWorkflow.findMatchingOS(row);
-                        if (match.level === 'MATCH_FORTE' && match.os) {
-                            const os = match.os;
-                            const timer = App.osWorkflow.calculateTimer(os.dataAberturaOS || os.created_at || os.data, row.dataApontamento, os.prazoExecucaoDias || 0);
-                            const updateData = {
-                                apontamentoConciliadoId: row.id,
-                                dataApontamentoConciliado: row.dataApontamento,
-                                diasExecucao: timer.diasExecucao,
-                                situacaoTimer: timer.situacaoTimer,
-                                data_conciliacao: new Date().toISOString(),
-                                finalizadaAutomaticamente: timer.situacaoTimer !== 'DATA_INVALIDA',
-                                motivoDivergencia: '',
-                            };
-
-                            if (timer.situacaoTimer === 'DATA_INVALIDA') {
-                                updateData.status = 'DIVERGENTE';
-                                updateData.finalizadaAutomaticamente = false;
-                                updateData.motivoDivergencia = 'Data do apontamento anterior à abertura da O.S.';
-                                row.statusConciliacao = 'DIVERGENTE';
-                                divergentes++;
-                            } else if (timer.situacaoTimer === 'FORA_TIMER') {
-                                updateData.status = 'FINALIZADA_FORA_TIMER';
-                                updateData.observacoes_execucao = ((os.observacoes_execucao || '') + ' | Finalizada fora do timer por conciliação automática.').trim();
-                                row.statusConciliacao = 'CONCILIADO';
-                                conciliated++;
-                            } else {
-                                updateData.status = 'FINALIZADA';
-                                row.statusConciliacao = 'CONCILIADO';
-                                conciliated++;
-                            }
-
-                            await App.data.updateDocument('ordens_servico', os.id, updateData);
-                            const stateOs = App.state.ordens_servico.find(o => o.id === os.id);
-                            if (stateOs) Object.assign(stateOs, updateData);
-
-                            row.osVinculadaId = os.id;
-                            row.diasExecucaoCalculado = timer.diasExecucao;
-                            row.situacaoTimer = timer.situacaoTimer;
-                            await App.osWorkflow.updateOperationalStateFromOS({ ...os, ...updateData }, row);
-                        } else if (match.level === 'MATCH_PARCIAL' && match.os) {
-                            row.statusConciliacao = 'DIVERGENTE';
-                            row.osVinculadaId = match.os.id;
-                            row.observacoes = `${row.observacoes || ''} | Match parcial: ${match.motivo || ''}`.trim();
-                            divergentes++;
+                        let operacaoName = '';
+                        if (templateId === 'padrao' && colIndex.operacao > -1) {
+                            operacaoName = cols[colIndex.operacao];
                         } else {
-                            row.statusConciliacao = 'SEM_MATCH';
-                            semMatch++;
+                            if (colIndex.operacao > -1) {
+                                operacaoName = cols[colIndex.operacao];
+                            } else if (operacaoRule) {
+                                operacaoName = operacaoRule.replace(/\{([^}]+)\}/g, (match, colName) => {
+                                    const idx = headersLower.findIndex(h => h === colName.trim().toLowerCase());
+                                    return idx > -1 ? cols[idx] : '';
+                                });
+                            }
                         }
 
-                        await App.data.addDocument('apontamentos_os_importados', sanitizeFirestoreData(row));
-                        App.state.apontamentos_os_importados.push(row);
+                        const parseNumber = (str) => {
+                            if (!str) return 0;
+                            return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+                        };
+
+                        parsedData.push({
+                            hash: this.generateHash(line),
+                            data: colIndex.data > -1 ? cols[colIndex.data] : '',
+                            fazendaNome: cols[colIndex.fazenda],
+                            operacao: operacaoName,
+                            talhao: cols[colIndex.talhao],
+                            produto: colIndex.produto > -1 ? cols[colIndex.produto] : '',
+                            areaAplic: colIndex.areaAplic > -1 ? parseNumber(cols[colIndex.areaAplic]) : 0,
+                            dosagemAplic: colIndex.dosagemAplic > -1 ? parseNumber(cols[colIndex.dosagemAplic]) : 0,
+                            raw: line
+                        });
                     }
 
-                    App.ui.showAlert(`Importação concluída. Conciliados: ${conciliated}, Divergentes: ${divergentes}, Sem match: ${semMatch}`, 'success');
-                    this.renderList();
+                    let reconciledCount = 0;
+                    let divergentCount = 0;
+                    const unlinkedRows = [];
+                    const updates = [];
+
+                    // Load import history to prevent duplication
+                    let importHistory = new Set();
+                    try {
+                        // Store history inside 'registros' with a specific 'tipo_registro' to bypass permission blocks
+                        const q = query(collection(db, 'registros'),
+                            where("companyId", "==", App.state.currentUser.companyId),
+                            where("tipo_registro", "==", "import_history")
+                        );
+                        const querySnapshot = await getDocs(q);
+                        querySnapshot.forEach(docSnap => {
+                            const data = docSnap.data();
+                            if (Array.isArray(data.hashes)) {
+                                data.hashes.forEach(h => importHistory.add(h));
+                            }
+                        });
+                    } catch (e) {
+                        console.warn("Could not load full import history, skipping deduplication check to allow import.", e);
+                    }
+
+                    const activeOSs = App.state.ordens_servico.filter(os => os.status === 'PLANEJADA' || os.status === 'EM_EXECUCAO');
+
+                    const processedHashesInThisSession = [];
+
+                    for (const row of parsedData) {
+                        // Skip if we already processed this exact row hash
+                        if (importHistory.has(row.hash)) continue;
+
+                        // Try to find matching active OS
+                        const matchedOsList = activeOSs.filter(os => {
+                            // Match Farm Name (fuzzy)
+                            const farmMatch = this.fuzzyMatch(os.fazenda_nome, row.fazendaNome, 0.85);
+                            if (!farmMatch) return false;
+
+                            // Match Plots (exact)
+                            const osPlots = Array.isArray(os.selectedPlots) ? os.selectedPlots : (os.itens ? os.itens.map(i => i.talhao_nome) : []);
+                            const plotMatch = osPlots.some(p => String(p).trim() === String(row.talhao).trim());
+                            if (!plotMatch) return false;
+
+                            // Match Operation (fuzzy)
+                            const osOpNames = os.operacoes_multiplas ? os.operacoes_multiplas.map(op => op.operacao_nome) : [os.operacao_nome || os.operacao];
+                            const opMatch = osOpNames.some(opName => this.fuzzyMatch(opName, row.operacao, 0.8));
+
+                            return opMatch;
+                        });
+
+                        if (matchedOsList.length > 0) {
+                            // Found OS, reconcile data
+                            const os = matchedOsList[0]; // Take first match
+
+                            // Determine divergence based on Area and Dosage
+                            let hasDivergence = false;
+                            let divergenceNotes = [];
+
+                            // Compare Products and Dosage
+                            const osProducts = os.operacoes_multiplas ? os.operacoes_multiplas.flatMap(op => op.produtos) : (os.produtos || []);
+
+                            // Find product match in OS
+                            const prodMatch = osProducts.find(p => this.fuzzyMatch(p.produto_nome, row.produto, 0.7));
+
+                            if (prodMatch) {
+                                const expectedDosage = parseFloat(prodMatch.dosagem_por_ha) || 0;
+                                const appliedDosage = row.dosagemAplic;
+                                const diffPercent = expectedDosage > 0 ? Math.abs((appliedDosage - expectedDosage) / expectedDosage) * 100 : 0;
+
+                                if (diffPercent > tolerance) {
+                                    hasDivergence = true;
+                                    divergenceNotes.push(`Divergência Talhão ${row.talhao} - Prod: ${prodMatch.produto_nome}. Rec: ${expectedDosage}, Apl: ${appliedDosage} (${diffPercent.toFixed(1)}% dif)`);
+                                }
+                            } else if (row.produto) {
+                                hasDivergence = true;
+                                divergenceNotes.push(`Produto não previsto na OS: ${row.produto}`);
+                            }
+
+                            // If Area is provided in CSV, could also compare here if OS tracks area per plot.
+
+                            const newStatus = hasDivergence ? 'DIVERGENTE' : 'CONCLUIDA';
+                            const existingUpdate = updates.find(u => u.id === os.id);
+
+                            const updateData = existingUpdate ? existingUpdate.data : {
+                                status: newStatus,
+                                observacoes_execucao: divergenceNotes.join(' | '),
+                                data_execucao: row.data || new Date().toISOString(),
+                                data_conciliacao: new Date().toISOString(),
+                                // Add execution logs
+                                relatorio_execucao: []
+                            };
+
+                            // Add this row's raw data to OS execution log
+                            const execLog = updateData.relatorio_execucao || (os.relatorio_execucao || []);
+                            execLog.push(row);
+                            updateData.relatorio_execucao = execLog;
+
+                            // If any row causes divergence, keep OS as DIVERGENTE
+                            if (hasDivergence) updateData.status = 'DIVERGENTE';
+
+                            if (existingUpdate) {
+                                existingUpdate.data = updateData;
+                            } else {
+                                updates.push({ id: os.id, data: updateData });
+                            }
+
+                            // Mark hash as processed
+                            processedHashesInThisSession.push(row.hash);
+                        } else {
+                            // No matching OS found, save to inbox
+                            unlinkedRows.push(row);
+                        }
+                    }
+
+                    // Apply OS updates
+                    for (const update of updates) {
+                        await App.data.updateDocument('ordens_servico', update.id, update.data);
+                        const stateOs = App.state.ordens_servico.find(o => o.id === update.id);
+                        if (stateOs) {
+                            Object.assign(stateOs, update.data);
+                        }
+                        if (update.data.status === 'CONCLUIDA') reconciledCount++;
+                        if (update.data.status === 'DIVERGENTE') divergentCount++;
+                    }
+
+                    // 1. Save Unlinked rows to Cloud ('registros' collection with flag)
+                    // We only save if they are not already there. To prevent massive read, we just query if the hash exists.
+                    for (const row of unlinkedRows) {
+                         await OfflineDB.add('offline-writes', {
+                             id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                             action: 'create',
+                             collection: 'registros',
+                             docId: `inbox_${row.hash}`,
+                             data: {
+                                 ...row,
+                                 tipo_registro: 'reconciliation_inbox',
+                                 companyId: App.state.currentUser.companyId,
+                                 timestamp: Date.now()
+                             },
+                             timestamp: Date.now()
+                         });
+                    }
+
+                    // 2. Save Processed Hashes to Cloud ('registros' collection with flag)
+                    if (processedHashesInThisSession.length > 0) {
+                        const historyDocId = `import_${Date.now()}`;
+                        await OfflineDB.add('offline-writes', {
+                             id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                             action: 'create',
+                             collection: 'registros',
+                             docId: historyDocId,
+                             data: {
+                                 tipo_registro: 'import_history',
+                                 companyId: App.state.currentUser.companyId,
+                                 timestamp: Date.now(),
+                                 hashes: processedHashesInThisSession
+                             },
+                             timestamp: Date.now()
+                         });
+                    }
+
+                    // Trigger sync
+                    App.actions.startSync();
+
+                    App.ui.showAlert(`Importação concluída! O.S. Conciliadas: ${reconciledCount}. Divergentes: ${divergentCount}. Não vinculadas: ${unlinkedRows.length}`, 'success');
+
+                    if (divergentCount > 0 || unlinkedRows.length > 0) {
+                         this.openReconciliationInbox();
+                    }
+
                 } catch (error) {
-                    console.error('Erro ao processar arquivo:', error);
+                    console.error("Erro ao processar arquivo:", error);
                     App.ui.showAlert(`Erro ao processar o arquivo: ${error.message}`, 'error');
                 } finally {
                     App.ui.setLoading(false);
-                    if (fileInput) fileInput.value = '';
+                    if(fileInput) fileInput.value = '';
                 }
             },
 
             async openReconciliationInbox() {
-
                 const modal = document.getElementById('reconciliationInboxModal');
                 const list = document.getElementById('reconciliationInboxList');
                 const btnClose = document.getElementById('reconciliationInboxModalCloseBtn');

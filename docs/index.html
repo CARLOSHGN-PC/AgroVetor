@@ -2885,15 +2885,10 @@
                             <select id="osOfficeStatus">
                                 <option value="">Todos</option>
                                 <option value="PLANEJADA">Planejada</option>
-                                <option value="ABERTA">Aberta</option>
                                 <option value="EM_EXECUCAO">Em Execução</option>
-                                <option value="AGUARDANDO_APONTAMENTO">Aguardando Apontamento</option>
-                                <option value="CONCILIADA">Conciliada</option>
-                                <option value="FINALIZADA">Finalizada</option>
-                                <option value="FINALIZADA_FORA_TIMER">Finalizada Fora do Timer</option>
                                 <option value="DIVERGENTE">Divergente</option>
-                                <option value="PARCIAL">Parcial</option>
-                                <option value="CONCLUIDA">Concluída (Legado)</option>
+                                <option value="CONCLUIDA">Concluída</option>
+                                <option value="FINALIZADA">Finalizada (Legado)</option>
                                 <option value="CANCELADA">Cancelada</option>
                             </select>
                         </div>
@@ -2917,15 +2912,10 @@
                                 <label for="osEditStatus">Status:</label>
                                 <select id="osEditStatus">
                                     <option value="PLANEJADA">Planejada</option>
-                                    <option value="ABERTA">Aberta</option>
                                     <option value="EM_EXECUCAO">Em Execução</option>
-                                    <option value="AGUARDANDO_APONTAMENTO">Aguardando Apontamento</option>
-                                    <option value="CONCILIADA">Conciliada</option>
-                                    <option value="FINALIZADA">Finalizada</option>
-                                    <option value="FINALIZADA_FORA_TIMER">Finalizada Fora do Timer</option>
                                     <option value="DIVERGENTE">Divergente</option>
-                                    <option value="PARCIAL">Parcial</option>
-                                    <option value="CONCLUIDA">Concluída (Legado)</option>
+                                    <option value="CONCLUIDA">Concluída</option>
+                                    <option value="FINALIZADA">Finalizada (Legado)</option>
                                     <option value="CANCELADA">Cancelada</option>
                                 </select>
                             </div>
@@ -2957,25 +2947,6 @@
                     </div>
                 </div>
 
-            </section>
-
-            
-            <section id="planejamentoOS" class="tab-content card" aria-label="Planejamento O.S." tabindex="0" hidden>
-                <div class="card-header-actions">
-                    <h2 style="margin: 0; color: var(--color-primary);"><i class="fas fa-calendar-check"></i> Planejamento O.S.</h2>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <button id="btnReprocessOsPlanning" class="btn-secondary"><i class="fas fa-sync"></i> Reprocessar cálculo</button>
-                        <button id="btnGenerateBatchOsPlanning" class="save"><i class="fas fa-layer-group"></i> Gerar O.S. em lote</button>
-                    </div>
-                </div>
-                <div id="osPlanningSummary" style="display:grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin: 15px 0;"></div>
-                <div class="form-row">
-                    <div class="form-col"><label>Fazenda</label><input id="osPlanningFilterFarm" type="text" placeholder="Filtro por fazenda"></div>
-                    <div class="form-col"><label>Talhão</label><input id="osPlanningFilterTalhao" type="text" placeholder="Filtro por talhão"></div>
-                    <div class="form-col"><label>Operação</label><input id="osPlanningFilterOperacao" type="text" placeholder="Filtro por operação"></div>
-                    <div class="form-col"><label>Status</label><input id="osPlanningFilterStatus" type="text" placeholder="Status"></div>
-                </div>
-                <div id="osPlanningList" class="table-responsive"></div>
             </section>
 
             <section id="planejamentoColheita" class="tab-content card" aria-label="Planejamento de Colheita" tabindex="0" hidden>
@@ -4243,9 +4214,6 @@
                         <button id="btnDownloadOsImportTemplate" class="save" style="max-width: 300px; margin-top: 0; background: var(--color-info);"><i class="fas fa-download"></i> Baixar Modelo Padrão</button>
                         <button id="btnProcessImport" class="save" style="max-width: 300px; margin-top: 0; background: var(--color-primary);"><i class="fas fa-cogs"></i> Processar Importação</button>
                         <button id="btnOpenInbox" class="btn-secondary" style="max-width: 300px; margin-top: 0; background: var(--color-warning); color: #000; border: none; font-weight: 600;"><i class="fas fa-inbox"></i> Ver Pendências</button>
-                    </div>
-                    <div id="osImportPreview" class="card" style="margin-top: 10px; border-left-color: var(--color-info); font-size: 0.9em;">
-                        <p style="margin:0; color: var(--color-text-light);">Preview da importação aparecerá aqui.</p>
                     </div>
                 </div>
 
