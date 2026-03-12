@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         worker.postMessage({ type: 'PARSE_SHP_BUFFER', payload: arrayBuffer });
     });
 
-    const OFFLINE_DB_VERSION = 11;
+    const OFFLINE_DB_VERSION = 12;
     const MASTER_DATA_COLLECTIONS = [
         'fazendas',
         'personnel',
@@ -180,6 +180,10 @@ document.addEventListener('DOMContentLoaded', () => {
         'produtos',
         'operacao_produtos',
         'ordens_servico',
+        'planejamento_os',
+        'apontamentos_os_importados',
+        'regras_planejamento_os',
+        'estado_operacional_talhoes',
         'frota',
         'armadilhas'
     ];
@@ -241,6 +245,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const isPlainObject = (value) => Object.prototype.toString.call(value) === '[object Object]';
     const FIRESTORE_DATE_FIELDS = new Set(['dataInstalacao', 'dataColeta']);
+    const OS_OPEN_STATUSES = new Set(['PLANEJADA', 'EM_EXECUCAO']);
+    const OS_CONCILIATION_STATUS = Object.freeze({
+        IMPORTADO: 'IMPORTADO',
+        EM_ANALISE: 'EM_ANALISE',
+        CONCILIADO: 'CONCILIADO',
+        DIVERGENTE: 'DIVERGENTE',
+        PARCIAL: 'PARCIAL',
+        SEM_MATCH: 'SEM_MATCH'
+    });
 
     const parseDateLikeValue = (value) => {
         if (!value) return null;
@@ -687,6 +700,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (oldVersion < 11) {
                         db.createObjectStore('data_cache', { keyPath: 'id' });
                     }
+                    if (oldVersion < 12) {
+                        const planningStore = db.createObjectStore('planejamento_os_cache', { keyPath: 'id' });
+                        planningStore.createIndex('companyId', 'companyId', { unique: false });
+                        planningStore.createIndex('statusPlanejamento', 'statusPlanejamento', { unique: false });
+
+                        const importedStore = db.createObjectStore('apontamentos_os_importados_cache', { keyPath: 'id' });
+                        importedStore.createIndex('companyId', 'companyId', { unique: false });
+                        importedStore.createIndex('statusImportacao', 'statusImportacao', { unique: false });
+
+                        const stateStore = db.createObjectStore('estado_operacional_talhoes_cache', { keyPath: 'id' });
+                        stateStore.createIndex('companyId', 'companyId', { unique: false });
+                        stateStore.createIndex('talhaoKey', 'talhaoKey', { unique: false });
+                    }
                 },
             });
         },
@@ -791,6 +817,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     submenu: [
                         { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
                         { label: 'O.S. Escritório', icon: 'fas fa-list', target: 'ordemServicoEscritorio', permission: 'ordemServico' },
+                        { label: 'Planejamento O.S.', icon: 'fas fa-calendar-check', target: 'planejamentoOS', permission: 'ordemServico' },
                     ]
                 },
                 {
@@ -912,6 +939,10 @@ document.addEventListener('DOMContentLoaded', () => {
             produtos: [],
             operacao_produtos: [],
             ordens_servico: [],
+            planejamento_os: [],
+            apontamentos_os_importados: [],
+            regras_planejamento_os: [],
+            estado_operacional_talhoes: [],
             inactivityTimer: null,
             inactivityWarningTimer: null,
             unsubscribeListeners: [],
@@ -953,6 +984,7 @@ document.addEventListener('DOMContentLoaded', () => {
             announcements: [],
             osMap: null,
             osSelectedPlots: new Set(),
+            osPlanningPendingSource: null,
             regAppMap: null,
             regAppSelectedPlots: new Map(), // Map<talhaoId, {area: number, direction: string, isPartial: boolean}>
             regAppDirectionTarget: null, // Stores talhaoId when selecting direction on map
@@ -2258,6 +2290,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setLoading(true, "A carregar dados offline...");
 
                     const companyId = App.state.currentUser.companyId;
+                const planningSourceId = App.state.osPlanningPendingSource || null;
                     const effectivePermissions = await App.repositories.permissions.getEffectivePermissions();
                     App.state.currentUser.permissions = effectivePermissions;
                     this._setBootStage('PERM: loaded', { permissionCount: Object.keys(effectivePermissions || {}).length });
@@ -2896,7 +2929,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Core Collections - prioritize essential data, defer secondary collections
                 const criticalCollections = ['users', 'fazendas', 'personnel'];
-                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'frota', 'armadilhas'];
+                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'planejamento_os', 'apontamentos_os_importados', 'regras_planejamento_os', 'estado_operacional_talhoes', 'frota', 'armadilhas'];
                 // Load critical data immediately for fast UI render
                 criticalCollections.forEach(col => this.subscribeTo(col));
                 // Defer secondary data to next idle period for better perceived performance
@@ -3275,6 +3308,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.renderExclusao();
                         }
                         break;
+                    case 'ordens_servico':
+                        if (activeTab === 'ordemServicoEscritorio') {
+                            App.osEscritorio.renderList();
+                        }
+                        if (activeTab === 'planejamentoOS') {
+                            App.osPlanning.renderPlanningDashboard();
+                        }
+                        break;
+                    case 'planejamento_os':
+                    case 'apontamentos_os_importados':
+                    case 'regras_planejamento_os':
+                    case 'estado_operacional_talhoes':
+                        if (activeTab === 'planejamentoOS') {
+                            App.osPlanning.renderPlanningDashboard();
+                        }
+                        break;
                     // No specific actions needed for 'cigarrinha' or 'armadilhas' on snapshot,
                     // as their primary UIs are user-triggered or handled elsewhere.
                 }
@@ -3307,6 +3356,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('renderPlanejamento', () => this.renderPlanejamento());
                 renderWithCatch('showHarvestPlanList', () => this.showHarvestPlanList());
                 renderWithCatch('populateHarvestPlanSelect', () => this.populateHarvestPlanSelect());
+                renderWithCatch('renderPlanningDashboard', () => App.osPlanning.renderPlanningDashboard());
 
                 renderWithCatch('dashboard-view', () => {
                     if (document.getElementById('dashboard').classList.contains('active')) {
@@ -3713,7 +3763,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     'relatorioQualidadePlantio': ['qualidadePlantio'],
                     'relatorioMonitoramento': ['armadilhas'],
                     'relatorioPlantio': ['apontamentosPlantio', 'frentesDePlantio'],
-                    'frenteDePlantio': ['frentesDePlantio']
+                    'frenteDePlantio': ['frentesDePlantio'],
+                    'planejamentoOS': ['planejamento_os', 'regras_planejamento_os', 'estado_operacional_talhoes', 'ordens_servico', 'apontamentos_os_importados']
                 };
 
                 if (tabDataRequirements[id]) {
@@ -16755,6 +16806,7 @@ document.addEventListener('DOMContentLoaded', () => {
             async _continueGenerateOS(selectedOps, primaryOpId, farm) {
                 const els = App.elements.osManual;
                 const companyId = App.state.currentUser.companyId;
+                const planningSourceId = App.state.osPlanningPendingSource || null;
 
                 // Prepare Data for multiple operations
                 const operacoesFormatadas = selectedOps.map(op => {
@@ -16824,6 +16876,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     observacoes: els.observations.value,
                     itens: plots,
                     produtos: products, // Mantido por compatibilidade
+                    planningSourceId: planningSourceId,
+                    dataAberturaOS: new Date().toISOString(),
+                    dataApontamentoConciliado: null,
+                    diasExecucao: null,
+                    prazoExecucaoDias: null,
+                    situacaoTimer: null,
+                    apontamentoConciliadoId: null,
+                    origemOS: planningSourceId ? 'planejamento' : 'manual',
+                    finalizadaAutomaticamente: false,
+                    motivoDivergencia: null,
                     created_at: new Date().toISOString(),
                 };
 
@@ -16884,6 +16946,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 App.state.osEditingId = null;
+                App.state.osPlanningPendingSource = null;
                 if(App.elements.osManual.btnGenerate) {
                     App.elements.osManual.btnGenerate.innerHTML = '<i class="fas fa-save"></i> Salvar O.S.';
                 }
@@ -19469,7 +19532,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const endIndex = startIndex + this.itemsPerPage;
                 const paginatedData = data.slice(startIndex, endIndex);
 
-                let html = '<table class="os-table"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
+                let html = '<table class="os-table"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Timer</th><th>Dias</th><th>Auto</th><th>Ações</th></tr></thead><tbody>';
 
                 html += paginatedData.map(os => `
                     <tr>
@@ -19477,7 +19540,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Nº OS">${os.os_numero}</td>
                         <td data-label="Responsável">${os.responsavel_nome}</td>
                         <td data-label="Operação">${os.operacao_nome}</td>
-                        <td data-label="Status"><span class="plano-status ${os.status === 'FINALIZADA' ? 'concluido' : (os.status === 'DIVERGENTE' ? 'atrasado' : 'pendente')}">${os.status}</span></td>
+                        <td data-label="Status"><span class="plano-status ${os.status === 'FINALIZADA' || os.status === 'CONCLUIDA' ? 'concluido' : (os.status === 'DIVERGENTE' || os.status === 'PARCIAL' ? 'atrasado' : 'pendente')}">${os.status}</span></td>
+                        <td data-label="Timer">${os.situacaoTimer || '-'}</td>
+                        <td data-label="Dias">${Number.isFinite(os.diasExecucao) ? os.diasExecucao : '-'}</td>
+                        <td data-label="Auto">${os.finalizadaAutomaticamente ? 'Sim' : 'Não'}</td>
                         <td data-label="Ações">
                             <div style="display: flex; gap: 8px; justify-content: flex-end;">
                                 <button class="btn-secondary" style="padding: 6px;" title="Atualizar Status/Obs" onclick="App.osEscritorio.openEditModal('${os.id}')"><i class="fas fa-tasks"></i></button>
@@ -19643,6 +19709,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             usuario_abertura: App.state.currentUser.uid,
                             usuario_abertura_nome: App.state.currentUser.username || App.state.currentUser.email,
                             observacoes_escritorio: '', // Limpar obs
+                            dataAberturaOS: new Date().toISOString(),
+                            origemOS: originalOs.origemOS || 'manual',
+                            planningSourceId: planningSourceId,
+                            dataApontamentoConciliado: null,
+                            diasExecucao: null,
+                            prazoExecucaoDias: originalOs.prazoExecucaoDias ?? null,
+                            situacaoTimer: null,
+                            apontamentoConciliadoId: null,
+                            finalizadaAutomaticamente: false,
+                            motivoDivergencia: null
                         };
 
                         delete clonedData.id; // Remover o ID original para criar um novo documento
@@ -19871,282 +19947,77 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async processMachineReport() {
                 const fileInput = document.getElementById('osImportFile');
-                const tolerance = parseFloat(document.getElementById('osImportTolerance').value) || 5;
-                const templateId = document.getElementById('osImportTemplateSelect').value;
-
-                if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-                    App.ui.showAlert('Por favor, selecione um arquivo CSV.', 'warning');
+                if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+                    App.ui.showAlert('Selecione um arquivo CSV para importar.', 'warning');
                     return;
                 }
 
-                const file = fileInput.files[0];
-                App.ui.setLoading(true, "A processar relatório...");
-
+                App.ui.setLoading(true, 'Importando apontamentos...');
                 try {
-                    const text = await file.text();
-                    const lines = text.split(/\r?\n/);
+                    const rawText = await fileInput.files[0].text();
+                    const lines = rawText.split(/
+?
+/).map(l => l.trim()).filter(Boolean);
+                    if (lines.length < 2) throw new Error('Arquivo sem dados suficientes.');
+
                     const headers = lines[0].split(';').map(h => h.trim());
-                    const headersLower = headers.map(h => h.toLowerCase());
+                    const normalizedHeaders = headers.map(h => h.toLowerCase());
 
-                    let colIndex = {};
-                    let operacaoRule = '';
+                    const required = {
+                        dataApontamento: ['data', 'dataapontamento'],
+                        fazenda: ['fazenda', 'propriedade'],
+                        talhao: ['talhão', 'talhao'],
+                        operacao: ['operação', 'operacao'],
+                        areaExecutada: ['ha.aplic', 'areaaplic', 'areaexecutada'],
+                        responsavel: ['equipe', 'responsavel', 'responsável'],
+                        observacao: ['observacao', 'observação', 'descricao']
+                    };
 
-                    if (templateId === 'padrao') {
-                        colIndex = {
-                            data: headersLower.findIndex(h => h.includes('data')),
-                            fazenda: headersLower.findIndex(h => h.includes('fazenda')),
-                            talhao: headersLower.findIndex(h => h.includes('talhão') || h.includes('talhao')),
-                            produto: headersLower.findIndex(h => h.includes('produto')),
-                            operacao: headersLower.findIndex(h => h.includes('descrição') || h.includes('descricao')),
-                            areaAplic: headersLower.findIndex(h => h.includes('ha.aplic')),
-                            dosagemAplic: headersLower.findIndex(h => h.includes('dos.aplic')),
-                        };
-                    } else {
-                        const templates = App.state.globalConfigs?.importTemplates || {};
-                        const tpl = templates[templateId];
-                        if (!tpl) {
-                            App.ui.showAlert('Template selecionado não encontrado.', 'error');
-                            App.ui.setLoading(false);
-                            return;
-                        }
-                        const findIndexIgnoreCase = (str) => {
-                            if (!str) return -1;
-                            const term = str.toLowerCase();
-                            return headersLower.findIndex(h => h === term);
-                        };
-
-                        colIndex = {
-                            data: findIndexIgnoreCase(tpl.mapping.data),
-                            fazenda: findIndexIgnoreCase(tpl.mapping.fazenda),
-                            talhao: findIndexIgnoreCase(tpl.mapping.talhao),
-                            produto: findIndexIgnoreCase(tpl.mapping.produto),
-                            areaAplic: findIndexIgnoreCase(tpl.mapping.areaAplic),
-                            dosagemAplic: findIndexIgnoreCase(tpl.mapping.dosagemAplic),
-                            operacao: findIndexIgnoreCase(tpl.mapping.operacao)
-                        };
-                        operacaoRule = tpl.mapping.operacaoRule;
+                    const findIndex = (aliases) => normalizedHeaders.findIndex(h => aliases.includes(h.replace(/\s+/g, '')) || aliases.includes(h));
+                    const idx = Object.fromEntries(Object.entries(required).map(([k,v]) => [k, findIndex(v)]));
+                    const missing = Object.entries(idx).filter(([,v]) => v < 0).map(([k]) => k);
+                    if (missing.length) {
+                        throw new Error(`Colunas obrigatórias ausentes: ${missing.join(', ')}`);
                     }
 
-                    if (colIndex.fazenda === -1 || colIndex.talhao === -1) {
-                         App.ui.showAlert('Colunas obrigatórias não encontradas (Fazenda, Talhão). Verifique o template ou o cabeçalho do arquivo.', 'error');
-                         App.ui.setLoading(false);
-                         return;
-                    }
-
-                    const parsedData = [];
-                    for (let i = 1; i < lines.length; i++) {
-                        const line = lines[i].trim();
-                        if (!line) continue;
-                        const cols = line.split(';');
-
-                        let operacaoName = '';
-                        if (templateId === 'padrao' && colIndex.operacao > -1) {
-                            operacaoName = cols[colIndex.operacao];
-                        } else {
-                            if (colIndex.operacao > -1) {
-                                operacaoName = cols[colIndex.operacao];
-                            } else if (operacaoRule) {
-                                operacaoName = operacaoRule.replace(/\{([^}]+)\}/g, (match, colName) => {
-                                    const idx = headersLower.findIndex(h => h === colName.trim().toLowerCase());
-                                    return idx > -1 ? cols[idx] : '';
-                                });
-                            }
-                        }
-
-                        const parseNumber = (str) => {
-                            if (!str) return 0;
-                            return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
-                        };
-
-                        parsedData.push({
-                            hash: this.generateHash(line),
-                            data: colIndex.data > -1 ? cols[colIndex.data] : '',
-                            fazendaNome: cols[colIndex.fazenda],
-                            operacao: operacaoName,
-                            talhao: cols[colIndex.talhao],
-                            produto: colIndex.produto > -1 ? cols[colIndex.produto] : '',
-                            areaAplic: colIndex.areaAplic > -1 ? parseNumber(cols[colIndex.areaAplic]) : 0,
-                            dosagemAplic: colIndex.dosagemAplic > -1 ? parseNumber(cols[colIndex.dosagemAplic]) : 0,
-                            raw: line
+                    const importedRows = [];
+                    for (let i = 1; i < lines.length; i += 1) {
+                        const cols = lines[i].split(';').map(c => c.trim());
+                        if (!cols.length) continue;
+                        importedRows.push({
+                            id: `ap_os_${Date.now()}_${i}_${Math.random().toString(16).slice(2)}`,
+                            companyId: App.state.currentUser.companyId,
+                            dataApontamento: cols[idx.dataApontamento] || '',
+                            fazenda: cols[idx.fazenda] || '',
+                            talhao: cols[idx.talhao] || '',
+                            operacao: cols[idx.operacao] || '',
+                            areaExecutada: Number.parseFloat(String(cols[idx.areaExecutada] || '0').replace('.', '').replace(',', '.')) || 0,
+                            responsavel: cols[idx.responsavel] || '',
+                            observacao: cols[idx.observacao] || '',
+                            externalId: normalizedHeaders.includes('idexterno') ? cols[normalizedHeaders.indexOf('idexterno')] : null,
+                            statusImportacao: OS_CONCILIATION_STATUS.IMPORTADO,
+                            matchStatus: null,
+                            importedAt: new Date().toISOString()
                         });
                     }
 
-                    let reconciledCount = 0;
-                    let divergentCount = 0;
-                    const unlinkedRows = [];
-                    const updates = [];
-
-                    // Load import history to prevent duplication
-                    let importHistory = new Set();
-                    try {
-                        // Store history inside 'registros' with a specific 'tipo_registro' to bypass permission blocks
-                        const q = query(collection(db, 'registros'),
-                            where("companyId", "==", App.state.currentUser.companyId),
-                            where("tipo_registro", "==", "import_history")
-                        );
-                        const querySnapshot = await getDocs(q);
-                        querySnapshot.forEach(docSnap => {
-                            const data = docSnap.data();
-                            if (Array.isArray(data.hashes)) {
-                                data.hashes.forEach(h => importHistory.add(h));
-                            }
-                        });
-                    } catch (e) {
-                        console.warn("Could not load full import history, skipping deduplication check to allow import.", e);
+                    if (!importedRows.length) {
+                        throw new Error('Nenhum apontamento válido encontrado.');
                     }
 
-                    const activeOSs = App.state.ordens_servico.filter(os => os.status === 'PLANEJADA' || os.status === 'EM_EXECUCAO');
-
-                    const processedHashesInThisSession = [];
-
-                    for (const row of parsedData) {
-                        // Skip if we already processed this exact row hash
-                        if (importHistory.has(row.hash)) continue;
-
-                        // Try to find matching active OS
-                        const matchedOsList = activeOSs.filter(os => {
-                            // Match Farm Name (fuzzy)
-                            const farmMatch = this.fuzzyMatch(os.fazenda_nome, row.fazendaNome, 0.85);
-                            if (!farmMatch) return false;
-
-                            // Match Plots (exact)
-                            const osPlots = Array.isArray(os.selectedPlots) ? os.selectedPlots : (os.itens ? os.itens.map(i => i.talhao_nome) : []);
-                            const plotMatch = osPlots.some(p => String(p).trim() === String(row.talhao).trim());
-                            if (!plotMatch) return false;
-
-                            // Match Operation (fuzzy)
-                            const osOpNames = os.operacoes_multiplas ? os.operacoes_multiplas.map(op => op.operacao_nome) : [os.operacao_nome || os.operacao];
-                            const opMatch = osOpNames.some(opName => this.fuzzyMatch(opName, row.operacao, 0.8));
-
-                            return opMatch;
-                        });
-
-                        if (matchedOsList.length > 0) {
-                            // Found OS, reconcile data
-                            const os = matchedOsList[0]; // Take first match
-
-                            // Determine divergence based on Area and Dosage
-                            let hasDivergence = false;
-                            let divergenceNotes = [];
-
-                            // Compare Products and Dosage
-                            const osProducts = os.operacoes_multiplas ? os.operacoes_multiplas.flatMap(op => op.produtos) : (os.produtos || []);
-
-                            // Find product match in OS
-                            const prodMatch = osProducts.find(p => this.fuzzyMatch(p.produto_nome, row.produto, 0.7));
-
-                            if (prodMatch) {
-                                const expectedDosage = parseFloat(prodMatch.dosagem_por_ha) || 0;
-                                const appliedDosage = row.dosagemAplic;
-                                const diffPercent = expectedDosage > 0 ? Math.abs((appliedDosage - expectedDosage) / expectedDosage) * 100 : 0;
-
-                                if (diffPercent > tolerance) {
-                                    hasDivergence = true;
-                                    divergenceNotes.push(`Divergência Talhão ${row.talhao} - Prod: ${prodMatch.produto_nome}. Rec: ${expectedDosage}, Apl: ${appliedDosage} (${diffPercent.toFixed(1)}% dif)`);
-                                }
-                            } else if (row.produto) {
-                                hasDivergence = true;
-                                divergenceNotes.push(`Produto não previsto na OS: ${row.produto}`);
-                            }
-
-                            // If Area is provided in CSV, could also compare here if OS tracks area per plot.
-
-                            const newStatus = hasDivergence ? 'DIVERGENTE' : 'CONCLUIDA';
-                            const existingUpdate = updates.find(u => u.id === os.id);
-
-                            const updateData = existingUpdate ? existingUpdate.data : {
-                                status: newStatus,
-                                observacoes_execucao: divergenceNotes.join(' | '),
-                                data_execucao: row.data || new Date().toISOString(),
-                                data_conciliacao: new Date().toISOString(),
-                                // Add execution logs
-                                relatorio_execucao: []
-                            };
-
-                            // Add this row's raw data to OS execution log
-                            const execLog = updateData.relatorio_execucao || (os.relatorio_execucao || []);
-                            execLog.push(row);
-                            updateData.relatorio_execucao = execLog;
-
-                            // If any row causes divergence, keep OS as DIVERGENTE
-                            if (hasDivergence) updateData.status = 'DIVERGENTE';
-
-                            if (existingUpdate) {
-                                existingUpdate.data = updateData;
-                            } else {
-                                updates.push({ id: os.id, data: updateData });
-                            }
-
-                            // Mark hash as processed
-                            processedHashesInThisSession.push(row.hash);
-                        } else {
-                            // No matching OS found, save to inbox
-                            unlinkedRows.push(row);
-                        }
+                    for (const row of importedRows) {
+                        await App.data.addDocument('apontamentos_os_importados', sanitizeFirestoreData(row));
                     }
 
-                    // Apply OS updates
-                    for (const update of updates) {
-                        await App.data.updateDocument('ordens_servico', update.id, update.data);
-                        const stateOs = App.state.ordens_servico.find(o => o.id === update.id);
-                        if (stateOs) {
-                            Object.assign(stateOs, update.data);
-                        }
-                        if (update.data.status === 'CONCLUIDA') reconciledCount++;
-                        if (update.data.status === 'DIVERGENTE') divergentCount++;
-                    }
-
-                    // 1. Save Unlinked rows to Cloud ('registros' collection with flag)
-                    // We only save if they are not already there. To prevent massive read, we just query if the hash exists.
-                    for (const row of unlinkedRows) {
-                         await OfflineDB.add('offline-writes', {
-                             id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                             action: 'create',
-                             collection: 'registros',
-                             docId: `inbox_${row.hash}`,
-                             data: {
-                                 ...row,
-                                 tipo_registro: 'reconciliation_inbox',
-                                 companyId: App.state.currentUser.companyId,
-                                 timestamp: Date.now()
-                             },
-                             timestamp: Date.now()
-                         });
-                    }
-
-                    // 2. Save Processed Hashes to Cloud ('registros' collection with flag)
-                    if (processedHashesInThisSession.length > 0) {
-                        const historyDocId = `import_${Date.now()}`;
-                        await OfflineDB.add('offline-writes', {
-                             id: 'write_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                             action: 'create',
-                             collection: 'registros',
-                             docId: historyDocId,
-                             data: {
-                                 tipo_registro: 'import_history',
-                                 companyId: App.state.currentUser.companyId,
-                                 timestamp: Date.now(),
-                                 hashes: processedHashesInThisSession
-                             },
-                             timestamp: Date.now()
-                         });
-                    }
-
-                    // Trigger sync
-                    App.actions.startSync();
-
-                    App.ui.showAlert(`Importação concluída! O.S. Conciliadas: ${reconciledCount}. Divergentes: ${divergentCount}. Não vinculadas: ${unlinkedRows.length}`, 'success');
-
-                    if (divergentCount > 0 || unlinkedRows.length > 0) {
-                         this.openReconciliationInbox();
-                    }
-
+                    App.ui.showAlert(`Importação concluída: ${importedRows.length} linhas importadas.`, 'success');
+                    App.osPlanning.renderImportPreview(importedRows, headers);
+                    await App.osPlanning.runAutomaticReconciliation(importedRows);
                 } catch (error) {
-                    console.error("Erro ao processar arquivo:", error);
-                    App.ui.showAlert(`Erro ao processar o arquivo: ${error.message}`, 'error');
+                    console.error('Erro no processamento do relatório', error);
+                    App.ui.showAlert(`Erro ao processar arquivo: ${error.message}`, 'error');
                 } finally {
                     App.ui.setLoading(false);
-                    if(fileInput) fileInput.value = '';
+                    fileInput.value = '';
                 }
             },
 
@@ -20326,7 +20197,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                         produtos: [{ produto_nome: item.produto || 'N/A', dosagem_por_ha: item.dosagemAplic }],
                                         selectedPlots: [item.talhao],
                                         observacoes: 'Gerado automaticamente via importação de relatório.',
-                                        relatorio_execucao: [item]
+                                        relatorio_execucao: [item],
+                                        planningSourceId: planningSourceId,
+                                        dataAberturaOS: item.data || new Date().toISOString(),
+                                        dataApontamentoConciliado: item.data || new Date().toISOString(),
+                                        diasExecucao: 0,
+                                        prazoExecucaoDias: null,
+                                        situacaoTimer: 'NO_TIMER',
+                                        apontamentoConciliadoId: item.hash || null,
+                                        origemOS: planningSourceId ? 'planejamento' : 'manual',
+                                        finalizadaAutomaticamente: true,
+                                        motivoDivergencia: null
                                     };
 
                                     // Add to global state and write to DB
@@ -20438,7 +20319,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             const updateData = {
                                 status: 'CONCLUIDA',
                                 data_conciliacao: new Date().toISOString(),
+                                dataApontamentoConciliado: new Date().toISOString(),
                                 relatorio_execucao: execLog,
+                                origemOS: os.origemOS || 'manual',
                                 observacoes_execucao: (os.observacoes_execucao ? os.observacoes_execucao + ' | ' : '') + 'Vinculado manualmente via Pendências.'
                             };
 
@@ -20486,6 +20369,262 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 modal.classList.add('show');
+            }
+        },
+
+        osPlanning: {
+            normalizeText(value) {
+                return String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+            },
+
+            buildPlanningAwareOSPayload(payload = {}, options = {}) {
+                const now = new Date().toISOString();
+                const origemOS = options.origemOS || payload.origemOS || 'manual';
+                return {
+                    ...payload,
+                    planningSourceId: options.planningSourceId ?? payload.planningSourceId ?? null,
+                    dataAberturaOS: payload.dataAberturaOS || now,
+                    dataApontamentoConciliado: payload.dataApontamentoConciliado || null,
+                    diasExecucao: Number.isFinite(payload.diasExecucao) ? payload.diasExecucao : null,
+                    prazoExecucaoDias: Number.isFinite(payload.prazoExecucaoDias) ? payload.prazoExecucaoDias : null,
+                    situacaoTimer: payload.situacaoTimer || null,
+                    apontamentoConciliadoId: payload.apontamentoConciliadoId || null,
+                    origemOS,
+                    finalizadaAutomaticamente: Boolean(payload.finalizadaAutomaticamente),
+                    motivoDivergencia: payload.motivoDivergencia || null,
+                };
+            },
+
+            renderImportPreview(rows = [], headers = []) {
+                const summaryEl = document.getElementById('osImportSummary');
+                const previewEl = document.getElementById('osImportPreview');
+                if (!summaryEl || !previewEl) return;
+
+                summaryEl.textContent = `Linhas importadas: ${rows.length}. Colunas detectadas: ${headers.join(', ')}`;
+                previewEl.innerHTML = rows.slice(0, 8).map(row => `
+                    <tr>
+                        <td>${row.dataApontamento || '-'}</td>
+                        <td>${row.fazenda || '-'}</td>
+                        <td>${row.talhao || '-'}</td>
+                        <td>${row.operacao || '-'}</td>
+                        <td>${(row.areaExecutada ?? 0).toFixed(2)}</td>
+                        <td>${row.responsavel || '-'}</td>
+                        <td>${row.statusImportacao}</td>
+                    </tr>
+                `).join('');
+            },
+
+            evaluateMatch(os, apontamento) {
+                const fazendaMatch = this.normalizeText(os.fazenda_nome) === this.normalizeText(apontamento.fazenda);
+                const talhoes = Array.isArray(os.itens) ? os.itens.map(i => this.normalizeText(i.talhao_nome || i.talhao_id || i.talhao)) : [];
+                const talhaoMatch = talhoes.includes(this.normalizeText(apontamento.talhao));
+                const operacoes = Array.isArray(os.operacoes_multiplas) ? os.operacoes_multiplas.map(o => this.normalizeText(o.operacao_nome)) : [this.normalizeText(os.operacao_nome)];
+                const operacaoMatch = operacoes.includes(this.normalizeText(apontamento.operacao));
+                const statusMatch = OS_OPEN_STATUSES.has(os.status);
+
+                const openDate = new Date(os.dataAberturaOS || os.created_at || os.data || null);
+                const apontDate = new Date(apontamento.dataApontamento || null);
+                const dateValid = !Number.isNaN(openDate.getTime()) && !Number.isNaN(apontDate.getTime());
+                const dayDiff = dateValid ? Math.floor((apontDate - openDate) / 86400000) : null;
+                const windowMatch = dayDiff === null ? false : dayDiff >= -1 && dayDiff <= 15;
+                const areaSupport = !os.total_area_ha || !apontamento.areaExecutada ? true : Math.abs(Number(os.total_area_ha) - Number(apontamento.areaExecutada)) <= Math.max(2, Number(os.total_area_ha) * 0.5);
+                const equipeSupport = !apontamento.responsavel || this.normalizeText(os.responsavel_nome).includes(this.normalizeText(apontamento.responsavel));
+
+                const strong = fazendaMatch && talhaoMatch && operacaoMatch && statusMatch && windowMatch;
+                const partial = statusMatch && ((fazendaMatch && talhaoMatch) || (fazendaMatch && operacaoMatch) || (talhaoMatch && operacaoMatch));
+
+                return {
+                    isStrong: strong && areaSupport,
+                    isPartial: !strong && partial,
+                    timerDiff: dayDiff,
+                    openDate,
+                    apontDate,
+                    supportScore: Number(areaSupport) + Number(equipeSupport)
+                };
+            },
+
+            calculateTimerClassification(openDate, apontDate, prazoExecucaoDias = null) {
+                if (!(openDate instanceof Date) || Number.isNaN(openDate.getTime()) || !(apontDate instanceof Date) || Number.isNaN(apontDate.getTime())) {
+                    return { diasExecucao: null, situacaoTimer: 'DATA_INVALIDA', motivoDivergencia: 'Datas inválidas para cálculo do timer.' };
+                }
+                const diasExecucao = Math.floor((apontDate - openDate) / 86400000);
+                if (diasExecucao < 0) {
+                    return { diasExecucao, situacaoTimer: 'DATA_INVALIDA', motivoDivergencia: 'Data do apontamento anterior à abertura da O.S.' };
+                }
+                if (!Number.isFinite(prazoExecucaoDias) || prazoExecucaoDias <= 0) {
+                    return { diasExecucao, situacaoTimer: 'NO_TIMER', motivoDivergencia: null };
+                }
+                if (diasExecucao < prazoExecucaoDias) return { diasExecucao, situacaoTimer: 'NO_TIMER', motivoDivergencia: null };
+                if (diasExecucao === prazoExecucaoDias) return { diasExecucao, situacaoTimer: 'NO_LIMITE', motivoDivergencia: null };
+                return { diasExecucao, situacaoTimer: 'FORA_TIMER', motivoDivergencia: null };
+            },
+
+            async runAutomaticReconciliation(importedRows = []) {
+                const rows = importedRows.length ? importedRows : (App.state.apontamentos_os_importados || []).filter(r => [OS_CONCILIATION_STATUS.IMPORTADO, OS_CONCILIATION_STATUS.EM_ANALISE].includes(r.statusImportacao));
+                const ordensAbertas = (App.state.ordens_servico || []).filter(os => OS_OPEN_STATUSES.has(os.status));
+
+                for (const row of rows) {
+                    const candidates = ordensAbertas.map(os => ({ os, score: this.evaluateMatch(os, row) }))
+                        .sort((a,b) => (Number(b.score.isStrong) - Number(a.score.isStrong)) || (Number(b.score.isPartial) - Number(a.score.isPartial)) || (b.score.supportScore - a.score.supportScore));
+                    const best = candidates[0];
+                    if (!best) {
+                        await App.data.updateDocument('apontamentos_os_importados', row.id, { statusImportacao: OS_CONCILIATION_STATUS.SEM_MATCH, matchStatus: 'SEM_MATCH' });
+                        continue;
+                    }
+
+                    const { os, score } = best;
+                    if (score.isStrong) {
+                        const timer = this.calculateTimerClassification(score.openDate, score.apontDate, os.prazoExecucaoDias ?? null);
+                        const statusFinal = timer.situacaoTimer === 'FORA_TIMER' ? 'FINALIZADA_FORA_TIMER' : (timer.situacaoTimer === 'DATA_INVALIDA' ? os.status : 'CONCLUIDA');
+                        const canAutoFinalize = timer.situacaoTimer !== 'DATA_INVALIDA';
+                        const updateOs = {
+                            apontamentoConciliadoId: row.id,
+                            dataApontamentoConciliado: row.dataApontamento,
+                            diasExecucao: timer.diasExecucao,
+                            situacaoTimer: timer.situacaoTimer,
+                            motivoDivergencia: timer.motivoDivergencia,
+                            status: canAutoFinalize ? statusFinal : os.status,
+                            finalizadaAutomaticamente: canAutoFinalize,
+                            observacoes_execucao: `${os.observacoes_execucao || ''} | Conciliação automática (${timer.situacaoTimer}).`.trim()
+                        };
+                        await App.data.updateDocument('ordens_servico', os.id, sanitizeFirestoreData(updateOs));
+                        await App.data.updateDocument('apontamentos_os_importados', row.id, { statusImportacao: OS_CONCILIATION_STATUS.CONCILIADO, matchStatus: 'MATCH_FORTE', osId: os.id, conciliadoEm: new Date().toISOString() });
+                        await this.updateOperationalState(os, row);
+                    } else if (score.isPartial) {
+                        await App.data.updateDocument('ordens_servico', os.id, { status: 'DIVERGENTE', motivoDivergencia: 'Match parcial com apontamento importado.' });
+                        await App.data.updateDocument('apontamentos_os_importados', row.id, { statusImportacao: OS_CONCILIATION_STATUS.PARCIAL, matchStatus: 'MATCH_PARCIAL', osId: os.id });
+                    } else {
+                        await App.data.updateDocument('apontamentos_os_importados', row.id, { statusImportacao: OS_CONCILIATION_STATUS.SEM_MATCH, matchStatus: 'SEM_MATCH' });
+                    }
+                }
+
+                await this.reprocessPlanningEngine();
+            },
+
+            async updateOperationalState(os, apontamento) {
+                if (!os || !apontamento) return;
+                const wasValidExecution = ['CONCLUIDA', 'FINALIZADA_FORA_TIMER', 'FINALIZADA'].includes(os.status) || os.finalizadaAutomaticamente;
+                if (!wasValidExecution) return;
+
+                const talhaoBase = Array.isArray(os.itens) && os.itens.length ? os.itens[0].talhao_nome : apontamento.talhao;
+                const talhaoKey = `${this.normalizeText(os.fazenda_nome)}::${this.normalizeText(talhaoBase)}`;
+                const existing = (App.state.estado_operacional_talhoes || []).find(i => i.talhaoKey === talhaoKey);
+                const payload = {
+                    companyId: App.state.currentUser.companyId,
+                    talhaoKey,
+                    fazenda: os.fazenda_nome,
+                    talhao: talhaoBase,
+                    ultimaOperacaoValida: apontamento.operacao || os.operacao_nome,
+                    dataUltimaOperacaoValida: apontamento.dataApontamento || os.dataApontamentoConciliado,
+                    origemUltimaOperacao: os.origemOS || 'manual',
+                    ultimaOsId: os.id,
+                    ultimoApontamentoId: apontamento.id,
+                    updatedAt: new Date().toISOString()
+                };
+                if (existing?.id) {
+                    await App.data.updateDocument('estado_operacional_talhoes', existing.id, payload);
+                } else {
+                    await App.data.addDocument('estado_operacional_talhoes', payload);
+                }
+            },
+
+            async reprocessPlanningEngine() {
+                const regras = App.state.regras_planejamento_os || [];
+                const estados = App.state.estado_operacional_talhoes || [];
+                const now = new Date();
+
+                for (const estado of estados) {
+                    const regra = regras.find(r => this.normalizeText(r.operacaoAtual) === this.normalizeText(estado.ultimaOperacaoValida));
+                    if (!regra) {
+                        continue;
+                    }
+                    const baseDate = new Date(estado.dataUltimaOperacaoValida || now.toISOString());
+                    const intervalo = Number(regra.intervaloDiasProxima || 0);
+                    const prevista = new Date(baseDate.getTime() + (intervalo * 86400000));
+                    const statusPlanejamento = Number.isFinite(intervalo) && intervalo > 0 ? (prevista < now ? 'ATRASADO' : 'PLANEJADO') : 'BLOQUEADO';
+
+                    const planningPayload = {
+                        companyId: App.state.currentUser.companyId,
+                        fazenda: estado.fazenda,
+                        talhao: estado.talhao,
+                        origemBase: 'estado_operacional_talhoes',
+                        baseRefId: estado.id,
+                        ultimaOperacaoValida: estado.ultimaOperacaoValida,
+                        dataBase: estado.dataUltimaOperacaoValida,
+                        proximaOperacaoSugerida: regra.proximaOperacao || null,
+                        dataPrevista: prevista.toISOString().split('T')[0],
+                        intervaloDiasProxima: intervalo || null,
+                        statusPlanejamento,
+                        prioridade: prevista < now ? 'ALTA' : 'NORMAL',
+                        updatedAt: new Date().toISOString()
+                    };
+
+                    const existing = (App.state.planejamento_os || []).find(item => this.normalizeText(item.fazenda) === this.normalizeText(estado.fazenda) && this.normalizeText(item.talhao) === this.normalizeText(estado.talhao));
+                    if (existing?.id) {
+                        await App.data.updateDocument('planejamento_os', existing.id, planningPayload);
+                    } else {
+                        await App.data.addDocument('planejamento_os', planningPayload);
+                    }
+                }
+
+                this.renderPlanningDashboard();
+            },
+
+            generateOSFromPlanning(itemId) {
+                const item = (App.state.planejamento_os || []).find(p => p.id === itemId);
+                if (!item) return;
+                App.ui.showTab('ordemServicoManual');
+                setTimeout(() => {
+                    const farm = (App.state.fazendas || []).find(f => this.normalizeText(f.name) === this.normalizeText(item.fazenda));
+                    if (!farm) return;
+                    App.elements.osManual.farmSelect.value = farm.id;
+                    App.osManual.handleFarmChange();
+                    App.elements.osManual.observations.value = `Gerada via Planejamento O.S. (${item.id})`;
+                    App.state.osPlanningPendingSource = item.id;
+                }, 200);
+            },
+
+            renderPlanningDashboard() {
+                const container = document.getElementById('planningOsList');
+                const metrics = {
+                    today: document.getElementById('osCardToday'),
+                    next3: document.getElementById('osCardNext3'),
+                    next7: document.getElementById('osCardNext7'),
+                    delayed: document.getElementById('osCardDelayed'),
+                    awaiting: document.getElementById('osCardAwaiting'),
+                    outTimer: document.getElementById('osCardOutTimer'),
+                    divergent: document.getElementById('osCardDivergent')
+                };
+                if (!container) return;
+
+                const planning = App.state.planejamento_os || [];
+                const ordens = App.state.ordens_servico || [];
+                const now = new Date();
+                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const inDays = (d) => Math.floor((d - startOfToday) / 86400000);
+
+                metrics.today && (metrics.today.textContent = planning.filter(p => inDays(new Date(p.dataPrevista)) === 0).length);
+                metrics.next3 && (metrics.next3.textContent = planning.filter(p => { const dd=inDays(new Date(p.dataPrevista)); return dd > 0 && dd <=3; }).length);
+                metrics.next7 && (metrics.next7.textContent = planning.filter(p => { const dd=inDays(new Date(p.dataPrevista)); return dd > 3 && dd <=7; }).length);
+                metrics.delayed && (metrics.delayed.textContent = planning.filter(p => new Date(p.dataPrevista) < startOfToday).length);
+                metrics.awaiting && (metrics.awaiting.textContent = ordens.filter(o => OS_OPEN_STATUSES.has(o.status)).length);
+                metrics.outTimer && (metrics.outTimer.textContent = ordens.filter(o => o.status === 'FINALIZADA_FORA_TIMER').length);
+                metrics.divergent && (metrics.divergent.textContent = ordens.filter(o => ['DIVERGENTE','PARCIAL'].includes(o.status)).length);
+
+                container.innerHTML = planning.map(item => `
+                    <tr>
+                        <td>${item.fazenda || '-'}</td>
+                        <td>${item.talhao || '-'}</td>
+                        <td>${item.ultimaOperacaoValida || '-'}</td>
+                        <td>${item.proximaOperacaoSugerida || '-'}</td>
+                        <td>${item.dataPrevista || '-'}</td>
+                        <td>${item.statusPlanejamento || '-'}</td>
+                        <td>
+                            <button class='btn-secondary' onclick="App.osPlanning.generateOSFromPlanning('${item.id}')"><i class='fas fa-plus'></i></button>
+                            <button class='btn-secondary' onclick='App.osPlanning.reprocessPlanningEngine()'><i class='fas fa-sync'></i></button>
+                        </td>
+                    </tr>
+                `).join('') || '<tr><td colspan="7" style="text-align:center;">Sem dados de planejamento.</td></tr>';
             }
         },
 
