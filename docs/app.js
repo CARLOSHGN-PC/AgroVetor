@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         worker.postMessage({ type: 'PARSE_SHP_BUFFER', payload: arrayBuffer });
     });
 
-    const OFFLINE_DB_VERSION = 11;
+    const OFFLINE_DB_VERSION = 12;
     const MASTER_DATA_COLLECTIONS = [
         'fazendas',
         'personnel',
@@ -180,6 +180,10 @@ document.addEventListener('DOMContentLoaded', () => {
         'produtos',
         'operacao_produtos',
         'ordens_servico',
+        'planejamento_os',
+        'apontamentos_os_importados',
+        'regras_planejamento_os',
+        'estado_operacional_talhoes',
         'frota',
         'armadilhas'
     ];
@@ -687,6 +691,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (oldVersion < 11) {
                         db.createObjectStore('data_cache', { keyPath: 'id' });
                     }
+                    if (oldVersion < 12) {
+                        db.createObjectStore('planejamento_os', { keyPath: 'id' });
+                        db.createObjectStore('apontamentos_os_importados', { keyPath: 'id' });
+                        db.createObjectStore('regras_planejamento_os', { keyPath: 'id' });
+                        db.createObjectStore('estado_operacional_talhoes', { keyPath: 'id' });
+                    }
                 },
             });
         },
@@ -790,6 +800,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Ordem de Serviço', icon: 'fas fa-file-contract',
                     submenu: [
                         { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
+                        { label: 'Planejamento O.S.', icon: 'fas fa-calendar-check', target: 'planejamentoOS', permission: 'ordemServico' },
                         { label: 'O.S. Escritório', icon: 'fas fa-list', target: 'ordemServicoEscritorio', permission: 'ordemServico' },
                     ]
                 },
@@ -912,6 +923,10 @@ document.addEventListener('DOMContentLoaded', () => {
             produtos: [],
             operacao_produtos: [],
             ordens_servico: [],
+            planejamento_os: [],
+            apontamentos_os_importados: [],
+            regras_planejamento_os: [],
+            estado_operacional_talhoes: [],
             inactivityTimer: null,
             inactivityWarningTimer: null,
             unsubscribeListeners: [],
@@ -1007,6 +1022,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnGenerate: document.getElementById('btnGenerateOS'),
                 mapContainer: document.getElementById('os-map'),
                 btnCenterMap: document.getElementById('btnCenterOSMap'),
+            },
+            osPlanning: {
+                list: document.getElementById('osPlanningList'),
+                farmFilter: document.getElementById('osPlanningFarmFilter'),
+                talhaoFilter: document.getElementById('osPlanningTalhaoFilter'),
+                operationFilter: document.getElementById('osPlanningOperationFilter'),
+                statusFilter: document.getElementById('osPlanningStatusFilter'),
+                osStatusFilter: document.getElementById('osPlanningOsStatusFilter'),
+                periodStart: document.getElementById('osPlanningPeriodStart'),
+                periodEnd: document.getElementById('osPlanningPeriodEnd'),
+                btnReprocess: document.getElementById('btnReprocessPlanningOS'),
             },
             welcomeModal: {
                 overlay: document.getElementById('welcomeModal'),
@@ -2896,7 +2922,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Core Collections - prioritize essential data, defer secondary collections
                 const criticalCollections = ['users', 'fazendas', 'personnel'];
-                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'frota', 'armadilhas'];
+                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'planejamento_os', 'apontamentos_os_importados', 'regras_planejamento_os', 'estado_operacional_talhoes', 'frota', 'armadilhas'];
                 // Load critical data immediately for fast UI render
                 criticalCollections.forEach(col => this.subscribeTo(col));
                 // Defer secondary data to next idle period for better perceived performance
@@ -3948,6 +3974,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'ordemServicoManual') {
                     App.osManual.init();
+                }
+                if (id === 'planejamentoOS' && App.osPlanning) {
+                    App.osPlanning.renderPlanning();
                 }
                 if (id === 'registroAplicacao') {
                     App.regApp.init();
@@ -8102,6 +8131,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (App.cadastrosAuxiliares) App.cadastrosAuxiliares.setup();
                 if (App.osEscritorio) App.osEscritorio.setup();
+                if (App.osPlanning) App.osPlanning.setup();
             }
         },
 
@@ -16795,7 +16825,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const safeTotalAreaHa = Number.isFinite(totalAreaHa) ? totalAreaHa : 0;
                 App.state.osTotalArea = safeTotalAreaHa;
 
+                const activeStatuses = new Set(['PLANEJADA', 'ABERTA', 'EM_EXECUCAO', 'AGUARDANDO_APONTAMENTO']);
+                const hasDuplicateActiveOS = (App.state.ordens_servico || []).some((existingOs) => {
+                    if (!activeStatuses.has(existingOs.status)) return false;
+                    if (existingOs.fazenda_id !== farm.id) return false;
+                    const existingOps = (existingOs.operacoes_multiplas || []).map((op) => op.operacao_id);
+                    if (!selectedOps.some((op) => existingOps.includes(op.id))) return false;
+                    const existingPlots = (existingOs.itens || []).map((item) => String(item.talhao_id));
+                    return plots.some((plot) => existingPlots.includes(String(plot.talhao_id)));
+                });
+
+                if (hasDuplicateActiveOS) {
+                    App.ui.showAlert('Já existe O.S. ativa para fazenda/talhão/operação selecionados.', 'warning');
+                    return;
+                }
+
                 const novoNumeroOS = await this.getNextOsNumber();
+                const nowIso = new Date().toISOString();
 
                 const osData = {
                     os_numero: novoNumeroOS,
@@ -16820,11 +16866,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     operacoes_multiplas: operacoesFormatadas,
 
                     status: 'PLANEJADA', // Novo status padrão para roteiros
+                    origemOS: 'manual',
+                    dataAberturaOS: nowIso,
+                    planningSourceId: null,
+                    dataApontamentoConciliado: null,
+                    diasExecucao: null,
+                    prazoExecucaoDias: null,
+                    situacaoTimer: null,
+                    apontamentoConciliadoId: null,
+                    finalizadaAutomaticamente: false,
+                    motivoDivergencia: null,
+                    incluirNoHistoricoCiclo: document.getElementById('osManualIncluirCiclo')?.checked ?? false,
+                    influenciaProximoPlanejamento: document.getElementById('osManualInfluenciaPlanejamento')?.checked ?? false,
+                    operacaoAvulsa: document.getElementById('osManualOperacaoAvulsa')?.checked ?? false,
+                    servicoExterno: document.getElementById('osManualServicoExterno')?.checked ?? false,
                     total_area_ha: safeTotalAreaHa,
                     observacoes: els.observations.value,
                     itens: plots,
                     produtos: products, // Mantido por compatibilidade
-                    created_at: new Date().toISOString(),
+                    created_at: nowIso,
                 };
 
                 try {
@@ -19362,6 +19422,215 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         },
 
+
+        osPlanning: {
+            setup() {
+                const els = App.elements.osPlanning;
+                if (!els) return;
+                const binds = [els.farmFilter, els.talhaoFilter, els.operationFilter, els.statusFilter, els.osStatusFilter, els.periodStart, els.periodEnd];
+                binds.forEach((el) => el && el.addEventListener('change', () => this.renderPlanning()));
+                if (els.btnReprocess) {
+                    els.btnReprocess.addEventListener('click', async () => {
+                        await this.reprocessPlanning();
+                        this.renderPlanning();
+                    });
+                }
+            },
+
+            normalizeDate(value) {
+                if (!value) return null;
+                if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+                const parsed = new Date(value);
+                return Number.isNaN(parsed.getTime()) ? null : parsed;
+            },
+
+            determinePlanningStatus(item) {
+                if (item.bloqueado) return 'BLOQUEADO';
+                if (item.osVinculadaId && ['ABERTA', 'PLANEJADA', 'EM_EXECUCAO', 'AGUARDANDO_APONTAMENTO'].includes(item.osStatus)) return 'AGUARDANDO_APONTAMENTO';
+                const now = new Date();
+                const prevista = this.normalizeDate(item.dataPrevista);
+                if (!prevista) return item.statusPlanejamento || 'SEM_HISTORICO';
+                const diffDays = Math.ceil((prevista - now) / 86400000);
+                if (diffDays < 0) return 'ATRASADO';
+                if (diffDays <= 0) return 'EM_ALERTA';
+                if (diffDays <= 3) return 'PRONTO_PARA_OS';
+                return 'PLANEJADO';
+            },
+
+            buildPlanningForTalhao(farm, talhao) {
+                const key = `${farm.id}:${talhao.id}`;
+                const estado = (App.state.estado_operacional_talhoes || []).find((s) => s.fazendaId === farm.id && s.talhaoId === talhao.id);
+                const osValidated = (App.state.ordens_servico || []).filter((os) => os.fazenda_id === farm.id && (os.itens || []).some((i) => String(i.talhao_id) === String(talhao.name)) && ['FINALIZADA', 'FINALIZADA_FORA_TIMER'].includes(os.status)).sort((a, b) => new Date(b.dataApontamentoConciliado || b.data_execucao || b.data || 0) - new Date(a.dataApontamentoConciliado || a.data_execucao || a.data || 0));
+                const regAplicacao = (App.state.registroAplicacao || []).filter((r) => r.fazendaId === farm.id && String(r.talhaoNome || r.talhao) === String(talhao.name)).sort((a, b) => new Date(b.data || 0) - new Date(a.data || 0));
+                const lastTruth = estado || (osValidated[0] ? {
+                    ultimaOperacaoValida: osValidated[0].operacao_nome,
+                    dataUltimaOperacaoValida: osValidated[0].dataApontamentoConciliado || osValidated[0].data_execucao || osValidated[0].data,
+                    origemUltimaOperacao: 'os_finalizada',
+                    ultimaOsId: osValidated[0].id,
+                } : null) || (regAplicacao[0] ? {
+                    ultimaOperacaoValida: regAplicacao[0].operacao || regAplicacao[0].tipoServico,
+                    dataUltimaOperacaoValida: regAplicacao[0].data,
+                    origemUltimaOperacao: 'registro_aplicacao',
+                } : null);
+                const regras = App.state.regras_planejamento_os || [];
+                const rule = regras.find((r) => r.operacaoAtual === lastTruth?.ultimaOperacaoValida || r.operacao_atual === lastTruth?.ultimaOperacaoValida);
+                const prazo = Number(rule?.prazoExecucaoDias || rule?.intervaloDias || 7);
+                const baseDate = this.normalizeDate(lastTruth?.dataUltimaOperacaoValida);
+                const dataPrevista = baseDate ? new Date(baseDate.getTime() + prazo * 86400000).toISOString().slice(0, 10) : null;
+                const nextOperation = rule?.proximaOperacao || rule?.operacao_proxima || null;
+                const linkedOs = (App.state.ordens_servico || []).find((os) => os.planningSourceId === key || (os.fazenda_id === farm.id && (os.itens || []).some((i) => String(i.talhao_id) === String(talhao.name || talhao.id)) && (os.operacao_nome === nextOperation || (os.operacoes_multiplas || []).some((op) => op.operacao_nome === nextOperation))));
+                return {
+                    id: key,
+                    planningSourceId: key,
+                    fazendaId: farm.id,
+                    fazenda: farm.name,
+                    talhaoId: talhao.id,
+                    talhao: talhao.name,
+                    area: Number(talhao.area || 0),
+                    ultimaOperacaoValida: lastTruth?.ultimaOperacaoValida || 'SEM_HISTORICO',
+                    dataUltimaOperacaoValida: lastTruth?.dataUltimaOperacaoValida || null,
+                    origemUltimaOperacao: lastTruth?.origemUltimaOperacao || null,
+                    proximaOperacaoSugerida: nextOperation || 'SEM_REGRA',
+                    prazoExecucaoDias: prazo,
+                    dataPrevista,
+                    osVinculadaId: linkedOs?.id || null,
+                    osStatus: linkedOs?.status || null,
+                    apontamentoVinculadoId: linkedOs?.apontamentoConciliadoId || null,
+                    situacaoTimer: linkedOs?.situacaoTimer || null,
+                    bloqueado: false,
+                    statusPlanejamento: 'SUGERIDO',
+                    responsavel: linkedOs?.responsavel_nome || null,
+                    prioridade: rule?.prioridade || 'NORMAL'
+                };
+            },
+
+            async reprocessPlanning() {
+                const planning = [];
+                for (const farm of (App.state.fazendas || [])) {
+                    for (const talhao of (farm.talhoes || [])) {
+                        const item = this.buildPlanningForTalhao(farm, talhao);
+                        planning.push(item);
+                        await OfflineDB.set('planejamento_os', sanitizeFirestoreData(item));
+                    }
+                }
+                App.state.planejamento_os = planning;
+            },
+
+            getFilteredPlanning() {
+                const els = App.elements.osPlanning;
+                let data = App.state.planejamento_os || [];
+                if (!data.length) return data;
+                if (els.farmFilter?.value) data = data.filter((i) => i.fazendaId === els.farmFilter.value);
+                if (els.talhaoFilter?.value) data = data.filter((i) => String(i.talhaoId) === String(els.talhaoFilter.value) || String(i.talhao) === String(els.talhaoFilter.value));
+                if (els.operationFilter?.value) data = data.filter((i) => i.proximaOperacaoSugerida === els.operationFilter.value);
+                if (els.statusFilter?.value) data = data.filter((i) => this.determinePlanningStatus(i) === els.statusFilter.value);
+                if (els.osStatusFilter?.value) data = data.filter((i) => (i.osStatus || '') === els.osStatusFilter.value);
+                if (els.periodStart?.value) data = data.filter((i) => !i.dataPrevista || i.dataPrevista >= els.periodStart.value);
+                if (els.periodEnd?.value) data = data.filter((i) => !i.dataPrevista || i.dataPrevista <= els.periodEnd.value);
+                return data;
+            },
+
+            async generateOsFromPlanning(planningId) {
+                const item = (App.state.planejamento_os || []).find((p) => p.id === planningId);
+                if (!item) return;
+                const existingOs = (App.state.ordens_servico || []).find((os) => os.planningSourceId === item.id && ['PLANEJADA','ABERTA','EM_EXECUCAO','AGUARDANDO_APONTAMENTO'].includes(os.status));
+                if (existingOs) {
+                    App.ui.showAlert('Já existe O.S. ativa para este planejamento.', 'warning');
+                    return;
+                }
+                const op = (App.state.operacoes || []).find((o) => o.nome === item.proximaOperacaoSugerida);
+                const nowIso = new Date().toISOString();
+                const osData = sanitizeFirestoreData({
+                    os_numero: await App.osManual.getNextOsNumber(),
+                    data: nowIso.slice(0, 10),
+                    safra: App.state.globalConfigs?.safra || '24/25',
+                    ciclo: App.state.globalConfigs?.ciclo || '1',
+                    fazenda_id: item.fazendaId,
+                    fazenda_nome: item.fazenda,
+                    responsavel_matricula: '',
+                    responsavel_nome: item.responsavel || '',
+                    usuario_abertura_id: App.state.currentUser.uid,
+                    usuario_abertura_nome: App.state.currentUser.username || App.state.currentUser.email,
+                    companyId: App.state.currentUser.companyId,
+                    tipo_servico_id: '',
+                    tipo_servico_desc: 'Planejamento O.S.',
+                    operacao_id: op?.id || item.proximaOperacaoSugerida,
+                    operacao_nome: item.proximaOperacaoSugerida,
+                    operacoes_multiplas: [{ operacao_id: op?.id || item.proximaOperacaoSugerida, operacao_nome: item.proximaOperacaoSugerida, produtos: [] }],
+                    status: 'ABERTA',
+                    origemOS: 'planejamento',
+                    planningSourceId: item.id,
+                    dataAberturaOS: nowIso,
+                    prazoExecucaoDias: item.prazoExecucaoDias,
+                    situacaoTimer: null,
+                    finalizadaAutomaticamente: false,
+                    itens: [{ talhao_id: item.talhao, talhao_nome: item.talhao, area_ha: item.area || 0 }],
+                    total_area_ha: item.area || 0,
+                    observacoes: 'Gerada pelo Planejamento O.S.',
+                    created_at: nowIso,
+                });
+                await App.data.addDocument('ordens_servico', osData);
+                item.osStatus = 'ABERTA';
+                item.statusPlanejamento = 'OS_GERADA';
+                App.ui.showAlert('O.S. gerada a partir do planejamento.', 'success');
+                this.renderPlanning();
+            },
+
+            renderCards(items) {
+                const counters = {
+                    hoje: 0, d3: 0, d7: 0, atrasados: 0, aguardando: 0, foraTimer: 0, divergentes: 0,
+                };
+                const now = new Date();
+                for (const item of items) {
+                    const prevista = this.normalizeDate(item.dataPrevista);
+                    if (prevista) {
+                        const diff = Math.ceil((prevista - now) / 86400000);
+                        if (diff === 0) counters.hoje += 1;
+                        if (diff >= 0 && diff <= 3) counters.d3 += 1;
+                        if (diff >= 0 && diff <= 7) counters.d7 += 1;
+                        if (diff < 0) counters.atrasados += 1;
+                    }
+                    if (item.osStatus === 'AGUARDANDO_APONTAMENTO') counters.aguardando += 1;
+                    if (item.osStatus === 'FINALIZADA_FORA_TIMER') counters.foraTimer += 1;
+                    if (item.osStatus === 'DIVERGENTE') counters.divergentes += 1;
+                }
+                const byId = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+                byId('osPlanningDueToday', counters.hoje);
+                byId('osPlanningDue3Days', counters.d3);
+                byId('osPlanningDue7Days', counters.d7);
+                byId('osPlanningOverdue', counters.atrasados);
+                byId('osPlanningWaiting', counters.aguardando);
+                byId('osPlanningOutTimer', counters.foraTimer);
+                byId('osPlanningDivergent', counters.divergentes);
+            },
+
+            async renderPlanning() {
+                if (!(App.state.planejamento_os || []).length) await this.reprocessPlanning();
+                const list = App.elements.osPlanning.list;
+                if (!list) return;
+                const farmFilter = App.elements.osPlanning.farmFilter;
+                if (farmFilter && farmFilter.options.length <= 1) {
+                    farmFilter.innerHTML = '<option value="">Todas</option>' + (App.state.fazendas || []).map((f) => `<option value="${f.id}">${f.name}</option>`).join('');
+                }
+                const items = this.getFilteredPlanning();
+                this.renderCards(items);
+                if (!items.length) {
+                    list.innerHTML = '<p style="padding:12px; text-align:center;">Nenhum item de planejamento.</p>';
+                    return;
+                }
+                list.innerHTML = `<table class="os-table"><thead><tr><th>Fazenda</th><th>Talhão</th><th>Área</th><th>Última operação</th><th>Data última</th><th>Próxima operação</th><th>Data prevista</th><th>Status planejamento</th><th>O.S.</th><th>Apontamento</th><th>Timer</th><th>Ações</th></tr></thead><tbody>${items.map((i) => {
+                    const status = this.determinePlanningStatus(i);
+                    return `<tr>
+                        <td>${i.fazenda}</td><td>${i.talhao}</td><td>${(Number(i.area)||0).toFixed(2)} ha</td><td>${i.ultimaOperacaoValida || '-'}</td>
+                        <td>${i.dataUltimaOperacaoValida || '-'}</td><td>${i.proximaOperacaoSugerida || '-'}</td><td>${i.dataPrevista || '-'}</td>
+                        <td>${status}</td><td>${i.osVinculadaId || '-'}</td><td>${i.apontamentoVinculadoId || '-'}</td><td>${i.situacaoTimer || '-'}</td>
+                        <td><button class="btn-secondary" onclick="App.osPlanning.generateOsFromPlanning('${i.id}')">Gerar O.S.</button>
+                        <button class="btn-secondary" onclick="App.osPlanning.reprocessPlanning().then(()=>App.osPlanning.renderPlanning())">Reprocessar</button></td>
+                    </tr>`;
+                }).join('')}</tbody></table>`;
+            },
+        },
+
         osEscritorio: {
             currentPage: 1,
             itemsPerPage: 10,
@@ -19469,7 +19738,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const endIndex = startIndex + this.itemsPerPage;
                 const paginatedData = data.slice(startIndex, endIndex);
 
-                let html = '<table class="os-table"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
+                let html = '<table class="os-table"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Abertura</th><th>Apontamento</th><th>Dias</th><th>Timer</th><th>Auto</th><th>Divergência</th><th>Ações</th></tr></thead><tbody>';
 
                 html += paginatedData.map(os => `
                     <tr>
@@ -19477,7 +19746,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="Nº OS">${os.os_numero}</td>
                         <td data-label="Responsável">${os.responsavel_nome}</td>
                         <td data-label="Operação">${os.operacao_nome}</td>
-                        <td data-label="Status"><span class="plano-status ${os.status === 'FINALIZADA' ? 'concluido' : (os.status === 'DIVERGENTE' ? 'atrasado' : 'pendente')}">${os.status}</span></td>
+                        <td data-label="Status"><span class="plano-status ${['FINALIZADA','FINALIZADA_FORA_TIMER'].includes(os.status) ? 'concluido' : (os.status === 'DIVERGENTE' ? 'atrasado' : 'pendente')}">${os.status}</span></td>
+                        <td data-label="Abertura">${os.dataAberturaOS ? new Date(os.dataAberturaOS).toLocaleDateString('pt-BR') : '-'}</td>
+                        <td data-label="Apontamento">${os.dataApontamentoConciliado ? new Date(os.dataApontamentoConciliado).toLocaleDateString('pt-BR') : '-'}</td>
+                        <td data-label="Dias">${Number.isFinite(os.diasExecucao) ? os.diasExecucao : '-'}</td>
+                        <td data-label="Timer">${os.situacaoTimer || '-'}</td>
+                        <td data-label="Auto">${os.finalizadaAutomaticamente ? 'Sim' : 'Não'}</td>
+                        <td data-label="Divergência">${os.motivoDivergencia || '-'}</td>
                         <td data-label="Ações">
                             <div style="display: flex; gap: 8px; justify-content: flex-end;">
                                 <button class="btn-secondary" style="padding: 6px;" title="Atualizar Status/Obs" onclick="App.osEscritorio.openEditModal('${os.id}')"><i class="fas fa-tasks"></i></button>
@@ -19869,6 +20144,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 return hash.toString(36) + str.length;
             },
 
+            calculateTimerStatus(dataAberturaOS, dataApontamento, prazoExecucaoDias) {
+                const abertura = new Date(dataAberturaOS);
+                const apontamento = new Date(dataApontamento);
+                if (Number.isNaN(abertura.getTime()) || Number.isNaN(apontamento.getTime())) {
+                    return { diasExecucao: null, situacaoTimer: 'DATA_INVALIDA', motivo: 'Data de abertura/apontamento inválida.' };
+                }
+                const diasExecucao = Math.floor((apontamento - abertura) / 86400000);
+                if (diasExecucao < 0) {
+                    return { diasExecucao, situacaoTimer: 'DATA_INVALIDA', motivo: 'Data de apontamento anterior à abertura da O.S.' };
+                }
+                const prazo = Number(prazoExecucaoDias || 0);
+                if (!prazo) return { diasExecucao, situacaoTimer: 'NO_TIMER', motivo: null };
+                if (diasExecucao < prazo) return { diasExecucao, situacaoTimer: 'NO_TIMER', motivo: null };
+                if (diasExecucao === prazo) return { diasExecucao, situacaoTimer: 'NO_LIMITE', motivo: null };
+                return { diasExecucao, situacaoTimer: 'FORA_TIMER', motivo: `Execução fora do prazo (${diasExecucao}d > ${prazo}d).` };
+            },
+
+            updateOperationalHistoryFromOS(os, row) {
+                if (!os || !row) return;
+                const key = `${os.fazenda_id}:${row.talhao}`;
+                const existing = (App.state.estado_operacional_talhoes || []).find((i) => i.id === key);
+                const payload = sanitizeFirestoreData({
+                    id: key,
+                    companyId: App.state.currentUser.companyId,
+                    fazendaId: os.fazenda_id,
+                    talhaoId: row.talhao,
+                    ultimaOperacaoValida: os.operacao_nome,
+                    dataUltimaOperacaoValida: row.dataApontamento || row.data,
+                    origemUltimaOperacao: 'apontamento_conciliado',
+                    ultimaOsId: os.id,
+                    ultimoApontamentoId: row.id,
+                    updatedAt: new Date().toISOString(),
+                });
+                if (existing) {
+                    Object.assign(existing, payload);
+                } else {
+                    App.state.estado_operacional_talhoes.push(payload);
+                }
+                App.data.setDocument('estado_operacional_talhoes', key, payload).catch((error) => {
+                    console.warn('Falha ao atualizar estado operacional do talhão', error);
+                });
+            },
+
             async processMachineReport() {
                 const fileInput = document.getElementById('osImportFile');
                 const tolerance = parseFloat(document.getElementById('osImportTolerance').value) || 5;
@@ -19959,19 +20277,51 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
 
                         parsedData.push({
+                            id: `apo_${Date.now()}_${i}`,
                             hash: this.generateHash(line),
+                            dataApontamento: colIndex.data > -1 ? cols[colIndex.data] : '',
                             data: colIndex.data > -1 ? cols[colIndex.data] : '',
                             fazendaNome: cols[colIndex.fazenda],
+                            fazenda: cols[colIndex.fazenda],
                             operacao: operacaoName,
                             talhao: cols[colIndex.talhao],
+                            areaExecutada: colIndex.areaAplic > -1 ? parseNumber(cols[colIndex.areaAplic]) : 0,
+                            equipeResponsavel: '',
+                            observacao: '',
+                            externalId: '',
                             produto: colIndex.produto > -1 ? cols[colIndex.produto] : '',
                             areaAplic: colIndex.areaAplic > -1 ? parseNumber(cols[colIndex.areaAplic]) : 0,
                             dosagemAplic: colIndex.dosagemAplic > -1 ? parseNumber(cols[colIndex.dosagemAplic]) : 0,
+                            status: 'IMPORTADO',
                             raw: line
                         });
                     }
 
+                    parsedData.forEach((item) => { item.status = 'EM_ANALISE'; });
+
+                    for (const row of parsedData) {
+                        const importPayload = sanitizeFirestoreData({
+                            ...row,
+                            companyId: App.state.currentUser.companyId,
+                            createdAt: new Date().toISOString(),
+                        });
+                        App.state.apontamentos_os_importados.push(importPayload);
+                        await OfflineDB.add('offline-writes', {
+                            id: `write_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+                            action: 'create',
+                            collection: 'apontamentos_os_importados',
+                            docId: row.id,
+                            data: importPayload,
+                            timestamp: Date.now(),
+                        });
+                    }
+
                     let reconciledCount = 0;
+                    let strongMatchCount = 0;
+                    let semMatchCount = 0;
+                    let parcialCount = 0;
+                    let finalizedInTimer = 0;
+                    let finalizedOutTimer = 0;
                     let divergentCount = 0;
                     const unlinkedRows = [];
                     const updates = [];
@@ -20051,11 +20401,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             // If Area is provided in CSV, could also compare here if OS tracks area per plot.
 
-                            const newStatus = hasDivergence ? 'DIVERGENTE' : 'CONCLUIDA';
+                            const matchStrength = hasDivergence ? 'MATCH_PARCIAL' : 'MATCH_FORTE';
+                            const timerData = this.calculateTimerStatus(os.dataAberturaOS || os.created_at || os.data, row.dataApontamento || row.data, os.prazoExecucaoDias);
+                            const canAutoFinalize = matchStrength === 'MATCH_FORTE' && timerData.situacaoTimer !== 'DATA_INVALIDA';
+                            const newStatus = canAutoFinalize
+                                ? (timerData.situacaoTimer === 'FORA_TIMER' ? 'FINALIZADA_FORA_TIMER' : 'FINALIZADA')
+                                : (hasDivergence ? 'DIVERGENTE' : 'PARCIAL');
                             const existingUpdate = updates.find(u => u.id === os.id);
 
                             const updateData = existingUpdate ? existingUpdate.data : {
                                 status: newStatus,
+                                dataApontamentoConciliado: row.dataApontamento || row.data,
+                                apontamentoConciliadoId: row.id,
+                                diasExecucao: timerData.diasExecucao,
+                                situacaoTimer: timerData.situacaoTimer,
+                                finalizadaAutomaticamente: canAutoFinalize,
+                                motivoDivergencia: timerData.motivo || (divergenceNotes[0] || null),
                                 observacoes_execucao: divergenceNotes.join(' | '),
                                 data_execucao: row.data || new Date().toISOString(),
                                 data_conciliacao: new Date().toISOString(),
@@ -20069,7 +20430,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             updateData.relatorio_execucao = execLog;
 
                             // If any row causes divergence, keep OS as DIVERGENTE
-                            if (hasDivergence) updateData.status = 'DIVERGENTE';
+                            if (hasDivergence && !canAutoFinalize) updateData.status = 'DIVERGENTE';
 
                             if (existingUpdate) {
                                 existingUpdate.data = updateData;
@@ -20079,8 +20440,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             // Mark hash as processed
                             processedHashesInThisSession.push(row.hash);
+                            row.status = matchStrength === 'MATCH_FORTE' ? 'CONCILIADO' : 'DIVERGENTE';
+                            if (matchStrength === 'MATCH_FORTE') {
+                                strongMatchCount++;
+                                if (newStatus === 'FINALIZADA_FORA_TIMER') finalizedOutTimer++;
+                                if (newStatus === 'FINALIZADA') finalizedInTimer++;
+                                this.updateOperationalHistoryFromOS(os, row);
+                            } else {
+                                parcialCount++;
+                            }
                         } else {
                             // No matching OS found, save to inbox
+                            row.status = 'SEM_MATCH';
+                            semMatchCount++;
                             unlinkedRows.push(row);
                         }
                     }
@@ -20092,7 +20464,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (stateOs) {
                             Object.assign(stateOs, update.data);
                         }
-                        if (update.data.status === 'CONCLUIDA') reconciledCount++;
+                        if (['FINALIZADA', 'FINALIZADA_FORA_TIMER', 'CONCILIADA'].includes(update.data.status)) reconciledCount++;
                         if (update.data.status === 'DIVERGENTE') divergentCount++;
                     }
 
@@ -20135,7 +20507,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Trigger sync
                     App.actions.startSync();
 
-                    App.ui.showAlert(`Importação concluída! O.S. Conciliadas: ${reconciledCount}. Divergentes: ${divergentCount}. Não vinculadas: ${unlinkedRows.length}`, 'success');
+                    App.ui.showAlert(`Importação concluída! Total importado: ${parsedData.length}. Match forte: ${strongMatchCount}. Conciliadas: ${reconciledCount}. Finalizadas no timer: ${finalizedInTimer}. Finalizadas fora do timer: ${finalizedOutTimer}. Divergentes: ${divergentCount}. Sem match: ${semMatchCount}. Parciais: ${parcialCount}.`, 'success');
 
                     if (divergentCount > 0 || unlinkedRows.length > 0) {
                          this.openReconciliationInbox();
