@@ -20250,20 +20250,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    const preview = parsedData.slice(0, 3).map(p => `${p.dataApontamento} | ${p.fazendaNome} | ${p.talhaoNome} | ${p.operacao}`).join('\n');
-                    const shouldImport = await new Promise((resolve) => {
-                        App.ui.showConfirmationModal(
-                            `Pré-visualização (${parsedData.length} linhas):\n${preview || 'sem linhas'}\n\nDeseja importar e conciliar agora?`,
-                            () => resolve(true),
-                            false,
-                            () => resolve(false)
-                        );
-                    });
+                    const preview = parsedData.slice(0, 3).map(p => `${p.dataApontamento} | ${p.fazendaNome} | ${p.talhaoNome} | ${p.operacao}`).join('
+');
+                    await new Promise((resolve) => {
+                        App.ui.showConfirmationModal(`Pré-visualização (${parsedData.length} linhas):
+${preview || 'sem linhas'}
 
-                    if (!shouldImport) {
-                        App.ui.showAlert('Importação cancelada pelo usuário.', 'info');
-                        return;
-                    }
+Deseja importar e conciliar agora?`, resolve);
+                    });
 
                     const activeOSs = (App.state.ordens_servico || []).filter(os => App.osFlow.activeOsStatuses.includes(os.status));
                     let reconciledCount = 0;
@@ -20316,7 +20310,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         } else if (row.produto) {
                             partial = true;
-                            hasDivergence = true;
                             divergenceNotes.push('Produto não previsto na O.S.');
                         }
 
@@ -20356,7 +20349,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         await App.data.updateDocument('ordens_servico', os.id, osUpdate);
                         Object.assign(os, osUpdate);
-                        const importedStatus = partial ? 'PARCIAL' : (hasDivergence ? 'DIVERGENTE' : 'CONCILIADO');
+                        const importedStatus = hasDivergence ? (partial ? 'DIVERGENTE' : 'DIVERGENTE') : 'CONCILIADO';
                         try {
                             await App.data.updateDocument('apontamentos_os_importados', importedId, {
                                 statusConciliacao: importedStatus,
