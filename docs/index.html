@@ -2736,6 +2736,78 @@
 
             </section>
             
+            <section id="planejamentoOS" class="tab-content card" aria-label="Planejamento O.S." tabindex="0" hidden>
+                <div class="card-header-actions">
+                    <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-calendar-check"></i> Planejamento de O.S.</h2>
+                </div>
+
+                <div class="dashboard-selector-grid" style="margin-bottom: 20px;">
+                    <div class="dashboard-card" style="border-left-color: var(--color-danger);">
+                        <i class="icon fas fa-exclamation-triangle" style="color: var(--color-danger);"></i>
+                        <h3 id="planVencendoHoje">0</h3>
+                        <p>Vencendo Hoje</p>
+                    </div>
+                    <div class="dashboard-card" style="border-left-color: var(--color-warning);">
+                        <i class="icon fas fa-clock" style="color: var(--color-warning);"></i>
+                        <h3 id="planProximos3Dias">0</h3>
+                        <p>Próximos 3 Dias</p>
+                    </div>
+                    <div class="dashboard-card" style="border-left-color: var(--color-info);">
+                        <i class="icon fas fa-calendar-alt" style="color: var(--color-info);"></i>
+                        <h3 id="planProximos7Dias">0</h3>
+                        <p>Próximos 7 Dias</p>
+                    </div>
+                    <div class="dashboard-card" style="border-left-color: var(--color-danger);">
+                        <i class="icon fas fa-times-circle" style="color: var(--color-danger);"></i>
+                        <h3 id="planAtrasados">0</h3>
+                        <p>Atrasados</p>
+                    </div>
+                </div>
+
+                <div class="card" style="border-left-color: var(--color-info);">
+                    <div class="form-row">
+                        <div class="form-col"><label>Fazenda:</label><select id="planOsFarmSelect"><option value="">Todas</option></select></div>
+                        <div class="form-col"><label>Status:</label>
+                            <select id="planOsStatusSelect">
+                                <option value="">Todos</option>
+                                <option value="SUGERIDO">Sugerido</option>
+                                <option value="EM_ALERTA">Em Alerta</option>
+                                <option value="ATRASADO">Atrasado</option>
+                                <option value="OS_GERADA">O.S. Gerada</option>
+                                <option value="AGUARDANDO_APONTAMENTO">Aguardando Apontamento</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="btnFilterPlanOS" class="save" style="max-width: 200px;"><i class="fas fa-search"></i> Filtrar</button>
+                </div>
+
+                <div id="planOsList" class="table-responsive" style="margin-top: 20px;"></div>
+            </section>
+
+            <section id="importarApontamentos" class="tab-content card" aria-label="Importar Apontamentos" tabindex="0" hidden>
+                <div class="card-header-actions">
+                    <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-file-import"></i> Importar Apontamentos Diários</h2>
+                </div>
+                <div class="card" style="border-left-color: var(--color-info);">
+                    <p style="margin-bottom: 20px; color: var(--color-text-light);">
+                        Selecione um arquivo CSV com o relatório diário de apontamentos para importar e conciliar com as Ordens de Serviço em andamento.
+                    </p>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label for="importApontamentosFile">Arquivo CSV:</label>
+                            <input type="file" id="importApontamentosFile" accept=".csv" />
+                        </div>
+                    </div>
+                    <button id="btnPreviewApontamentos" class="btn-secondary" style="margin-top: 15px;"><i class="fas fa-eye"></i> Visualizar Importação</button>
+
+                    <div id="previewApontamentosContainer" style="display: none; margin-top: 20px;">
+                        <h3>Pré-visualização</h3>
+                        <div id="previewApontamentosTable" class="table-responsive" style="max-height: 300px; overflow-y: auto;"></div>
+                        <button id="btnConfirmImportApontamentos" class="save" style="margin-top: 15px; width: 100%;"><i class="fas fa-check"></i> Confirmar Importação e Conciliar</button>
+                    </div>
+                </div>
+            </section>
+
             <section id="ordemServicoManual" class="tab-content" aria-label="Ordem de Serviço Manual" tabindex="0" hidden style="padding: 0; height: calc(100% + 40px); width: calc(100% + 40px); margin: -20px; overflow: hidden;">
                 <div style="display: flex; height: 100%;">
 
@@ -2886,9 +2958,13 @@
                                 <option value="">Todos</option>
                                 <option value="PLANEJADA">Planejada</option>
                                 <option value="EM_EXECUCAO">Em Execução</option>
+                                <option value="AGUARDANDO_APONTAMENTO">Aguardando Apontamento</option>
+                                <option value="CONCILIADA">Conciliada</option>
+                                <option value="FINALIZADA">Finalizada Automática</option>
+                                <option value="FINALIZADA_FORA_TIMER">Finalizada Fora do Timer</option>
                                 <option value="DIVERGENTE">Divergente</option>
-                                <option value="CONCLUIDA">Concluída</option>
-                                <option value="FINALIZADA">Finalizada (Legado)</option>
+                                <option value="PARCIAL">Parcial</option>
+                                <option value="CONCLUIDA">Concluída (Legado)</option>
                                 <option value="CANCELADA">Cancelada</option>
                             </select>
                         </div>
@@ -2913,9 +2989,13 @@
                                 <select id="osEditStatus">
                                     <option value="PLANEJADA">Planejada</option>
                                     <option value="EM_EXECUCAO">Em Execução</option>
+                                    <option value="AGUARDANDO_APONTAMENTO">Aguardando Apontamento</option>
+                                    <option value="CONCILIADA">Conciliada</option>
+                                    <option value="FINALIZADA">Finalizada Automática</option>
+                                    <option value="FINALIZADA_FORA_TIMER">Finalizada Fora do Timer</option>
                                     <option value="DIVERGENTE">Divergente</option>
-                                    <option value="CONCLUIDA">Concluída</option>
-                                    <option value="FINALIZADA">Finalizada (Legado)</option>
+                                    <option value="PARCIAL">Parcial</option>
+                                    <option value="CONCLUIDA">Concluída (Legado)</option>
                                     <option value="CANCELADA">Cancelada</option>
                                 </select>
                             </div>
