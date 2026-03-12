@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         worker.postMessage({ type: 'PARSE_SHP_BUFFER', payload: arrayBuffer });
     });
 
-    const OFFLINE_DB_VERSION = 11;
+    const OFFLINE_DB_VERSION = 12;
     const MASTER_DATA_COLLECTIONS = [
         'fazendas',
         'personnel',
@@ -180,6 +180,10 @@ document.addEventListener('DOMContentLoaded', () => {
         'produtos',
         'operacao_produtos',
         'ordens_servico',
+        'planejamento_os',
+        'apontamentos_os_importados',
+        'regras_planejamento_os',
+        'estado_operacional_talhoes',
         'frota',
         'armadilhas'
     ];
@@ -687,6 +691,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (oldVersion < 11) {
                         db.createObjectStore('data_cache', { keyPath: 'id' });
                     }
+                    if (oldVersion < 12) {
+                        db.createObjectStore('apontamentos_os_importados', { keyPath: 'id' });
+                        db.createObjectStore('planejamento_os', { keyPath: 'id' });
+                        db.createObjectStore('regras_planejamento_os', { keyPath: 'id' });
+                        db.createObjectStore('estado_operacional_talhoes', { keyPath: 'id' });
+                    }
                 },
             });
         },
@@ -789,6 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Ordem de Serviço', icon: 'fas fa-file-contract',
                     submenu: [
+                        { label: 'Planejamento O.S.', icon: 'fas fa-calendar-check', target: 'planejamentoOS', permission: 'ordemServico' },
                         { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
                         { label: 'O.S. Escritório', icon: 'fas fa-list', target: 'ordemServicoEscritorio', permission: 'ordemServico' },
                     ]
@@ -897,6 +908,10 @@ document.addEventListener('DOMContentLoaded', () => {
             perdas: [],
             cigarrinha: [],
             planos: [],
+            planejamento_os: [],
+            apontamentos_os_importados: [],
+            regras_planejamento_os: [],
+            estado_operacional_talhoes: [],
             fazendas: [],
             personnel: [],
             frentesDePlantio: [],
@@ -2480,6 +2495,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.state.perdas = [];
                 App.state.cigarrinha = [];
                 App.state.planos = [];
+                App.state.planejamento_os = [];
+                App.state.apontamentos_os_importados = [];
+                App.state.regras_planejamento_os = [];
+                App.state.estado_operacional_talhoes = [];
                 App.state.fazendas = [];
                 App.state.personnel = [];
                 App.state.frentesDePlantio = [];
@@ -2896,7 +2915,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Core Collections - prioritize essential data, defer secondary collections
                 const criticalCollections = ['users', 'fazendas', 'personnel'];
-                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'frota', 'armadilhas'];
+                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'planejamento_os', 'apontamentos_os_importados', 'regras_planejamento_os', 'estado_operacional_talhoes', 'frota', 'armadilhas'];
                 // Load critical data immediately for fast UI render
                 criticalCollections.forEach(col => this.subscribeTo(col));
                 // Defer secondary data to next idle period for better perceived performance
@@ -9031,6 +9050,120 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         actions: {
+            async atualizarHistoricoOperacionalTalhao(os, dataApontamento) {
+                if (!os || !os.itens) return;
+
+                const plots = Array.isArray(os.selectedPlots) ? os.selectedPlots : (os.itens ? os.itens.map(i => i.talhao_nome) : []);
+                const opName = os.operacoes_multiplas ? os.operacoes_multiplas[0]?.operacao_nome : (os.operacao_nome || os.operacao);
+
+                if (!plots.length || !opName) return;
+
+                const updates = plots.map(async plotName => {
+                    const id = `estado_${os.fazenda_id}_${plotName}`.replace(/\s+/g, '_');
+
+                    const estadoData = {
+                        id,
+                        talhaoId: plotName,
+                        fazendaId: os.fazenda_id,
+                        ultimaOperacaoValida: opName,
+                        dataUltimaOperacaoValida: dataApontamento,
+                        origemUltimaOperacao: os.origemOS || 'manual',
+                        ultimaOsId: os.id,
+                        ultimoApontamentoId: os.apontamentoConciliadoId || null,
+                        companyId: App.state.currentUser.companyId,
+                        updatedAt: new Date().toISOString()
+                    };
+
+                    await App.data.updateDocument('estado_operacional_talhoes', id, estadoData).catch(async (e) => {
+                        // If not exists, create
+                        await App.data.addDocument('estado_operacional_talhoes', estadoData);
+                    });
+
+                    // Update locally
+                    const existingIdx = App.state.estado_operacional_talhoes.findIndex(e => e.id === id);
+                    if (existingIdx > -1) {
+                        App.state.estado_operacional_talhoes[existingIdx] = estadoData;
+                    } else {
+                        App.state.estado_operacional_talhoes.push(estadoData);
+                    }
+                });
+
+                await Promise.all(updates);
+
+                // Run Planning Engine
+                App.actions.runPlanningEngine();
+            },
+
+            async runPlanningEngine() {
+                const regras = App.state.regras_planejamento_os || [];
+                const estados = App.state.estado_operacional_talhoes || [];
+                const companyId = App.state.currentUser.companyId;
+
+                const updates = estados.map(async estado => {
+                    // Encontra regra para a ultima operacao
+                    const regra = regras.find(r => r.operacaoAtual === estado.ultimaOperacaoValida && r.ativo);
+
+                    let proximaOperacaoSugerida = null;
+                    let dataPrevista = null;
+                    let statusPlanejamento = 'SEM_HISTORICO';
+                    let intervaloDias = null;
+
+                    if (regra && estado.dataUltimaOperacaoValida) {
+                        proximaOperacaoSugerida = regra.proximaOperacao;
+                        intervaloDias = regra.intervaloDiasProxima;
+                        const dataUltima = new Date(estado.dataUltimaOperacaoValida);
+                        dataPrevista = new Date(dataUltima.getTime() + (intervaloDias * 24 * 60 * 60 * 1000)).toISOString();
+
+                        // Calculo de status simples
+                        const hoje = new Date();
+                        const dataPrev = new Date(dataPrevista);
+                        const diffDias = (dataPrev - hoje) / (1000 * 60 * 60 * 24);
+
+                        if (diffDias < 0) {
+                            statusPlanejamento = 'ATRASADO';
+                        } else if (diffDias <= 7) {
+                            statusPlanejamento = 'EM_ALERTA';
+                        } else {
+                            statusPlanejamento = 'SUGERIDO';
+                        }
+                    }
+
+                    const planoId = `plan_${estado.fazendaId}_${estado.talhaoId}`.replace(/\s+/g, '_');
+                    const planData = {
+                        id: planoId,
+                        companyId,
+                        fazendaId: estado.fazendaId,
+                        talhaoId: estado.talhaoId,
+                        ultimaOperacaoValida: estado.ultimaOperacaoValida,
+                        dataUltimaOperacaoValida: estado.dataUltimaOperacaoValida,
+                        proximaOperacaoSugerida,
+                        intervaloDiasProxima: intervaloDias,
+                        dataPrevista,
+                        statusPlanejamento,
+                        updatedAt: new Date().toISOString()
+                    };
+
+                    await App.data.updateDocument('planejamento_os', planoId, planData).catch(async () => {
+                        await App.data.addDocument('planejamento_os', planData);
+                    });
+
+                    // Update locally
+                    const existingIdx = App.state.planejamento_os.findIndex(p => p.id === planoId);
+                    if (existingIdx > -1) {
+                        App.state.planejamento_os[existingIdx] = planData;
+                    } else {
+                        App.state.planejamento_os.push(planData);
+                    }
+                });
+
+                await Promise.all(updates);
+
+                // Atualiza a UI se a tela estiver aberta
+                if (document.getElementById('planejamentoOS').style.display !== 'none') {
+                    App.osEscritorio.renderPlanejamentoList();
+                }
+            },
+
             async fixClimateData() {
                 App.ui.showConfirmationModal(
                     "Esta ação irá corrigir datas e formatos inconsistentes em todos os registros de clima importados. Deseja continuar?",
@@ -16823,6 +16956,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     total_area_ha: safeTotalAreaHa,
                     observacoes: els.observations.value,
                     itens: plots,
+                    origemOS: App.state.osEditingId ? undefined : 'manual',
+                    dataAberturaOS: new Date().toISOString(),
+                    planningSourceId: null, // Para vinculação futura com motor de planejamento
                     produtos: products, // Mantido por compatibilidade
                     created_at: new Date().toISOString(),
                 };
@@ -20049,21 +20185,59 @@ document.addEventListener('DOMContentLoaded', () => {
                                 divergenceNotes.push(`Produto não previsto na OS: ${row.produto}`);
                             }
 
-                            // If Area is provided in CSV, could also compare here if OS tracks area per plot.
+                            // Timer logic
+                            let diasExecucao = null;
+                            let situacaoTimer = 'NO_TIMER';
+                            let finalizadaAutomaticamente = false;
 
-                            const newStatus = hasDivergence ? 'DIVERGENTE' : 'CONCLUIDA';
+                            if (os.dataAberturaOS && row.data) {
+                                const abertura = new Date(os.dataAberturaOS);
+                                const execucao = new Date(row.data.split('/').reverse().join('-') || row.data);
+
+                                if (!isNaN(abertura) && !isNaN(execucao)) {
+                                    diasExecucao = Math.floor((execucao - abertura) / (1000 * 60 * 60 * 24));
+                                    const prazo = os.prazoExecucaoDias || 7; // default 7 days limit
+
+                                    if (diasExecucao < 0) {
+                                        situacaoTimer = 'DATA_INVALIDA';
+                                        hasDivergence = true;
+                                        divergenceNotes.push('Data do apontamento é anterior à data de abertura da O.S.');
+                                    } else if (diasExecucao <= prazo) {
+                                        situacaoTimer = 'NO_LIMITE';
+                                    } else {
+                                        situacaoTimer = 'FORA_TIMER';
+                                        divergenceNotes.push(`O.S executada fora do timer de ${prazo} dias.`);
+                                    }
+                                }
+                            }
+
                             const existingUpdate = updates.find(u => u.id === os.id);
+
+                            // Define final status
+                            let newStatus = 'AGUARDANDO_APONTAMENTO';
+                            if (hasDivergence) {
+                                newStatus = 'DIVERGENTE';
+                            } else if (situacaoTimer === 'FORA_TIMER') {
+                                newStatus = 'FINALIZADA_FORA_TIMER';
+                                finalizadaAutomaticamente = true;
+                            } else {
+                                newStatus = 'FINALIZADA_AUTOMATICAMENTE';
+                                finalizadaAutomaticamente = true;
+                            }
 
                             const updateData = existingUpdate ? existingUpdate.data : {
                                 status: newStatus,
                                 observacoes_execucao: divergenceNotes.join(' | '),
                                 data_execucao: row.data || new Date().toISOString(),
                                 data_conciliacao: new Date().toISOString(),
-                                // Add execution logs
+                                dataApontamentoConciliado: row.data || new Date().toISOString(),
+                                diasExecucao: diasExecucao,
+                                situacaoTimer: situacaoTimer,
+                                finalizadaAutomaticamente: finalizadaAutomaticamente,
+                                motivoDivergencia: hasDivergence ? divergenceNotes.join(' | ') : null,
                                 relatorio_execucao: []
                             };
 
-                            // Add this row's raw data to OS execution log
                             const execLog = updateData.relatorio_execucao || (os.relatorio_execucao || []);
                             execLog.push(row);
                             updateData.relatorio_execucao = execLog;
@@ -20077,22 +20251,83 @@ document.addEventListener('DOMContentLoaded', () => {
                                 updates.push({ id: os.id, data: updateData });
                             }
 
+                            // Save Point directly to "apontamentos_os_importados" via OfflineDB
+                            const apontamentoId = 'apontamento_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                            await OfflineDB.add('offline-writes', {
+                                id: apontamentoId,
+                                action: 'create',
+                                collection: 'apontamentos_os_importados',
+                                docId: apontamentoId,
+                                data: {
+                                    id: apontamentoId,
+                                    companyId: App.state.currentUser.companyId,
+                                    arquivoOrigem: file.name,
+                                    dataImportacao: new Date().toISOString(),
+                                    dataApontamento: row.data,
+                                    fazendaNome: row.fazendaNome,
+                                    talhaoNome: row.talhao,
+                                    operacao: row.operacao,
+                                    areaExecutada: row.areaAplic,
+                                    statusConciliacao: hasDivergence ? 'DIVERGENTE' : 'CONCILIADO',
+                                    osVinculadaId: os.id,
+                                    diasExecucaoCalculado: diasExecucao,
+                                    situacaoTimer: situacaoTimer,
+                                    observacoes: divergenceNotes.join(' | '),
+                                    createdAt: new Date().toISOString()
+                                }
+                            });
+
                             // Mark hash as processed
                             processedHashesInThisSession.push(row.hash);
                         } else {
                             // No matching OS found, save to inbox
                             unlinkedRows.push(row);
+
+                            // Save Point directly to "apontamentos_os_importados" as SEM_MATCH
+                            const apontamentoId = 'apontamento_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                            await OfflineDB.add('offline-writes', {
+                                id: apontamentoId,
+                                action: 'create',
+                                collection: 'apontamentos_os_importados',
+                                docId: apontamentoId,
+                                data: {
+                                    id: apontamentoId,
+                                    companyId: App.state.currentUser.companyId,
+                                    arquivoOrigem: file.name,
+                                    dataImportacao: new Date().toISOString(),
+                                    dataApontamento: row.data,
+                                    fazendaNome: row.fazendaNome,
+                                    talhaoNome: row.talhao,
+                                    operacao: row.operacao,
+                                    areaExecutada: row.areaAplic,
+                                    statusConciliacao: 'SEM_MATCH',
+                                    osVinculadaId: null,
+                                    observacoes: 'Apontamento não encontrou OS correspondente.',
+                                    createdAt: new Date().toISOString()
+                                }
+                            });
                         }
                     }
 
                     // Apply OS updates
                     for (const update of updates) {
+                        // Cleanup dirty text created by mistake previously, fixing call structure
                         await App.data.updateDocument('ordens_servico', update.id, update.data);
+
                         const stateOs = App.state.ordens_servico.find(o => o.id === update.id);
                         if (stateOs) {
                             Object.assign(stateOs, update.data);
                         }
-                        if (update.data.status === 'CONCLUIDA') reconciledCount++;
+
+                        // Update talhao history if completed successfully
+                        if (!update.data.motivoDivergencia && update.data.data_execucao) {
+                             const executionDate = new Date(update.data.data_execucao);
+                             if (!isNaN(executionDate)) {
+                                 App.actions.atualizarHistoricoOperacionalTalhao(stateOs, update.data.data_execucao);
+                             }
+                        }
+
+                        if (update.data.status === 'FINALIZADA_AUTOMATICAMENTE') reconciledCount++;
                         if (update.data.status === 'DIVERGENTE') divergentCount++;
                     }
 
