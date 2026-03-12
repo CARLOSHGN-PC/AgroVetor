@@ -789,6 +789,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Ordem de Serviço', icon: 'fas fa-file-contract',
                     submenu: [
+                        { label: 'Planejamento O.S.', icon: 'fas fa-calendar-check', target: 'planejamentoOS', permission: 'ordemServico' },
+                        { label: 'Importar Apontamentos', icon: 'fas fa-file-import', target: 'importarApontamentos', permission: 'ordemServico' },
                         { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
                         { label: 'O.S. Escritório', icon: 'fas fa-list', target: 'ordemServicoEscritorio', permission: 'ordemServico' },
                     ]
