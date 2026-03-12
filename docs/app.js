@@ -16825,38 +16825,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     itens: plots,
                     produtos: products, // Mantido por compatibilidade
                     created_at: new Date().toISOString(),
-
-                    // Novos campos de Planejamento e Conciliação
-                    planningSourceId: App.state.pendingPlanningSourceId || null,
-                    dataAberturaOS: new Date().toISOString(),
-                    dataApontamentoConciliado: null,
-                    diasExecucao: null,
-                    prazoExecucaoDias: 0,
-                    situacaoTimer: 'NO_TIMER',
-                    apontamentoConciliadoId: null,
-                    origemOS: App.state.pendingPlanningSourceId ? 'planejamento' : 'manual',
-                    finalizadaAutomaticamente: false,
-                    motivoDivergencia: null,
                 };
 
                 try {
                     if (App.state.osEditingId) {
                         // Modo Edição
-                        // Ao editar, não queremos sobrescrever os campos de planejamento com os defaults,
-                        // então removemos eles do objeto de update se eles não foram explicitamente alterados
-                        const updateData = sanitizeFirestoreData(osData);
-                        delete updateData.dataAberturaOS;
-                        delete updateData.origemOS;
-                        delete updateData.situacaoTimer;
-                        delete updateData.apontamentoConciliadoId;
-                        delete updateData.dataApontamentoConciliado;
-                        delete updateData.diasExecucao;
-                        delete updateData.prazoExecucaoDias;
-                        delete updateData.planningSourceId;
-                        delete updateData.finalizadaAutomaticamente;
-                        delete updateData.motivoDivergencia;
-
-                        await App.data.updateDocument('ordens_servico', App.state.osEditingId, updateData);
+                        await App.data.updateDocument('ordens_servico', App.state.osEditingId, sanitizeFirestoreData(osData));
                         App.ui.showAlert('O.S. Atualizada com Sucesso!', 'success');
                         App.state.osEditingId = null; // Reseta o id
                         App.elements.osManual.btnGenerate.innerHTML = '<i class="fas fa-file-pdf"></i> Gerar O.S.';
@@ -16865,11 +16839,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Modo Criação Normal
                         await App.data.addDocument('ordens_servico', sanitizeFirestoreData(osData));
                         App.ui.showAlert('O.S. Salva com Sucesso! Acesse o Escritório para visualizar.', 'success');
-                    }
-
-                    // Limpa flag de planejamento
-                    if(App.state.pendingPlanningSourceId) {
-                        delete App.state.pendingPlanningSourceId;
                     }
 
                     this.resetForm();
@@ -19472,27 +19441,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const start = document.getElementById('osOfficeStart').value;
                 const end = document.getElementById('osOfficeEnd').value;
                 const status = document.getElementById('osOfficeStatus').value;
-                const timerStatus = document.getElementById('osOfficeTimerStatus')?.value;
-                const origem = document.getElementById('osOfficeOrigem')?.value;
 
                 let data = App.state.ordens_servico || [];
 
                 if (start) data = data.filter(d => d.data >= start);
                 if (end) data = data.filter(d => d.data <= end);
                 if (status) data = data.filter(d => d.status === status);
-                if (timerStatus) {
-                    if (timerStatus === 'AGUARDANDO') {
-                        data = data.filter(d => !d.apontamentoConciliadoId && (d.status === 'PLANEJADA' || d.status === 'EM_EXECUCAO'));
-                    } else {
-                        data = data.filter(d => d.situacaoTimer === timerStatus);
-                    }
-                }
-                if (origem) data = data.filter(d => d.origemOS === origem);
 
                 data.sort((a, b) => b.os_numero - a.os_numero);
 
                 if (data.length === 0) {
-                    listContainer.innerHTML = '<p style="padding: 20px; text-align: center;">Nenhuma O.S. encontrada com os filtros selecionados.</p>';
+                    listContainer.innerHTML = '<p style="padding: 20px; text-align: center;">Nenhuma O.S. encontrada.</p>';
                     return;
                 }
 
@@ -19510,42 +19469,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const endIndex = startIndex + this.itemsPerPage;
                 const paginatedData = data.slice(startIndex, endIndex);
 
-                let html = '<table class="os-table"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Timer/Conciliação</th><th>Ações</th></tr></thead><tbody>';
+                let html = '<table class="os-table"><thead><tr><th>Data</th><th>Nº OS</th><th>Responsável</th><th>Operação</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
 
-                html += paginatedData.map(os => {
-                    let timerBadge = '';
-                    if (os.situacaoTimer === 'FORA_TIMER') {
-                        timerBadge = `<span class="status-badge status-divergente" title="Fora do prazo configurado" style="font-size:10px; margin-top:2px; display:inline-block;"><i class="fas fa-clock"></i> Atrasada (${os.diasExecucao}d)</span>`;
-                    } else if (os.situacaoTimer === 'NO_LIMITE') {
-                        timerBadge = `<span class="status-badge status-concluida" title="Executada dentro do prazo" style="font-size:10px; margin-top:2px; display:inline-block;"><i class="fas fa-check-circle"></i> No Prazo (${os.diasExecucao}d)</span>`;
-                    } else if (os.situacaoTimer === 'DATA_INVALIDA') {
-                        timerBadge = `<span class="status-badge status-warning" title="Divergência de Data" style="font-size:10px; margin-top:2px; display:inline-block;"><i class="fas fa-exclamation-triangle"></i> Data Inválida</span>`;
-                    } else if (os.apontamentoConciliadoId && os.situacaoTimer === 'NO_TIMER') {
-                        timerBadge = `<span class="status-badge status-info" title="Conciliada manualmente" style="font-size:10px; margin-top:2px; display:inline-block;"><i class="fas fa-handshake"></i> Conciliada</span>`;
-                    } else if (!os.apontamentoConciliadoId && (os.status === 'PLANEJADA' || os.status === 'EM_EXECUCAO')) {
-                        timerBadge = `<span class="status-badge status-default" title="Aguardando apontamento de máquina/campo" style="font-size:10px; margin-top:2px; display:inline-block;"><i class="fas fa-hourglass-half"></i> Aguardando...</span>`;
-                    }
-
-                    let iconOrigem = '<i class="fas fa-edit" title="Manual"></i>';
-                    if(os.origemOS === 'planejamento') iconOrigem = '<i class="fas fa-calendar-check" title="Planejamento Automático"></i>';
-                    if(os.origemOS === 'importacao') iconOrigem = '<i class="fas fa-file-import" title="Importação de Máquina"></i>';
-
-                    return `
+                html += paginatedData.map(os => `
                     <tr>
-                        <td data-label="Data">
-                            ${new Date((os.dataAberturaOS ? os.dataAberturaOS.split('T')[0] : os.data) + 'T00:00:00').toLocaleDateString('pt-BR')}
-                            <br><span style="font-size:10px; color:var(--color-text-light);">${iconOrigem} ${os.origemOS || 'manual'}</span>
-                        </td>
+                        <td data-label="Data">${new Date(os.data + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                         <td data-label="Nº OS">${os.os_numero}</td>
                         <td data-label="Responsável">${os.responsavel_nome}</td>
-                        <td data-label="Operação" title="${os.operacao_nome || os.operacoes_multiplas?.map(op => op.operacao_nome).join(', ') || 'N/A'}" style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${os.operacao_nome || os.operacoes_multiplas?.map(op => op.operacao_nome).join(', ') || 'N/A'}</td>
-                        <td data-label="Status">
-                            <span class="plano-status ${os.status === 'FINALIZADA' || os.status === 'CONCLUIDA' ? 'concluido' : (os.status === 'DIVERGENTE' ? 'atrasado' : 'pendente')}">${os.status}</span>
-                            ${os.finalizadaAutomaticamente ? '<br><span style="font-size:9px; color:var(--color-success); font-weight:bold;"><i class="fas fa-robot"></i> Auto-Close</span>' : ''}
-                        </td>
-                        <td data-label="Timer/Conciliação">
-                            ${timerBadge}
-                        </td>
+                        <td data-label="Operação">${os.operacao_nome}</td>
+                        <td data-label="Status"><span class="plano-status ${os.status === 'FINALIZADA' ? 'concluido' : (os.status === 'DIVERGENTE' ? 'atrasado' : 'pendente')}">${os.status}</span></td>
                         <td data-label="Ações">
                             <div style="display: flex; gap: 8px; justify-content: flex-end;">
                                 <button class="btn-secondary" style="padding: 6px;" title="Atualizar Status/Obs" onclick="App.osEscritorio.openEditModal('${os.id}')"><i class="fas fa-tasks"></i></button>
