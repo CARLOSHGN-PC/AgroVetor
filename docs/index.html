@@ -2829,15 +2829,6 @@
                             <textarea id="osObservations" placeholder="Instruções..." style="min-height: 60px;"></textarea>
                         </div>
 
-                        <div class="form-row" style="margin-bottom: 10px;">
-                            <div class="form-col"><label><input type="checkbox" id="osManualIncluirCiclo"> Entrar no histórico do ciclo</label></div>
-                            <div class="form-col"><label><input type="checkbox" id="osManualInfluenciaPlanejamento"> Influenciar próximo planejamento</label></div>
-                        </div>
-                        <div class="form-row" style="margin-bottom: 10px;">
-                            <div class="form-col"><label><input type="checkbox" id="osManualOperacaoAvulsa"> Operação avulsa</label></div>
-                            <div class="form-col"><label><input type="checkbox" id="osManualServicoExterno"> Serviço externo</label></div>
-                        </div>
-
                         <hr style="margin: 10px 0; border-color: var(--color-border);">
 
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -2877,34 +2868,6 @@
                 </div>
             </section>
 
-            <section id="planejamentoOS" class="tab-content card" aria-label="Planejamento O.S." tabindex="0" hidden>
-                <div class="card-header-actions">
-                    <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-calendar-check"></i> Planejamento O.S.</h2>
-                    <button id="btnReprocessPlanningOS" class="save"><i class="fas fa-sync"></i> Reprocessar cálculo</button>
-                </div>
-                <div class="kpi-grid" style="margin: 15px 0; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));">
-                    <div class="kpi-card"><div class="text"><p class="value" id="osPlanningDueToday">0</p><p class="label">Vencendo hoje</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osPlanningDue3Days">0</p><p class="label">Próximos 3 dias</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osPlanningDue7Days">0</p><p class="label">Próximos 7 dias</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osPlanningOverdue">0</p><p class="label">Atrasados</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osPlanningWaiting">0</p><p class="label">Aguardando apontamento</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osPlanningOutTimer">0</p><p class="label">Fora do timer</p></div></div>
-                    <div class="kpi-card"><div class="text"><p class="value" id="osPlanningDivergent">0</p><p class="label">Divergentes</p></div></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-col"><label>Fazenda</label><select id="osPlanningFarmFilter"><option value="">Todas</option></select></div>
-                    <div class="form-col"><label>Talhão</label><input id="osPlanningTalhaoFilter" placeholder="Talhão"></div>
-                    <div class="form-col"><label>Operação</label><input id="osPlanningOperationFilter" placeholder="Operação"></div>
-                    <div class="form-col"><label>Status planejamento</label><select id="osPlanningStatusFilter"><option value="">Todos</option><option>SEM_HISTORICO</option><option>SUGERIDO</option><option>PLANEJADO</option><option>EM_ALERTA</option><option>PRONTO_PARA_OS</option><option>OS_GERADA</option><option>AGUARDANDO_APONTAMENTO</option><option>EXECUTADO</option><option>ATRASADO</option><option>DIVERGENTE</option><option>BLOQUEADO</option></select></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-col"><label>Status O.S.</label><select id="osPlanningOsStatusFilter"><option value="">Todos</option><option>ABERTA</option><option>AGUARDANDO_APONTAMENTO</option><option>CONCILIADA</option><option>FINALIZADA</option><option>FINALIZADA_FORA_TIMER</option><option>DIVERGENTE</option><option>PARCIAL</option></select></div>
-                    <div class="form-col"><label>Período início</label><input type="date" id="osPlanningPeriodStart"></div>
-                    <div class="form-col"><label>Período fim</label><input type="date" id="osPlanningPeriodEnd"></div>
-                </div>
-                <div id="osPlanningList" class="table-responsive"></div>
-            </section>
-
             <section id="ordemServicoEscritorio" class="tab-content card" aria-label="Ordem de Serviço (Escritório)" tabindex="0" hidden>
                 <div class="card-header-actions">
                     <h2 style="color: var(--color-info); margin: 0;"><i class="fas fa-file-signature"></i> O.S. - Escritório</h2>
@@ -2922,14 +2885,9 @@
                             <select id="osOfficeStatus">
                                 <option value="">Todos</option>
                                 <option value="PLANEJADA">Planejada</option>
-                                <option value="ABERTA">Aberta</option>
                                 <option value="EM_EXECUCAO">Em Execução</option>
-                                <option value="AGUARDANDO_APONTAMENTO">Aguardando apontamento</option>
-                                <option value="CONCILIADA">Conciliada</option>
                                 <option value="DIVERGENTE">Divergente</option>
-                                <option value="PARCIAL">Parcial</option>
                                 <option value="CONCLUIDA">Concluída</option>
-                                <option value="FINALIZADA_FORA_TIMER">Finalizada fora do timer</option>
                                 <option value="FINALIZADA">Finalizada (Legado)</option>
                                 <option value="CANCELADA">Cancelada</option>
                             </select>
@@ -2954,14 +2912,9 @@
                                 <label for="osEditStatus">Status:</label>
                                 <select id="osEditStatus">
                                     <option value="PLANEJADA">Planejada</option>
-                                    <option value="ABERTA">Aberta</option>
                                     <option value="EM_EXECUCAO">Em Execução</option>
-                                    <option value="AGUARDANDO_APONTAMENTO">Aguardando apontamento</option>
-                                    <option value="CONCILIADA">Conciliada</option>
                                     <option value="DIVERGENTE">Divergente</option>
-                                    <option value="PARCIAL">Parcial</option>
                                     <option value="CONCLUIDA">Concluída</option>
-                                    <option value="FINALIZADA_FORA_TIMER">Finalizada fora do timer</option>
                                     <option value="FINALIZADA">Finalizada (Legado)</option>
                                     <option value="CANCELADA">Cancelada</option>
                                 </select>
