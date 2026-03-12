@@ -20165,9 +20165,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     const text = await file.text();
-                    const lines = text.split(/
-?
-/).filter(Boolean);
+                    const lines = text.split('\n').map(line => line.replace('\r', '')).filter(Boolean);
                     if (lines.length < 2) throw new Error('Arquivo sem dados para importação.');
 
                     const headers = lines[0].split(';').map(h => h.trim());
