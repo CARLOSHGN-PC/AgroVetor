@@ -1,0 +1,22 @@
+# Passo 9: Criar Tela de Planejamento O.S.
+
+## Arquivos de interface alterados/criados
+- `docs/index.html`: Criada a `<section id="planejamentoOS">` contendo os cards de resumo (Vencendo Hoje, Atrasados, etc.), filtros (Fazenda, Status) e a tabela de listagem do ciclo operacional.
+- `docs/app.js`:
+  - Adicionada a entrada `Planejamento de O.S.` no submenu de `Ordem de Serviço`.
+  - Adicionado o tratador de rota `if (id === 'planejamentoOS')` para renderizar a tela ao clicar.
+  - Criado o objeto `App.osPlanejamentoUI` que controla a renderização dos cards, da tabela e o redirecionamento de ações.
+
+## Onde a nova tela foi encaixada
+No menu lateral principal, dentro do grupo **Ordem de Serviço**, logo abaixo de "Importar Apontamentos".
+
+## Ações que já estão funcionando
+- **Recálculo Automático/Manual:** Ao abrir a tela (ou clicar em Recalcular), o motor `PlanejamentoOSEngine` varre todos os talhões e regras para descobrir o status atualizado de cada um.
+- **Cards de Resumo:** Contadores em tempo real de talhões atrasados, vencendo hoje, próximos dias, aguardando O.S. aberta e bloqueados.
+- **Filtros:** Busca por nome da fazenda e filtro rápido por status do planejamento.
+- **Ação "Ver O.S":** Se o status for `AGUARDANDO_APONTAMENTO`, exibe um botão que redireciona o usuário para o Escritório para checar a O.S. que já está aberta para aquele talhão.
+- **Ação "Gerar O.S":** Se o planejamento sugere uma próxima operação, o botão redireciona o usuário para a tela "Criar O.S. Manual", pré-seleciona a Fazenda, o Talhão específico e a Operação sugerida, adicionando a flag de `pendingPlanningSourceId` no estado para que a origem seja marcada como "planejamento" ao salvar.
+
+## O que ainda depende de ajuste fino
+- A tela de Criar O.S Manual precisa consumir a flag `pendingPlanningSourceId` no momento de salvar (o passo 3 garantiu suporte aos campos, mas a amarração final na action de `generateOS` para ler esse id do state precisa ser garantida, o que é um detalhe menor).
+- O cadastro de `regras_planejamento_os` (CRUD) não foi solicitado explicitamente no escopo da fundação, então as regras precisam ser inseridas via banco de dados ou precisaremos de uma tela de "Configuração de Regras de O.S." no futuro. Atualmente, o motor lê as regras se elas existirem no state.

@@ -2893,7 +2893,29 @@
                             </select>
                         </div>
                     </div>
-                    <button id="btnFilterOS" class="save" style="max-width: 200px;"><i class="fas fa-search"></i> Buscar</button>
+
+                <div class="form-row" style="margin-top: 10px;">
+                    <div class="form-col">
+                        <label for="osOfficeTimerStatus">Situação do Timer (Planejamento)</label>
+                        <select id="osOfficeTimerStatus">
+                            <option value="">Todas as Situações</option>
+                            <option value="NO_TIMER">Sem Timer (Manuais)</option>
+                            <option value="NO_LIMITE">No Prazo (Conciliadas e Fechadas no prazo)</option>
+                            <option value="FORA_TIMER">Fora do Timer (Atrasadas)</option>
+                            <option value="DATA_INVALIDA">Data Inválida (Divergente)</option>
+                        </select>
+                    </div>
+                    <div class="form-col">
+                        <label for="osOfficeOrigem">Origem da O.S.</label>
+                        <select id="osOfficeOrigem">
+                            <option value="">Todas as Origens</option>
+                            <option value="manual">Manual</option>
+                            <option value="planejamento">Planejamento</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button id="btnFilterOS" class="save" style="max-width: 200px; margin-top: 15px;"><i class="fas fa-search"></i> Buscar</button>
                 </div>
 
                 <h3><i class="fas fa-list"></i> Ordens de Serviço</h3>
