@@ -172,18 +172,18 @@ class PlanejamentoOsModule {
             const tr = document.createElement('tr');
             const isSelected = this.selectedPlots.has(plot.id);
 
-            tr.innerHTML = `
+            tr.innerHTML = \`
                 <td style="text-align: center;">
-                    <input type="checkbox" class="plot-checkbox" data-id="${plot.id}" ${isSelected ? 'checked' : ''}>
+                    <input type="checkbox" class="plot-checkbox" data-id="\${plot.id}" \${isSelected ? 'checked' : ''}>
                 </td>
-                <td>${plot.codigo || plot.nome}</td>
-                <td>${plot.area_util || plot.area || 0}</td>
-                <td>${plot.variedade || '-'}</td>
-                <td>${plot.ultima_data}</td>
-                <td>${plot.seq_atual}</td>
-                <td>Seq. ${plot.seq_sugerida}</td>
-                <td><span class="badge" style="background: var(--color-warning); color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px;">${plot.status}</span></td>
-            `;
+                <td>\${plot.codigo || plot.nome}</td>
+                <td>\${plot.area_util || plot.area || 0}</td>
+                <td>\${plot.variedade || '-'}</td>
+                <td>\${plot.ultima_data}</td>
+                <td>\${plot.seq_atual}</td>
+                <td>Seq. \${plot.seq_sugerida}</td>
+                <td><span class="badge" style="background: var(--color-warning); color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px;">\${plot.status}</span></td>
+            \`;
 
             const checkbox = tr.querySelector('.plot-checkbox');
             checkbox.addEventListener('change', (e) => {
@@ -249,7 +249,7 @@ class PlanejamentoOsModule {
             return;
         }
 
-        const id = this.currentPlanId || `plan_${Date.now()}`;
+        const id = this.currentPlanId || \`plan_\${Date.now()}\`;
 
         const cabecalho = {
             id,
@@ -270,7 +270,7 @@ class PlanejamentoOsModule {
         const itens = Array.from(this.selectedPlots).map(talhaoId => {
             const plotData = this.availablePlots.find(p => p.id === talhaoId);
             return {
-                id: `item_${id}_${talhaoId}`,
+                id: \`item_\${id}_\${talhaoId}\`,
                 planejamentoId: id,
                 talhaoId,
                 sequencia_atual: plotData?.seq_atual || 0,
@@ -346,17 +346,17 @@ class PlanejamentoOsModule {
             if (plan.status === 'PRONTO_PARA_OS') statusColor = 'var(--color-info)';
             if (plan.status === 'CONVERTIDO') statusColor = 'var(--color-success)';
 
-            tr.innerHTML = `
-                <td>${plan.id.substring(0, 15)}...</td>
-                <td>${plan.dataPlanejada}</td>
-                <td>${farm}</td>
-                <td>${op}</td>
-                <td><span style="background: ${statusColor}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${plan.status}</span></td>
+            tr.innerHTML = \`
+                <td>\${plan.id.substring(0, 15)}...</td>
+                <td>\${plan.dataPlanejada}</td>
+                <td>\${farm}</td>
+                <td>\${op}</td>
+                <td><span style="background: \${statusColor}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">\${plan.status}</span></td>
                 <td>
-                    <button class="btn-secondary btn-edit-plan" data-id="${plan.id}" style="padding: 2px 8px; margin:0;" title="Editar"><i class="fas fa-edit"></i></button>
-                    ${plan.status === 'PRONTO_PARA_OS' ? `<button class="save btn-generate-os" data-id="${plan.id}" style="padding: 2px 8px; margin:0; margin-left: 5px;" title="Gerar O.S."><i class="fas fa-file-contract"></i></button>` : ''}
+                    <button class="btn-secondary btn-edit-plan" data-id="\${plan.id}" style="padding: 2px 8px; margin:0;" title="Editar"><i class="fas fa-edit"></i></button>
+                    \${plan.status === 'PRONTO_PARA_OS' ? \`<button class="save btn-generate-os" data-id="\${plan.id}" style="padding: 2px 8px; margin:0; margin-left: 5px;" title="Gerar O.S."><i class="fas fa-file-contract"></i></button>\` : ''}
                 </td>
-            `;
+            \`;
 
             // Actions
             tr.querySelector('.btn-edit-plan').addEventListener('click', () => this.loadPlanning(plan.id));
