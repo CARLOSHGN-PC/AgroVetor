@@ -789,7 +789,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Ordem de Serviço', icon: 'fas fa-file-contract',
                     submenu: [
-                        { label: 'Planejamento O.S.', icon: 'fas fa-project-diagram', target: 'planejamentoOs', permission: 'ordemServico' },
                         { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
                         { label: 'O.S. Escritório', icon: 'fas fa-list', target: 'ordemServicoEscritorio', permission: 'ordemServico' },
                     ]
@@ -913,8 +912,6 @@ document.addEventListener('DOMContentLoaded', () => {
             produtos: [],
             operacao_produtos: [],
             ordens_servico: [],
-            os_planejamento_cabecalho: [],
-            os_planejamento_itens: [],
             inactivityTimer: null,
             inactivityWarningTimer: null,
             unsubscribeListeners: [],
@@ -975,33 +972,6 @@ document.addEventListener('DOMContentLoaded', () => {
         fleet: FleetModule,
 
         elements: {
-            planOs: {
-                companySelect: document.getElementById('planOsCompanySelect'),
-                farmSelect: document.getElementById('planOsFarmSelect'),
-                subgroupSelect: document.getElementById('planOsSubgroupSelect'),
-                operationSelect: document.getElementById('planOsOperationSelect'),
-                serviceTypeSelect: document.getElementById('planOsServiceTypeSelect'),
-                programSelect: document.getElementById('planOsProgramSelect'),
-                dateInput: document.getElementById('planOsDateInput'),
-                responsibleInput: document.getElementById('planOsResponsibleInput'),
-                responsibleName: document.getElementById('planOsResponsibleName'),
-                observations: document.getElementById('planOsObservations'),
-                saveDraftBtn: document.getElementById('planOsSaveDraftBtn'),
-                saveReadyBtn: document.getElementById('planOsSaveReadyBtn'),
-                tabList: document.getElementById('planOsTabList'),
-                tabMap: document.getElementById('planOsTabMap'),
-                tabSaved: document.getElementById('planOsTabSaved'),
-                viewList: document.getElementById('planOsViewList'),
-                viewMap: document.getElementById('planOsViewMap'),
-                viewSaved: document.getElementById('planOsViewSaved'),
-                plotsTableBody: document.getElementById('planOsPlotsTableBody'),
-                searchPlots: document.getElementById('planOsSearchPlots'),
-                selectAllPlotsBtn: document.getElementById('planOsSelectAllPlotsBtn'),
-                mapContainer: document.getElementById('planOsMapContainer'),
-                mapSelectedCount: document.getElementById('planOsMapSelectedCount'),
-                savedTableBody: document.getElementById('planOsSavedTableBody'),
-                statusBadge: document.getElementById('planOsStatusBadge'),
-            },
             regApp: {
                 farmSelect: document.getElementById('regAppFarmSelect'),
                 date: document.getElementById('regAppDate'),
@@ -3978,12 +3948,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'ordemServicoManual') {
                     App.osManual.init();
-                }
-                if (id === 'planejamentoOs') {
-                    if (!App.planOs) {
-                        App.planOs = new PlanejamentoOsModule(App);
-                    }
-                    App.planOs.init();
                 }
                 if (id === 'registroAplicacao') {
                     App.regApp.init();
