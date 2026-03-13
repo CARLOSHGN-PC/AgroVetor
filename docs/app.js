@@ -988,7 +988,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 observations: document.getElementById('planOsObservations'),
                 saveDraftBtn: document.getElementById('planOsSaveDraftBtn'),
                 saveReadyBtn: document.getElementById('planOsSaveReadyBtn'),
-                newBtn: document.getElementById('planOsNewBtn'),
                 tabList: document.getElementById('planOsTabList'),
                 tabMap: document.getElementById('planOsTabMap'),
                 tabSaved: document.getElementById('planOsTabSaved'),

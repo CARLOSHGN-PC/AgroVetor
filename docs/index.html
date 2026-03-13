@@ -2748,7 +2748,7 @@
                                 <i class="fas fa-project-diagram"></i> Planejamento O.S.
                             </h2>
 
-                            <div class="form-row" style="display: none;">
+                            <div class="form-row">
                                 <label for="planOsCompanySelect">Empresa*:</label>
                                 <select id="planOsCompanySelect" required></select>
                             </div>
@@ -2783,7 +2783,9 @@
 
                             <div class="form-row">
                                 <label for="planOsProgramSelect">Programa:</label>
-                                <input type="text" id="planOsProgramSelect" placeholder="Digite o programa (opcional)">
+                                <select id="planOsProgramSelect">
+                                    <option value="">Nenhum</option>
+                                </select>
                             </div>
 
                             <div class="form-row">
@@ -2824,8 +2826,7 @@
                                 <button id="planOsTabSaved" class="btn-secondary" style="margin: 0; padding: 5px 15px; border-radius: 20px;"><i class="fas fa-folder-open"></i> Planejamentos Salvos</button>
                             </div>
                             <div style="flex: 1;"></div>
-                            <button id="planOsNewBtn" class="save" style="margin: 0; padding: 5px 15px; border-radius: 20px; font-size: 13px; display: flex; align-items: center; gap: 5px;"><i class="fas fa-plus"></i> Novo Planejamento</button>
-                             <div id="planOsStatusBadge" style="padding: 5px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: var(--color-border); color: var(--color-text); margin-left: 10px;">RASCUNHO</div>
+                            <div id="planOsStatusBadge" style="padding: 5px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; background: var(--color-border); color: var(--color-text);">NOVO PLANEJAMENTO</div>
                         </div>
 
                         <!-- Content Area -->
