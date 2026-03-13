@@ -35,7 +35,6 @@ class PlanejamentoOsModule {
         // Save actions
         this.els.saveDraftBtn.addEventListener('click', () => this.savePlanning('RASCUNHO'));
         this.els.saveReadyBtn.addEventListener('click', () => this.savePlanning('PRONTO_PARA_OS'));
-        if (this.els.newBtn) this.els.newBtn.addEventListener('click', () => { this.resetForm(); this.switchView('list'); });
     }
 
     init() {
@@ -77,20 +76,16 @@ class PlanejamentoOsModule {
     }
 
     onCompanyChange() {
+        const companyId = this.els.companySelect.value;
         this.els.farmSelect.innerHTML = '<option value="">Selecione a fazenda</option>';
-        this.els.farmSelect.disabled = false;
+        this.els.farmSelect.disabled = !companyId;
 
-        if (this.App.state.fazendas) {
-            // Se houver companyId no currentUser, filtra. Senão, mostra todas.
-            const userCompanyId = this.App.state.currentUser?.companyId;
-            const farms = userCompanyId
-                ? this.App.state.fazendas.filter(f => f.empresa_id === userCompanyId || f.companyId === userCompanyId)
-                : this.App.state.fazendas;
-
+        if (companyId && this.App.state.fazendas) {
+            const farms = this.App.state.fazendas.filter(f => f.empresa_id === companyId);
             farms.forEach(f => {
                 const opt = document.createElement('option');
                 opt.value = f.id;
-                opt.textContent = f.nome || f.name;
+                opt.textContent = f.nome;
                 this.els.farmSelect.appendChild(opt);
             });
         }
@@ -120,33 +115,17 @@ class PlanejamentoOsModule {
             });
         }
 
-        // Subgrupo (Using operacoes groups if available, or mock)
-        this.els.subgroupSelect.innerHTML = '<option value="">Selecione</option>';
-        if (this.App.state.operacoes) {
-             const groups = [...new Set(this.App.state.operacoes.map(op => op.grupo).filter(Boolean))];
-             groups.forEach(g => {
-                 const opt = document.createElement('option');
-                 opt.value = g;
-                 opt.textContent = g;
-                 this.els.subgroupSelect.appendChild(opt);
-             });
-        }
-        if (this.els.subgroupSelect.options.length === 1) {
-             this.els.subgroupSelect.innerHTML += '<option value="geral">Geral</option>';
-        }
+        // Subgrupo (mock if no state exists yet)
+        this.els.subgroupSelect.innerHTML = '<option value="geral">Geral</option>';
     }
 
     searchResponsible() {
         const mat = this.els.responsibleInput.value;
-        if (!mat) {
-            this.els.responsibleName.value = '';
-            return;
-        }
-        const person = this.App.state.personnel?.find(p => String(p.matricula) === String(mat));
-        if (person) {
-            this.els.responsibleName.value = person.name || person.nome;
+        const user = this.App.state.usuarios?.find(u => u.matricula === mat);
+        if (user) {
+            this.els.responsibleName.value = user.nome;
         } else {
-            this.els.responsibleName.value = 'Não encontrado';
+            this.els.responsibleName.value = '';
         }
     }
 
@@ -185,8 +164,6 @@ class PlanejamentoOsModule {
         });
 
         this.renderPlotsList();
-        this.syncMapSelection();
-        this.zoomToFarmOnMap(farmId);
     }
 
     renderPlotsList() {
@@ -230,7 +207,6 @@ class PlanejamentoOsModule {
         }
         this.renderPlotsList();
         this.updateSelectedCount();
-        this.syncMapSelection();
     }
 
     updateSelectedCount() {
@@ -242,9 +218,8 @@ class PlanejamentoOsModule {
     resetForm() {
         this.currentPlanId = null;
         this.els.companySelect.value = '';
-        this.els.farmSelect.innerHTML = '<option value="">Selecione a fazenda</option>';
-        this.els.farmSelect.disabled = false;
-        this.onCompanyChange();
+        this.els.farmSelect.innerHTML = '<option value="">Selecione a empresa primeiro</option>';
+        this.els.farmSelect.disabled = true;
         this.els.subgroupSelect.value = '';
         this.els.operationSelect.value = '';
         this.els.serviceTypeSelect.value = '';
@@ -253,7 +228,7 @@ class PlanejamentoOsModule {
         this.els.responsibleInput.value = '';
         this.els.responsibleName.value = '';
         this.els.observations.value = '';
-        this.els.statusBadge.textContent = 'RASCUNHO';
+        this.els.statusBadge.textContent = 'NOVO PLANEJAMENTO';
         this.els.statusBadge.style.background = 'var(--color-border)';
         this.els.statusBadge.style.color = 'var(--color-text)';
 
@@ -264,7 +239,7 @@ class PlanejamentoOsModule {
     }
 
     async savePlanning(status) {
-        if (!this.els.farmSelect.value || !this.els.operationSelect.value || !this.els.dateInput.value) {
+        if (!this.els.companySelect.value || !this.els.farmSelect.value || !this.els.operationSelect.value || !this.els.dateInput.value) {
             this.App.ui.showAlert('Preencha todos os campos obrigatórios (*)', 'error');
             return;
         }
@@ -276,12 +251,9 @@ class PlanejamentoOsModule {
 
         const id = this.currentPlanId || `plan_${Date.now()}`;
 
-        const selectedFarm = this.App.state.fazendas?.find(f => f.id === this.els.farmSelect.value);
-        const empresaId = this.App.state.currentUser?.companyId || selectedFarm?.empresa_id || selectedFarm?.companyId || '';
-
         const cabecalho = {
             id,
-            empresaId: empresaId,
+            empresaId: this.els.companySelect.value,
             fazendaId: this.els.farmSelect.value,
             subgrupoId: this.els.subgroupSelect.value,
             operacaoId: this.els.operationSelect.value,
@@ -439,147 +411,12 @@ class PlanejamentoOsModule {
     }
 
     initMap() {
-        if (this.mapInstance) {
-            setTimeout(() => this.mapInstance.resize(), 200);
-            return;
-        }
-
-        if (!this.els.mapContainer) return;
-        this.els.mapContainer.innerHTML = '';
-
-        if (typeof mapboxgl === 'undefined') {
-            this.els.mapContainer.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%; color: var(--color-text-light);">Mapbox não carregado.</div>';
-            return;
-        }
-
-        mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
-
-        this.mapInstance = new mapboxgl.Map({
-            container: this.els.mapContainer,
-            style: 'mapbox://styles/mapbox/satellite-streets-v12',
-            center: [-48.45, -21.17],
-            zoom: 10,
-            attributionControl: false
-        });
-
-        this.mapInstance.on('load', () => {
-            this.loadShapesToMap();
-            // Trigger zoom if farm is selected
-            if (this.els.farmSelect.value) {
-                this.zoomToFarmOnMap(this.els.farmSelect.value);
-            }
-        });
-
-        // Click on plot
-        this.mapInstance.on('click', 'plan-os-talhoes-layer', (e) => {
-            if (e.features.length > 0) {
-                const feature = e.features[0];
-                const code = feature.properties.CD_TALHAO;
-                if (!code) return;
-
-                // Find plot in availablePlots by code
-                const plot = this.availablePlots.find(p => p.codigo === code || p.nome === code);
-                if (plot) {
-                    if (this.selectedPlots.has(plot.id)) {
-                        this.selectedPlots.delete(plot.id);
-                    } else {
-                        this.selectedPlots.add(plot.id);
-                    }
-                    this.updateMapFeatureState(feature.id, this.selectedPlots.has(plot.id));
-                    this.updateSelectedCount();
-                    this.renderPlotsList(); // keeping list in sync
-                }
-            }
-        });
-    }
-
-    loadShapesToMap() {
-        const map = this.mapInstance;
-        if (!map || !this.App.state.geoJsonData) return;
-
-        const sourceId = 'plan-os-talhoes-source';
-        const layerId = 'plan-os-talhoes-layer';
-
-        if (map.getSource(sourceId)) {
-            map.getSource(sourceId).setData(this.App.state.geoJsonData);
-        } else {
-            map.addSource(sourceId, {
-                type: 'geojson',
-                data: this.App.state.geoJsonData,
-                generateId: true
-            });
-        }
-
-        if (!map.getLayer(layerId)) {
-            map.addLayer({
-                id: layerId,
-                type: 'fill',
-                source: sourceId,
-                paint: {
-                    'fill-color': [
-                        'case',
-                        ['boolean', ['feature-state', 'selected'], false], '#2e7d32',
-                        '#1C1C1C'
-                    ],
-                    'fill-opacity': [
-                        'case',
-                        ['boolean', ['feature-state', 'selected'], false], 0.9,
-                        0.7
-                    ]
-                }
-            });
-
-            map.addLayer({
-                id: layerId + '-border',
-                type: 'line',
-                source: sourceId,
-                paint: {
-                    'line-color': '#FFFFFF',
-                    'line-width': 1
-                }
-            });
-        }
-
-        // Sync initial state
-        this.syncMapSelection();
-    }
-
-    syncMapSelection() {
-        if (!this.mapInstance || !this.mapInstance.isStyleLoaded() || !this.App.state.geoJsonData) return;
-
-        // Reset all states
-        this.App.state.geoJsonData.features.forEach((feature, i) => {
-            const code = feature.properties.CD_TALHAO;
-            const plot = this.availablePlots.find(p => p.codigo === code || p.nome === code);
-            const isSelected = plot ? this.selectedPlots.has(plot.id) : false;
-
-            this.mapInstance.setFeatureState(
-                { source: 'plan-os-talhoes-source', id: feature.id || i },
-                { selected: isSelected }
-            );
-        });
-    }
-
-    updateMapFeatureState(featureId, isSelected) {
-        if (!this.mapInstance) return;
-        this.mapInstance.setFeatureState(
-            { source: 'plan-os-talhoes-source', id: featureId },
-            { selected: isSelected }
-        );
-    }
-
-    zoomToFarmOnMap(farmId) {
-        if (!this.mapInstance || !this.App.state.geoJsonData) return;
-        const farm = this.App.state.fazendas?.find(f => f.id === farmId);
-        if (!farm || !farm.code) return;
-
-        const farmCodeStr = String(farm.code).trim();
-        const features = this.App.state.geoJsonData.features.filter(f => String(f.properties.CD_FAZENDA).trim() === farmCodeStr);
-
-        if (features.length > 0 && typeof turf !== 'undefined') {
-            const collection = turf.featureCollection(features);
-            const bbox = turf.bbox(collection);
-            this.mapInstance.fitBounds(bbox, { padding: 50, maxZoom: 15 });
+        if (!this.mapInstance) {
+            // Placeholder for mapbox initialization logic
+            this.els.mapContainer.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%; color: var(--color-text-light);">Carregando mapa...</div>';
+            setTimeout(() => {
+                this.els.mapContainer.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%; color: var(--color-text-light);">Visualização de Mapa SHP em desenvolvimento. Utilize a "Lista de Talhões".</div>';
+            }, 500);
         }
     }
 }
