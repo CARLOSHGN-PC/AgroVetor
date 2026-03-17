@@ -1,9 +1,7 @@
-// FIREBASE: Importe os módulos necessários do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, Timestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, setPersistence, browserSessionPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
-// Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
 import { openDB } from 'https://cdn.jsdelivr.net/npm/idb@7.1.1/build/index.js';
 import FleetModule from './js/fleet.js';
 import CalculationService from './js/lib/CalculationService.js';
@@ -12,12 +10,45 @@ import VirtualList from './js/lib/VirtualList.js';
 import { appDiagnostics } from './js/lib/AppDiagnostics.js';
 import { createAerialMapProvider } from './js/mapProviders/MapProviderFactory.js';
 
+
+function safeGetElementById(id) {
+    let el = document.getElementById(id);
+    if (!el) {
+        const dummy = document.createElement('div');
+        return new Proxy(dummy, {
+            get(target, prop) {
+                if (prop in target) {
+                    if (typeof target[prop] === 'function') {
+                        return target[prop].bind(target);
+                    }
+                    return target[prop];
+                }
+                if (prop === 'value') return '';
+                if (prop === 'checked') return false;
+                if (prop === 'files') return [];
+                if (prop === 'options') return [];
+                if (prop === 'selectedIndex') return -1;
+                if (prop === 'dataset') return {};
+                if (prop === 'classList') return { add: ()=>{}, remove: ()=>{}, toggle: ()=>{}, contains: ()=>false };
+                return () => {};
+            },
+            set(target, prop, value) {
+                target[prop] = value;
+                return true;
+            }
+        });
+    }
+    return el;
+}
+// FIREBASE: Importe os módulos necessários do Firebase SDK
+// Importa a biblioteca para facilitar o uso do IndexedDB (cache offline)
+
 document.addEventListener('DOMContentLoaded', () => {
     perfLogger.start('App Boot');
     appDiagnostics.start();
 
     // Lógica da Tela de Abertura
-    const splashScreen = document.getElementById('splash-screen');
+    const splashScreen = safeGetElementById('splash-screen');
     if (splashScreen) {
         // Esconde a tela de abertura após a animação e um pequeno atraso
         setTimeout(() => {
@@ -782,18 +813,9 @@ document.addEventListener('DOMContentLoaded', () => {
             inactivityWarningTime: 1 * 60 * 1000,
             backendUrl: 'https://agrovetor-backend.onrender.com', // URL do seu backend
             menuConfig: [
-                { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
-                { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
-                { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
-                { label: 'Estimativa Safra', icon: 'fas fa-seedling', target: 'estimativaSafra', permission: 'estimativaSafra' },
-                { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
-                {
-                    label: 'Ordem de Serviço', icon: 'fas fa-file-contract',
-                    submenu: [
-                        { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
-                        { label: 'Planejamento O.S.', icon: 'fas fa-calendar-check', target: 'planejamentoOS', permission: 'ordemServico' },
-                        { label: 'O.S. Escritório', icon: 'fas fa-list', target: 'ordemServicoEscritorio', permission: 'ordemServico' },
-                    ]
+                { label: 'Configurações da Empresa', icon: 'fas fa-building', target: 'configuracoesEmpresa', permission: 'configuracoesEmpresa' },
+                { label: 'Estimativa Safra', icon: 'fas fa-seedling', target: 'estimativaSafra', permission: 'estimativaSafra' }
+            ],
                 },
                 {
                     label: 'Registro de Aplicação', icon: 'fas fa-spray-can',
@@ -988,790 +1010,453 @@ document.addEventListener('DOMContentLoaded', () => {
         fleet: FleetModule,
 
         elements: {
-            regApp: {
-                farmSelect: document.getElementById('regAppFarmSelect'),
-                date: document.getElementById('regAppDate'),
-                shiftRadios: document.querySelectorAll('input[name="regAppShift"]'),
-                product: document.getElementById('regAppProduct'),
-                dosage: document.getElementById('regAppDosage'),
-                operator: document.getElementById('regAppOperator'),
-                plotsList: document.getElementById('regAppPlotsList'),
-                btnSave: document.getElementById('btnSaveRegApp'),
-                mapContainer: document.getElementById('regAppMap'),
-                btnCenterMap: document.getElementById('btnCenterRegAppMap'),
-            },
-            osManual: {
-                farmSelect: document.getElementById('osFarmSelect'),
-                serviceType: document.getElementById('osServiceType'),
-                btnOpenOperationModal: document.getElementById('btnOpenOperationModal'),
-                osOperationModal: document.getElementById('osOperationModal'),
-                modalGroupSelect: document.getElementById('modalGroupSelect'),
-                modalOperationSearch: document.getElementById('modalOperationSearch'),
-                modalOperationList: document.getElementById('modalOperationList'),
-                btnCloseOperationModal: document.getElementById('osCloseOperationModal'),
-                selectedOperationsList: document.getElementById('osSelectedOperationsList'),
-                productModal: document.getElementById('osProductModal'),
-                productModalTitle: document.getElementById('osProductModalTitle'),
-                closeProductModalBtn: document.getElementById('osCloseProductModal'),
-                productsListModal: document.getElementById('osProductsList'),
-                saveProductsModalBtn: document.getElementById('osSaveProductsModalBtn'),
-                responsibleMatricula: document.getElementById('osResponsibleMatricula'),
-                responsibleName: document.getElementById('osResponsibleName'),
-                observations: document.getElementById('osObservations'),
-                totalArea: document.getElementById('osTotalArea'),
-                plotsList: document.getElementById('osPlotsList'),
-                btnGenerate: document.getElementById('btnGenerateOS'),
-                mapContainer: document.getElementById('os-map'),
-                btnCenterMap: document.getElementById('btnCenterOSMap'),
-            },
-            osPlanning: {
-                companyName: document.getElementById('osPlanningCompanyName'),
-                farmSelect: document.getElementById('osPlanningFarmSelect'),
-                subgroupSelect: document.getElementById('osPlanningSubgroupSelect'),
-                operationSelect: document.getElementById('osPlanningOperationSelect'),
-                serviceTypeSelect: document.getElementById('osPlanningServiceTypeSelect'),
-                programInput: document.getElementById('osPlanningProgramInput'),
-                dateInput: document.getElementById('osPlanningDateInput'),
-                responsibleMatricula: document.getElementById('osPlanningResponsibleMatricula'),
-                responsibleName: document.getElementById('osPlanningResponsibleName'),
-                modeSelect: document.getElementById('osPlanningModeSelect'),
-                notes: document.getElementById('osPlanningNotes'),
-                talhaoSearch: document.getElementById('osPlanningTalhaoSearch'),
-                plotsList: document.getElementById('osPlanningTalhaoList'),
-                selectedCount: document.getElementById('osPlanningSelectedCount'),
-                selectedArea: document.getElementById('osPlanningSelectedArea'),
-                historyStatus: document.getElementById('osPlanningHistoryStatus'),
-                gridBody: document.getElementById('osPlanningGridBody'),
-                operationsBody: document.getElementById('osPlanningOperationsBody'),
-                addOperationBtn: document.getElementById('osPlanningAddOperationBtn'),
-                operationModal: document.getElementById('osPlanningOperationModal'),
-                operationModalTitle: document.getElementById('osPlanningOperationModalTitle'),
-                operationModalCloseBtn: document.getElementById('osPlanningOperationModalCloseBtn'),
-                operationModalCancelBtn: document.getElementById('osPlanningOperationModalCancelBtn'),
-                operationModalSaveBtn: document.getElementById('osPlanningOperationModalSaveBtn'),
-                operationModalSubgroup: document.getElementById('osPlanningOperationModalSubgroup'),
-                operationModalOperation: document.getElementById('osPlanningOperationModalOperation'),
-                operationModalServiceType: document.getElementById('osPlanningOperationModalServiceType'),
-                operationModalResponsibleMatricula: document.getElementById('osPlanningOperationModalResponsibleMatricula'),
-                operationModalResponsibleName: document.getElementById('osPlanningOperationModalResponsibleName'),
-                operationModalObservation: document.getElementById('osPlanningOperationModalObservation'),
-                operationAddProductBtn: document.getElementById('osPlanningOperationAddProductBtn'),
-                operationProductsBody: document.getElementById('osPlanningOperationProductsBody'),
-                summarySelected: document.getElementById('osPlanningSummarySelected'),
-                summaryArea: document.getElementById('osPlanningSummaryArea'),
-                summaryReady: document.getElementById('osPlanningSummaryReady'),
-                summaryTrusted: document.getElementById('osPlanningSummaryTrusted'),
-                mapContainer: document.getElementById('planejamentoOSMap'),
-                btnCenterMap: document.getElementById('osPlanningCenterMapBtn'),
-                btnSyncMap: document.getElementById('osPlanningSyncMapBtn'),
-                btnExpandMap: document.getElementById('osPlanningExpandMapBtn'),
-                btnSelectAll: document.getElementById('osPlanningSelectAllBtn'),
-                btnRefresh: document.getElementById('osPlanningRefreshBtn'),
-                btnLoadSaved: document.getElementById('osPlanningLoadSavedBtn'),
-                btnSaveDraft: document.getElementById('osPlanningSaveDraftBtn'),
-                btnSave: document.getElementById('osPlanningSaveBtn'),
-                btnSaveReady: document.getElementById('osPlanningSaveReadyBtn'),
-                btnGenerateOS: document.getElementById('osPlanningGenerateOSBtn'),
-                savedModal: document.getElementById('osPlanningSavedModal'),
-                savedModalCloseBtn: document.getElementById('osPlanningSavedModalCloseBtn'),
-                savedModalBody: document.getElementById('osPlanningSavedModalBody'),
-                savedSearch: document.getElementById('osPlanningSavedSearch'),
-                savedFarmFilter: document.getElementById('osPlanningSavedFarmFilter'),
-                savedStatusFilter: document.getElementById('osPlanningSavedStatusFilter'),
-                savedDateFilter: document.getElementById('osPlanningSavedDateFilter'),
-                savedRefreshBtn: document.getElementById('osPlanningSavedRefreshBtn'),
-                historyModal: document.getElementById('osPlanningHistoryModal'),
-                historyModalCloseBtn: document.getElementById('osPlanningHistoryModalCloseBtn'),
-                historyCancelBtn: document.getElementById('osPlanningHistoryCancelBtn'),
-                historyConfirmBtn: document.getElementById('osPlanningHistoryConfirmBtn'),
-                historyFarmText: document.getElementById('osPlanningHistoryFarmText'),
-                historySelectedText: document.getElementById('osPlanningHistorySelectedText'),
-                historyReviewText: document.getElementById('osPlanningHistoryReviewText'),
-                readyModal: document.getElementById('osPlanningReadyModal'),
-                readyModalCloseBtn: document.getElementById('osPlanningReadyModalCloseBtn'),
-                readyBackBtn: document.getElementById('osPlanningReadyBackBtn'),
-                readyConfirmBtn: document.getElementById('osPlanningReadyConfirmBtn'),
-                generateModal: document.getElementById('osPlanningGenerateModal'),
-                generateModalCloseBtn: document.getElementById('osPlanningGenerateModalCloseBtn'),
-                generateBackBtn: document.getElementById('osPlanningGenerateBackBtn'),
-                generateConfirmBtn: document.getElementById('osPlanningGenerateConfirmBtn'),
-                actionToast: document.getElementById('osPlanningActionToast'),
-                secondaryTabs: document.querySelectorAll('#planejamentoOS [data-os-planning-tab]'),
-                panelSalvos: document.getElementById('osPlanningPanelSalvos'),
-                panelAlertas: document.getElementById('osPlanningPanelAlertas'),
-                panelPendencias: document.getElementById('osPlanningPanelPendencias'),
-                panelHistorico: document.getElementById('osPlanningPanelHistorico'),
-                savedPanelBody: document.getElementById('osPlanningSavedPanelBody'),
-                savedPanelSearch: document.getElementById('osPlanningSavedPanelSearch'),
-                savedPanelFarmFilter: document.getElementById('osPlanningSavedPanelFarmFilter'),
-                savedPanelStatusFilter: document.getElementById('osPlanningSavedPanelStatusFilter'),
-                savedPanelDateFilter: document.getElementById('osPlanningSavedPanelDateFilter'),
-                savedPanelFilterBtn: document.getElementById('osPlanningSavedPanelFilterBtn'),
-                savedCountTotal: document.getElementById('osPlanningSavedCountTotal'),
-                savedCountDraft: document.getElementById('osPlanningSavedCountDraft'),
-                savedCountPlanned: document.getElementById('osPlanningSavedCountPlanned'),
-                savedCountReady: document.getElementById('osPlanningSavedCountReady'),
-                alertToday: document.getElementById('osPlanningAlertToday'),
-                alertSoon: document.getElementById('osPlanningAlertSoon'),
-                alertLate: document.getElementById('osPlanningAlertLate'),
-                alertReady: document.getElementById('osPlanningAlertReady'),
-                alertsList: document.getElementById('osPlanningAlertsList'),
-                pendenciasList: document.getElementById('osPlanningPendenciasList'),
-                pendingNoHistory: document.getElementById('osPlanningPendingNoHistory'),
-                pendingAmbiguous: document.getElementById('osPlanningPendingAmbiguous'),
-                pendingDivergent: document.getElementById('osPlanningPendingDivergent'),
-                pendingBlocked: document.getElementById('osPlanningPendingBlocked'),
-                historyFarmFilter: document.getElementById('osPlanningHistoryFarmFilter'),
-                historyTalhaoFilter: document.getElementById('osPlanningHistoryTalhaoFilter'),
-                historyProgramFilter: document.getElementById('osPlanningHistoryProgramFilter'),
-                historyRangeFilter: document.getElementById('osPlanningHistoryRangeFilter'),
-                historyQueryBtn: document.getElementById('osPlanningHistoryQueryBtn'),
-                historyTimeline: document.getElementById('osPlanningHistoryTimeline'),
-                fullscreenMapModal: document.getElementById('osPlanningMapFullscreenModal'),
-                fullscreenMapContainer: document.getElementById('planejamentoOSMapFullscreen'),
-                fullscreenMapCloseBtn: document.getElementById('osPlanningMapFullscreenCloseBtn'),
-                fullscreenMapCancelBtn: document.getElementById('osPlanningMapFullscreenCancelBtn'),
-                fullscreenMapConfirmBtn: document.getElementById('osPlanningMapFullscreenConfirmBtn'),
-                fullscreenMapCenterBtn: document.getElementById('osPlanningMapFullscreenCenterBtn'),
-                fullscreenMapSelectAllBtn: document.getElementById('osPlanningMapFullscreenSelectAllBtn'),
-                fullscreenMapSyncBtn: document.getElementById('osPlanningMapFullscreenSyncBtn'),
-            },
+
+
+
             welcomeModal: {
-                overlay: document.getElementById('welcomeModal'),
-                content: document.getElementById('welcomeModalContent'),
-                closeBtn: document.getElementById('btnCloseWelcome'),
+                overlay: safeGetElementById('welcomeModal'),
+                content: safeGetElementById('welcomeModalContent'),
+                closeBtn: safeGetElementById('btnCloseWelcome'),
             },
             updateModal: {
-                overlay: document.getElementById('updateModal'),
-                title: document.getElementById('updateModalTitle'),
-                body: document.getElementById('updateModalBody'),
-                versionBadge: document.getElementById('updateVersionBadge'),
-                closeBtn: document.getElementById('updateModalCloseBtn'),
-                ackBtn: document.getElementById('btnAckUpdate'),
+                overlay: safeGetElementById('updateModal'),
+                title: safeGetElementById('updateModalTitle'),
+                body: safeGetElementById('updateModalBody'),
+                versionBadge: safeGetElementById('updateVersionBadge'),
+                closeBtn: safeGetElementById('updateModalCloseBtn'),
+                ackBtn: safeGetElementById('btnAckUpdate'),
             },
             announcements: {
-                version: document.getElementById('announcementVersion'),
-                title: document.getElementById('announcementTitle'),
-                desc: document.getElementById('announcementDesc'),
-                btnPublish: document.getElementById('btnPublishAnnouncement'),
-                list: document.getElementById('announcementsList'),
+                version: safeGetElementById('announcementVersion'),
+                title: safeGetElementById('announcementTitle'),
+                desc: safeGetElementById('announcementDesc'),
+                btnPublish: safeGetElementById('btnPublishAnnouncement'),
+                list: safeGetElementById('announcementsList'),
             },
-            loadingOverlay: document.getElementById('loading-overlay'),
-            loadingProgressText: document.getElementById('loading-progress-text'),
-            loginScreen: document.getElementById('loginScreen'),
-            appScreen: document.getElementById('appScreen'),
-            loginUser: document.getElementById('loginUser'),
-            loginPass: document.getElementById('loginPass'),
-            btnLogin: document.getElementById('btnLogin'),
-            loginMessage: document.getElementById('loginMessage'),
-            loginForm: document.getElementById('loginForm'),
-            offlineUserSelection: document.getElementById('offlineUserSelection'),
-            offlineUserList: document.getElementById('offlineUserList'),
+            loadingOverlay: safeGetElementById('loading-overlay'),
+            loadingProgressText: safeGetElementById('loading-progress-text'),
+            loginScreen: safeGetElementById('loginScreen'),
+            appScreen: safeGetElementById('appScreen'),
+            loginUser: safeGetElementById('loginUser'),
+            loginPass: safeGetElementById('loginPass'),
+            btnLogin: safeGetElementById('btnLogin'),
+            loginMessage: safeGetElementById('loginMessage'),
+            loginForm: safeGetElementById('loginForm'),
+            offlineUserSelection: safeGetElementById('offlineUserSelection'),
+            offlineUserList: safeGetElementById('offlineUserList'),
             headerTitle: document.querySelector('header h1'),
-            headerLogo: document.getElementById('headerLogo'),
-            connectionStatusBadge: document.getElementById('connectionStatusBadge'),
-            connectionStatusText: document.getElementById('connectionStatusText'),
-            reauthBanner: document.getElementById('reauthBanner'),
-            reauthNowBtn: document.getElementById('reauthNowBtn'),
-            reauthLaterBtn: document.getElementById('reauthLaterBtn'),
-            currentDateTime: document.getElementById('currentDateTime'),
-            logoutBtn: document.getElementById('logoutBtn'),
-            btnToggleMenu: document.getElementById('btnToggleMenu'),
-            menu: document.getElementById('menu'),
-            content: document.getElementById('content'),
-            alertContainer: document.getElementById('alertContainer'),
-            notificationContainer: document.getElementById('notification-container'),
+            headerLogo: safeGetElementById('headerLogo'),
+            connectionStatusBadge: safeGetElementById('connectionStatusBadge'),
+            connectionStatusText: safeGetElementById('connectionStatusText'),
+            reauthBanner: safeGetElementById('reauthBanner'),
+            reauthNowBtn: safeGetElementById('reauthNowBtn'),
+            reauthLaterBtn: safeGetElementById('reauthLaterBtn'),
+            currentDateTime: safeGetElementById('currentDateTime'),
+            logoutBtn: safeGetElementById('logoutBtn'),
+            btnToggleMenu: safeGetElementById('btnToggleMenu'),
+            menu: safeGetElementById('menu'),
+            content: safeGetElementById('content'),
+            alertContainer: safeGetElementById('alertContainer'),
+            notificationContainer: safeGetElementById('notification-container'),
             notificationBell: {
-                container: document.getElementById('notification-bell-container'),
-                toggle: document.getElementById('notification-bell-toggle'),
-                count: document.getElementById('notification-count'),
-                dropdown: document.getElementById('notification-dropdown'),
-                list: document.getElementById('notification-list'), // NOVO
-                clearBtn: document.getElementById('clear-notifications-btn'), // NOVO
-                noNotifications: document.getElementById('no-notifications'), // NOVO
+                container: safeGetElementById('notification-bell-container'),
+                toggle: safeGetElementById('notification-bell-toggle'),
+                count: safeGetElementById('notification-count'),
+                dropdown: safeGetElementById('notification-dropdown'),
+                list: safeGetElementById('notification-list'), // NOVO
+                clearBtn: safeGetElementById('clear-notifications-btn'), // NOVO
+                noNotifications: safeGetElementById('no-notifications'), // NOVO
             },
             userMenu: {
-                container: document.getElementById('user-menu-container'),
-                toggle: document.getElementById('user-menu-toggle'),
-                dropdown: document.getElementById('user-menu-dropdown'),
-                username: document.getElementById('userMenuUsername'),
-                changePasswordBtn: document.getElementById('changePasswordBtn'),
-                manualSyncBtn: document.getElementById('manualSyncBtn'),
-                downloadAllAerialTilesBtn: document.getElementById('btnDownloadAllAerialTiles'),
-                updateAllAerialTilesBtn: document.getElementById('btnUpdateAllAerialTiles'),
-                removeAllAerialTilesBtn: document.getElementById('btnRemoveAllAerialTiles'),
+                container: safeGetElementById('user-menu-container'),
+                toggle: safeGetElementById('user-menu-toggle'),
+                dropdown: safeGetElementById('user-menu-dropdown'),
+                username: safeGetElementById('userMenuUsername'),
+                changePasswordBtn: safeGetElementById('changePasswordBtn'),
+                manualSyncBtn: safeGetElementById('manualSyncBtn'),
+                downloadAllAerialTilesBtn: safeGetElementById('btnDownloadAllAerialTiles'),
+                updateAllAerialTilesBtn: safeGetElementById('btnUpdateAllAerialTiles'),
+                removeAllAerialTilesBtn: safeGetElementById('btnRemoveAllAerialTiles'),
                 themeButtons: document.querySelectorAll('.theme-button')
             },
             confirmationModal: {
-                overlay: document.getElementById('confirmationModal'),
-                title: document.getElementById('confirmationModalTitle'),
-                message: document.getElementById('confirmationModalMessage'),
-                confirmBtn: document.getElementById('confirmationModalConfirmBtn'),
-                cancelBtn: document.getElementById('confirmationModalCancelBtn'),
-                closeBtn: document.getElementById('confirmationModalCloseBtn'),
-                inputContainer: document.getElementById('confirmationModalInputContainer'),
-                input: document.getElementById('confirmationModalInput'),
+                overlay: safeGetElementById('confirmationModal'),
+                title: safeGetElementById('confirmationModalTitle'),
+                message: safeGetElementById('confirmationModalMessage'),
+                confirmBtn: safeGetElementById('confirmationModalConfirmBtn'),
+                cancelBtn: safeGetElementById('confirmationModalCancelBtn'),
+                closeBtn: safeGetElementById('confirmationModalCloseBtn'),
+                inputContainer: safeGetElementById('confirmationModalInputContainer'),
+                input: safeGetElementById('confirmationModalInput'),
             },
             changePasswordModal: {
-                overlay: document.getElementById('changePasswordModal'),
-                closeBtn: document.getElementById('changePasswordModalCloseBtn'),
-                cancelBtn: document.getElementById('changePasswordModalCancelBtn'),
-                saveBtn: document.getElementById('changePasswordModalSaveBtn'),
-                currentPassword: document.getElementById('currentPassword'),
-                newPassword: document.getElementById('newPassword'),
-                confirmNewPassword: document.getElementById('confirmNewPassword'),
+                overlay: safeGetElementById('changePasswordModal'),
+                closeBtn: safeGetElementById('changePasswordModalCloseBtn'),
+                cancelBtn: safeGetElementById('changePasswordModalCancelBtn'),
+                saveBtn: safeGetElementById('changePasswordModalSaveBtn'),
+                currentPassword: safeGetElementById('currentPassword'),
+                newPassword: safeGetElementById('newPassword'),
+                confirmNewPassword: safeGetElementById('confirmNewPassword'),
             },
             reauthModal: {
-                overlay: document.getElementById('reauthModal'),
-                closeBtn: document.getElementById('reauthModalCloseBtn'),
-                cancelBtn: document.getElementById('reauthModalCancelBtn'),
-                confirmBtn: document.getElementById('reauthModalConfirmBtn'),
-                passwordInput: document.getElementById('reauthPasswordInput'),
+                overlay: safeGetElementById('reauthModal'),
+                closeBtn: safeGetElementById('reauthModalCloseBtn'),
+                cancelBtn: safeGetElementById('reauthModalCancelBtn'),
+                confirmBtn: safeGetElementById('reauthModalConfirmBtn'),
+                passwordInput: safeGetElementById('reauthPasswordInput'),
             },
             adminPasswordConfirmModal: {
-                overlay: document.getElementById('adminPasswordConfirmModal'),
-                closeBtn: document.getElementById('adminPasswordConfirmModalCloseBtn'),
-                cancelBtn: document.getElementById('adminPasswordConfirmModalCancelBtn'),
-                confirmBtn: document.getElementById('adminPasswordConfirmModalConfirmBtn'),
-                passwordInput: document.getElementById('adminConfirmPassword')
+                overlay: safeGetElementById('adminPasswordConfirmModal'),
+                closeBtn: safeGetElementById('adminPasswordConfirmModalCloseBtn'),
+                cancelBtn: safeGetElementById('adminPasswordConfirmModalCancelBtn'),
+                confirmBtn: safeGetElementById('adminPasswordConfirmModalConfirmBtn'),
+                passwordInput: safeGetElementById('adminConfirmPassword')
             },
             chartModal: {
-                overlay: document.getElementById('chartModal'),
-                title: document.getElementById('chartModalTitle'),
-                closeBtn: document.getElementById('chartModalCloseBtn'),
-                canvas: document.getElementById('expandedChartCanvas'),
+                overlay: safeGetElementById('chartModal'),
+                title: safeGetElementById('chartModalTitle'),
+                closeBtn: safeGetElementById('chartModalCloseBtn'),
+                canvas: safeGetElementById('expandedChartCanvas'),
             },
             editFarmModal: {
-                overlay: document.getElementById('editFarmModal'),
-                closeBtn: document.getElementById('editFarmModalCloseBtn'),
-                cancelBtn: document.getElementById('editFarmModalCancelBtn'),
-                saveBtn: document.getElementById('editFarmModalSaveBtn'),
-                nameInput: document.getElementById('editFarmNameInput'),
-                editingFarmId: document.getElementById('editingFarmId'),
+                overlay: safeGetElementById('editFarmModal'),
+                closeBtn: safeGetElementById('editFarmModalCloseBtn'),
+                cancelBtn: safeGetElementById('editFarmModalCancelBtn'),
+                saveBtn: safeGetElementById('editFarmModalSaveBtn'),
+                nameInput: safeGetElementById('editFarmNameInput'),
+                editingFarmId: safeGetElementById('editingFarmId'),
                 typeCheckboxes: document.querySelectorAll('#editFarmTypeCheckboxes input[type="checkbox"]'),
             },
-             historyFilterModal: {
-                overlay: document.getElementById('historyFilterModal'),
-                closeBtn: document.getElementById('historyFilterModalCloseBtn'),
-                cancelBtn: document.getElementById('historyFilterModalCancelBtn'),
-                viewBtn: document.getElementById('btnViewHistoryModal'),
-                clearBtn: document.getElementById('btnClearHistoryModal'),
-                userSelect: document.getElementById('historyUserSelectModal'),
-                startDate: document.getElementById('historyStartDateModal'),
-                endDate: document.getElementById('historyEndDateModal'),
-            },
+
             syncHistoryDetailModal: {
-                overlay: document.getElementById('syncHistoryDetailModal'),
-                title: document.getElementById('syncHistoryDetailModalTitle'),
-                body: document.getElementById('syncHistoryDetailModalBody'),
-                closeBtn: document.getElementById('syncHistoryDetailModalCloseBtn'),
-                cancelBtn: document.getElementById('syncHistoryDetailModalCancelBtn'),
+                overlay: safeGetElementById('syncHistoryDetailModal'),
+                title: safeGetElementById('syncHistoryDetailModalTitle'),
+                body: safeGetElementById('syncHistoryDetailModalBody'),
+                closeBtn: safeGetElementById('syncHistoryDetailModalCloseBtn'),
+                cancelBtn: safeGetElementById('syncHistoryDetailModalCancelBtn'),
             },
             configHistoryModal: {
-                overlay: document.getElementById('configHistoryModal'),
-                title: document.getElementById('configHistoryModalTitle'),
-                body: document.getElementById('configHistoryModalBody'),
-                closeBtn: document.getElementById('configHistoryModalCloseBtn'),
-                cancelBtn: document.getElementById('configHistoryModalCancelBtn'),
+                overlay: safeGetElementById('configHistoryModal'),
+                title: safeGetElementById('configHistoryModalTitle'),
+                body: safeGetElementById('configHistoryModalBody'),
+                closeBtn: safeGetElementById('configHistoryModalCloseBtn'),
+                cancelBtn: safeGetElementById('configHistoryModalCancelBtn'),
             },
             companyConfig: {
-                operacoesCsvUploadArea: document.getElementById('operacoesCsvUploadArea'),
-                operacoesCsvInput: document.getElementById('operacoesCsvInput'),
-                btnDownloadOperacoesCsvTemplate: document.getElementById('btnDownloadOperacoesCsvTemplate'),
-                logoUploadArea: document.getElementById('logoUploadArea'),
-                logoInput: document.getElementById('logoInput'),
-                logoPreview: document.getElementById('logoPreview'),
-                removeLogoBtn: document.getElementById('removeLogoBtn'),
-                gemasDivisorInput: document.getElementById('divisorAmostragemGemasViaveis'),
-                btnSaveGemasDivisor: document.getElementById('btnSaveGemasDivisor'),
-                progressUploadArea: document.getElementById('harvestReportProgressUploadArea'),
-                progressInput: document.getElementById('harvestReportProgressInput'),
-                btnDownloadProgressTemplate: document.getElementById('btnDownloadProgressTemplate'),
-                closedUploadArea: document.getElementById('harvestReportClosedUploadArea'),
-                closedInput: document.getElementById('harvestReportClosedInput'),
-                btnDownloadClosedTemplate: document.getElementById('btnDownloadClosedTemplate'),
-                shapefileUploadArea: document.getElementById('shapefileUploadArea'),
-                shapefileInput: document.getElementById('shapefileInput'),
-                btnTestShapefileDebug: document.getElementById('btnTestShapefileDebug'),
-                historicalReportUploadArea: document.getElementById('historicalReportUploadArea'),
-                historicalReportInput: document.getElementById('historicalReportInput'),
-                btnDownloadHistoricalTemplate: document.getElementById('btnDownloadHistoricalTemplate'),
-                btnDeleteHistoricalData: document.getElementById('btnDeleteHistoricalData'),
-                climateUploadArea: document.getElementById('climateUploadArea'),
-                climateInput: document.getElementById('climateCsvInput'),
-                btnDownloadClimateTemplate: document.getElementById('btnDownloadClimateTemplate'),
-                btnExportClimateData: document.getElementById('btnExportClimateData'),
-                btnFixClimateData: document.getElementById('btnFixClimateData'), // Novo botão para correção de dados
+                operacoesCsvUploadArea: safeGetElementById('operacoesCsvUploadArea'),
+                operacoesCsvInput: safeGetElementById('operacoesCsvInput'),
+                btnDownloadOperacoesCsvTemplate: safeGetElementById('btnDownloadOperacoesCsvTemplate'),
+                logoUploadArea: safeGetElementById('logoUploadArea'),
+                logoInput: safeGetElementById('logoInput'),
+                logoPreview: safeGetElementById('logoPreview'),
+                removeLogoBtn: safeGetElementById('removeLogoBtn'),
+                gemasDivisorInput: safeGetElementById('divisorAmostragemGemasViaveis'),
+                btnSaveGemasDivisor: safeGetElementById('btnSaveGemasDivisor'),
+                progressUploadArea: safeGetElementById('harvestReportProgressUploadArea'),
+                progressInput: safeGetElementById('harvestReportProgressInput'),
+                btnDownloadProgressTemplate: safeGetElementById('btnDownloadProgressTemplate'),
+                closedUploadArea: safeGetElementById('harvestReportClosedUploadArea'),
+                closedInput: safeGetElementById('harvestReportClosedInput'),
+                btnDownloadClosedTemplate: safeGetElementById('btnDownloadClosedTemplate'),
+                shapefileUploadArea: safeGetElementById('shapefileUploadArea'),
+                shapefileInput: safeGetElementById('shapefileInput'),
+                btnTestShapefileDebug: safeGetElementById('btnTestShapefileDebug'),
+                historicalReportUploadArea: safeGetElementById('historicalReportUploadArea'),
+                historicalReportInput: safeGetElementById('historicalReportInput'),
+                btnDownloadHistoricalTemplate: safeGetElementById('btnDownloadHistoricalTemplate'),
+                btnDeleteHistoricalData: safeGetElementById('btnDeleteHistoricalData'),
+                climateUploadArea: safeGetElementById('climateUploadArea'),
+                climateInput: safeGetElementById('climateCsvInput'),
+                btnDownloadClimateTemplate: safeGetElementById('btnDownloadClimateTemplate'),
+                btnExportClimateData: safeGetElementById('btnExportClimateData'),
+                btnFixClimateData: safeGetElementById('btnFixClimateData'), // Novo botão para correção de dados
             },
-            dashboard: {
-                selector: document.getElementById('dashboard-selector'),
-                brocaView: document.getElementById('dashboard-broca'),
-                perdaView: document.getElementById('dashboard-perda'),
-                aereaView: document.getElementById('dashboard-aerea'),
-                plantioView: document.getElementById('dashboard-plantio'),
-                cigarrinhaView: document.getElementById('dashboard-cigarrinha'),
-                climaView: document.getElementById('dashboard-clima'),
-                cardBroca: document.getElementById('card-broca'),
-                cardPerda: document.getElementById('card-perda'),
-                cardAerea: document.getElementById('card-aerea'),
-                cardPlantio: document.getElementById('card-plantio'),
-                cardCigarrinha: document.getElementById('card-cigarrinha'),
-                cardClima: document.getElementById('card-clima'),
-                btnBackToSelectorBroca: document.getElementById('btn-back-to-selector-broca'),
-                btnBackToSelectorPerda: document.getElementById('btn-back-to-selector-perda'),
-                btnBackToSelectorAerea: document.getElementById('btn-back-to-selector-aerea'),
-                btnBackToSelectorPlantio: document.getElementById('btn-back-to-selector-plantio'),
-                btnBackToSelectorCigarrinha: document.getElementById('btn-back-to-selector-cigarrinha'),
-                btnBackToSelectorClima: document.getElementById('btn-back-to-selector-clima'),
-                brocaDashboardInicio: document.getElementById('brocaDashboardInicio'),
-                brocaDashboardFim: document.getElementById('brocaDashboardFim'),
-                btnFiltrarBrocaDashboard: document.getElementById('btnFiltrarBrocaDashboard'),
-                perdaDashboardInicio: document.getElementById('perdaDashboardInicio'),
-                perdaDashboardFim: document.getElementById('perdaDashboardFim'),
-                btnFiltrarPerdaDashboard: document.getElementById('btnFiltrarPerdaDashboard'),
-            },
+
             users: {
-                username: document.getElementById('newUserUsername'),
-                password: document.getElementById('newUserPassword'),
-                role: document.getElementById('newUserRole'),
+                username: safeGetElementById('newUserUsername'),
+                password: safeGetElementById('newUserPassword'),
+                role: safeGetElementById('newUserRole'),
                 permissionsContainer: document.querySelector('#gerenciarUsuarios .permission-grid'),
                 permissionCheckboxes: document.querySelectorAll('#gerenciarUsuarios .permission-grid input[type="checkbox"]'),
-                btnCreate: document.getElementById('btnCreateUser'),
-                list: document.getElementById('usersList'),
-                superAdminUserCreation: document.getElementById('superAdminUserCreation'),
-                adminTargetCompanyUsers: document.getElementById('adminTargetCompanyUsers'),
+                btnCreate: safeGetElementById('btnCreateUser'),
+                list: safeGetElementById('usersList'),
+                superAdminUserCreation: safeGetElementById('superAdminUserCreation'),
+                adminTargetCompanyUsers: safeGetElementById('adminTargetCompanyUsers'),
             },
             userEditModal: {
-                overlay: document.getElementById('userEditModal'),
-                title: document.getElementById('userEditModalTitle'),
-                closeBtn: document.getElementById('userEditModalCloseBtn'),
-                editingUserId: document.getElementById('editingUserId'),
-                username: document.getElementById('editUserUsername'),
-                role: document.getElementById('editUserRole'),
-                permissionGrid: document.getElementById('editUserPermissionGrid'),
-                btnSaveChanges: document.getElementById('btnSaveUserChanges'),
-                btnResetPassword: document.getElementById('btnResetPassword'),
-                btnDeleteUser: document.getElementById('btnDeleteUser'),
+                overlay: safeGetElementById('userEditModal'),
+                title: safeGetElementById('userEditModalTitle'),
+                closeBtn: safeGetElementById('userEditModalCloseBtn'),
+                editingUserId: safeGetElementById('editingUserId'),
+                username: safeGetElementById('editUserUsername'),
+                role: safeGetElementById('editUserRole'),
+                permissionGrid: safeGetElementById('editUserPermissionGrid'),
+                btnSaveChanges: safeGetElementById('btnSaveUserChanges'),
+                btnResetPassword: safeGetElementById('btnResetPassword'),
+                btnDeleteUser: safeGetElementById('btnDeleteUser'),
             },
             companyManagement: {
-                companyName: document.getElementById('newCompanyName'),
-                adminEmail: document.getElementById('newCompanyAdminEmail'),
-                adminPassword: document.getElementById('newCompanyAdminPassword'),
-                btnCreate: document.getElementById('btnCreateCompany'),
-                list: document.getElementById('companiesList'),
+                companyName: safeGetElementById('newCompanyName'),
+                adminEmail: safeGetElementById('newCompanyAdminEmail'),
+                adminPassword: safeGetElementById('newCompanyAdminPassword'),
+                btnCreate: safeGetElementById('btnCreateCompany'),
+                list: safeGetElementById('companiesList'),
             },
             editCompanyModal: {
-                overlay: document.getElementById('editCompanyModal'),
-                title: document.getElementById('editCompanyModalTitle'),
-                closeBtn: document.getElementById('editCompanyModalCloseBtn'),
-                cancelBtn: document.getElementById('editCompanyModalCancelBtn'),
-                saveBtn: document.getElementById('editCompanyModalSaveBtn'),
-                editingCompanyId: document.getElementById('editingCompanyId'),
-                companyNameDisplay: document.getElementById('editCompanyNameDisplay'),
-                modulesGrid: document.getElementById('editCompanyModulesGrid'),
+                overlay: safeGetElementById('editCompanyModal'),
+                title: safeGetElementById('editCompanyModalTitle'),
+                closeBtn: safeGetElementById('editCompanyModalCloseBtn'),
+                cancelBtn: safeGetElementById('editCompanyModalCancelBtn'),
+                saveBtn: safeGetElementById('editCompanyModalSaveBtn'),
+                editingCompanyId: safeGetElementById('editingCompanyId'),
+                companyNameDisplay: safeGetElementById('editCompanyNameDisplay'),
+                modulesGrid: safeGetElementById('editCompanyModulesGrid'),
             },
             personnel: {
-                id: document.getElementById('personnelId'),
-                matricula: document.getElementById('personnelMatricula'),
-                name: document.getElementById('personnelName'),
-                btnSave: document.getElementById('btnSavePersonnel'),
-                list: document.getElementById('personnelList'),
-                csvUploadArea: document.getElementById('personnelCsvUploadArea'),
-                csvFileInput: document.getElementById('personnelCsvInput'),
-                btnDownloadCsvTemplate: document.getElementById('btnDownloadPersonnelCsvTemplate'),
+                id: safeGetElementById('personnelId'),
+                matricula: safeGetElementById('personnelMatricula'),
+                name: safeGetElementById('personnelName'),
+                btnSave: safeGetElementById('btnSavePersonnel'),
+                list: safeGetElementById('personnelList'),
+                csvUploadArea: safeGetElementById('personnelCsvUploadArea'),
+                csvFileInput: safeGetElementById('personnelCsvInput'),
+                btnDownloadCsvTemplate: safeGetElementById('btnDownloadPersonnelCsvTemplate'),
             },
-            frenteDePlantio: {
-                id: document.getElementById('frenteDePlantioId'),
-                name: document.getElementById('frenteDePlantioName'),
-                provider: document.getElementById('frenteDePlantioProvider'),
-                providerType: document.getElementById('frenteDePlantioProviderType'),
-                obs: document.getElementById('frenteDePlantioObs'),
-                btnSave: document.getElementById('btnSaveFrenteDePlantio'),
-                list: document.getElementById('frenteDePlantioList'),
-            },
-            apontamentoPlantio: {
-                form: document.getElementById('formApontamentoPlantio'),
-                entryId: document.getElementById('plantioEntryId'),
-                frente: document.getElementById('plantioFrente'),
-                provider: document.getElementById('plantioProvider'),
-                culture: document.getElementById('plantioCulture'),
 
-                // Novos campos Cana
-                canaFields: document.getElementById('plantioCanaFields'),
-                tipoPlantio: document.getElementById('plantioTipo'),
-                os: document.getElementById('plantioOS'),
-                mecanizadoFields: document.getElementById('plantioMecanizadoFields'),
-                manualFields: document.getElementById('plantioManualFields'),
-                frota: document.getElementById('plantioFrota'),
-                pessoas: document.getElementById('plantioPessoas'),
-                origemMuda: document.getElementById('plantioOrigemMuda'),
-                mudaFazenda: document.getElementById('plantioMudaFazenda'),
-                mudaTalhao: document.getElementById('plantioMudaTalhao'),
-                mudaTalhaoVariedade: document.getElementById('plantioMudaTalhaoVariedade'),
-                mudaTalhaoArea: document.getElementById('plantioMudaTalhaoArea'),
 
-                leaderId: document.getElementById('plantioLeaderId'),
-                leaderName: document.getElementById('plantioLeaderName'),
-                farmName: document.getElementById('plantioFarmName'),
-                date: document.getElementById('plantioDate'),
-                addRecordBtn: document.getElementById('addPlantioRecord'),
-                recordsContainer: document.getElementById('plantioRecordsContainer'),
-                totalArea: document.getElementById('totalPlantedArea'),
-                btnSave: document.getElementById('btnSaveApontamentoPlantio'),
-                chuva: document.getElementById('plantioChuva'),
-                obs: document.getElementById('plantioObs'),
-                info: document.getElementById('plantioInfo'),
-                insumosSection: document.getElementById('plantioInsumosSection'),
-                insumosContainer: document.getElementById('plantioInsumosContainer'),
-                addInsumoBtn: document.getElementById('btnAddPlantioInsumo'),
-            },
-            qualidadePlantio: {
-                form: document.getElementById('formQualidadePlantio'),
-                tipoPlantio: document.getElementById('qualidadeTipoPlantio'),
-                fazenda: document.getElementById('qualidadeFazenda'),
-                talhao: document.getElementById('qualidadeTalhao'),
-                variedade: document.getElementById('qualidadeVariedade'),
-                variedadeHint: document.getElementById('qualidadeVariedadeHint'),
-                data: document.getElementById('qualidadeData'),
-                tipoInspecao: document.getElementById('qualidadeTipoInspecao'),
-                tipoPrestador: document.getElementById('qualidadeTipoPrestador'),
-                frentePlantio: document.getElementById('qualidadeFrentePlantio'),
-                btnSalvar: document.getElementById('btnSalvarQualidadePlantio'),
-                tabs: document.querySelectorAll('.qualidade-tab'),
-                tabPanels: document.querySelectorAll('.qualidade-tab-panel'),
-                subamostrasList: document.getElementById('qualidadeSubamostrasList'),
-                btnAddSubamostra: document.getElementById('btnAdicionarSubamostra'),
-                emptySubamostras: document.getElementById('qualidadeSubamostrasEmpty'),
-            },
+
             qualidadeConsumo: {
-                tipoPlantio: document.getElementById('qualidadeConsumoTipoPlantio'),
-                fazenda: document.getElementById('qualidadeConsumoFazenda'),
-                talhao: document.getElementById('qualidadeConsumoTalhao'),
-                variedade: document.getElementById('qualidadeConsumoVariedade'),
-                data: document.getElementById('qualidadeConsumoData'),
-                subamostra: document.getElementById('qualidadeConsumoSubamostra'),
-                pesoTotal: document.getElementById('qualidadePesoTotal'),
-                metrosLineares: document.getElementById('qualidadeMetrosLineares'),
-                consumoMuda: document.getElementById('qualidadeConsumoMudaValor'),
-                prestadorTirou: document.getElementById('qualidadePrestadorTirou'),
-                fazendaOrigem: document.getElementById('qualidadeFazendaOrigem'),
-                emptyState: document.getElementById('qualidadeConsumoEmpty'),
+                tipoPlantio: safeGetElementById('qualidadeConsumoTipoPlantio'),
+                fazenda: safeGetElementById('qualidadeConsumoFazenda'),
+                talhao: safeGetElementById('qualidadeConsumoTalhao'),
+                variedade: safeGetElementById('qualidadeConsumoVariedade'),
+                data: safeGetElementById('qualidadeConsumoData'),
+                subamostra: safeGetElementById('qualidadeConsumoSubamostra'),
+                pesoTotal: safeGetElementById('qualidadePesoTotal'),
+                metrosLineares: safeGetElementById('qualidadeMetrosLineares'),
+                consumoMuda: safeGetElementById('qualidadeConsumoMudaValor'),
+                prestadorTirou: safeGetElementById('qualidadePrestadorTirou'),
+                fazendaOrigem: safeGetElementById('qualidadeFazendaOrigem'),
+                emptyState: safeGetElementById('qualidadeConsumoEmpty'),
             },
             qualidadeBroca: {
-                tipoPlantio: document.getElementById('qualidadeBrocaTipoPlantio'),
-                fazenda: document.getElementById('qualidadeBrocaFazenda'),
-                talhao: document.getElementById('qualidadeBrocaTalhao'),
-                variedade: document.getElementById('qualidadeBrocaVariedade'),
-                data: document.getElementById('qualidadeBrocaData'),
-                subamostra: document.getElementById('qualidadeBrocaSubamostra'),
-                broca: document.getElementById('qualidadeBrocaValor'),
-                qtdGemasTotal: document.getElementById('qualidadeBrocaQtdGemasTotal'),
-                percentualBroca: document.getElementById('qualidadeBrocaPercentual'),
-                emptyState: document.getElementById('qualidadeBrocaEmpty'),
+                tipoPlantio: safeGetElementById('qualidadeBrocaTipoPlantio'),
+                fazenda: safeGetElementById('qualidadeBrocaFazenda'),
+                talhao: safeGetElementById('qualidadeBrocaTalhao'),
+                variedade: safeGetElementById('qualidadeBrocaVariedade'),
+                data: safeGetElementById('qualidadeBrocaData'),
+                subamostra: safeGetElementById('qualidadeBrocaSubamostra'),
+                broca: safeGetElementById('qualidadeBrocaValor'),
+                qtdGemasTotal: safeGetElementById('qualidadeBrocaQtdGemasTotal'),
+                percentualBroca: safeGetElementById('qualidadeBrocaPercentual'),
+                emptyState: safeGetElementById('qualidadeBrocaEmpty'),
             },
             relatorioQualidade: {
-                inicio: document.getElementById('qualidadeReportInicio'),
-                fim: document.getElementById('qualidadeReportFim'),
-                fazenda: document.getElementById('qualidadeReportFazenda'),
-                talhao: document.getElementById('qualidadeReportTalhao'),
-                tipoPlantio: document.getElementById('qualidadeReportTipoPlantio'),
-                indicador: document.getElementById('qualidadeReportIndicador'),
-                tipoInspecao: document.getElementById('qualidadeReportTipoInspecao'),
-                tipoPrestador: document.getElementById('qualidadeReportTipoPrestador'),
-                prestadorTirou: document.getElementById('qualidadeReportPrestadorTirou'),
-                fazendaOrigem: document.getElementById('qualidadeReportFazendaOrigem'),
-                frentePlantio: document.getElementById('qualidadeReportFrentePlantio'),
-                modelo: document.getElementById('qualidadeReportModelo'),
-                btnPdf: document.getElementById('btnPdfRelatorioQualidade'),
-                btnExcel: document.getElementById('btnExcelRelatorioQualidade'),
-                resultado: document.getElementById('qualidadeReportResult'),
+                inicio: safeGetElementById('qualidadeReportInicio'),
+                fim: safeGetElementById('qualidadeReportFim'),
+                fazenda: safeGetElementById('qualidadeReportFazenda'),
+                talhao: safeGetElementById('qualidadeReportTalhao'),
+                tipoPlantio: safeGetElementById('qualidadeReportTipoPlantio'),
+                indicador: safeGetElementById('qualidadeReportIndicador'),
+                tipoInspecao: safeGetElementById('qualidadeReportTipoInspecao'),
+                tipoPrestador: safeGetElementById('qualidadeReportTipoPrestador'),
+                prestadorTirou: safeGetElementById('qualidadeReportPrestadorTirou'),
+                fazendaOrigem: safeGetElementById('qualidadeReportFazendaOrigem'),
+                frentePlantio: safeGetElementById('qualidadeReportFrentePlantio'),
+                modelo: safeGetElementById('qualidadeReportModelo'),
+                btnPdf: safeGetElementById('btnPdfRelatorioQualidade'),
+                btnExcel: safeGetElementById('btnExcelRelatorioQualidade'),
+                resultado: safeGetElementById('qualidadeReportResult'),
             },
-            cadastros: {
-                farmCode: document.getElementById('farmCode'),
-                farmName: document.getElementById('farmName'),
-                farmTypeCheckboxes: document.querySelectorAll('#farmTypeCheckboxes input[type="checkbox"]'),
-                btnSaveFarm: document.getElementById('btnSaveFarm'),
-                btnDeleteAllFarms: document.getElementById('btnDeleteAllFarms'),
-                farmSelect: document.getElementById('farmSelect'),
-                talhaoManagementContainer: document.getElementById('talhaoManagementContainer'),
-                selectedFarmName: document.getElementById('selectedFarmName'),
-                selectedFarmTypes: document.getElementById('selectedFarmTypes'),
-                talhaoList: document.getElementById('talhaoList'),
-                talhaoId: document.getElementById('talhaoId'),
-                talhaoName: document.getElementById('talhaoName'),
-                talhaoArea: document.getElementById('talhaoArea'),
-                talhaoTCH: document.getElementById('talhaoTCH'),
-                talhaoProducao: document.getElementById('talhaoProducao'),
-                talhaoCorte: document.getElementById('talhaoCorte'),
-                talhaoVariedade: document.getElementById('talhaoVariedade'),
-                talhaoDistancia: document.getElementById('talhaoDistancia'),
-                talhaoUltimaColheita: document.getElementById('talhaoUltimaColheita'),
-                btnSaveTalhao: document.getElementById('btnSaveTalhao'),
-                csvUploadArea: document.getElementById('csvUploadArea'),
-                csvFileInput: document.getElementById('csvFileInput'),
-                btnDownloadCsvTemplate: document.getElementById('btnDownloadCsvTemplate'),
-                superAdminFarmCreation: document.getElementById('superAdminFarmCreation'),
-                adminTargetCompanyFarms: document.getElementById('adminTargetCompanyFarms'),
-                importProgress: {
-                    container: document.getElementById('farm-import-progress'),
-                    text: document.querySelector('#farm-import-progress .download-progress-text'),
-                    bar: document.querySelector('#farm-import-progress .download-progress-bar'),
-                }
-            },
-            planejamento: {
-                tipo: document.getElementById('planoTipo'),
-                fazenda: document.getElementById('planoFazenda'),
-                talhao: document.getElementById('planoTalhao'),
-                data: document.getElementById('planoData'),
-                responsavel: document.getElementById('planoResponsavel'),
-                meta: document.getElementById('planoMeta'),
-                obs: document.getElementById('planoObs'),
-                btnAgendar: document.getElementById('btnAgendarInspecao'),
-                btnSugerir: document.getElementById('btnSugerirPlano'),
-                lista: document.getElementById('listaPlanejamento')
-            },
+
+
             harvest: {
-                plansListContainer: document.getElementById('harvest-plans-list-container'),
-                plansList: document.getElementById('harvest-plans-list'),
-                planEditor: document.getElementById('harvest-plan-editor'),
-                btnAddNew: document.getElementById('btnAddNewHarvestPlan'),
-                maturador: document.getElementById('harvestMaturador'),
-                maturadorDate: document.getElementById('harvestMaturadorDate'),
-                btnSavePlan: document.getElementById('btnSaveHarvestPlan'),
-                btnCancelPlan: document.getElementById('btnCancelHarvestPlan'),
-                frontName: document.getElementById('harvestFrontName'),
-                startDate: document.getElementById('harvestStartDate'),
-                dailyRate: document.getElementById('harvestDailyRate'),
-                fazenda: document.getElementById('harvestFazenda'),
-                atr: document.getElementById('harvestAtr'),
-                talhaoSelectionList: document.getElementById('harvestTalhaoSelectionList'),
-                selectAllTalhoes: document.getElementById('selectAllTalhoes'),
-                btnAddOrUpdate: document.getElementById('btnAddOrUpdateHarvestSequence'),
-                btnCancelEdit: document.getElementById('btnCancelEditSequence'),
-                addOrEditTitle: document.getElementById('addOrEditSequenceTitle'),
-                editingGroupId: document.getElementById('editingGroupId'),
-                btnOptimize: document.getElementById('btnOptimizeHarvest'),
+                plansListContainer: safeGetElementById('harvest-plans-list-container'),
+                plansList: safeGetElementById('harvest-plans-list'),
+                planEditor: safeGetElementById('harvest-plan-editor'),
+                btnAddNew: safeGetElementById('btnAddNewHarvestPlan'),
+                maturador: safeGetElementById('harvestMaturador'),
+                maturadorDate: safeGetElementById('harvestMaturadorDate'),
+                btnSavePlan: safeGetElementById('btnSaveHarvestPlan'),
+                btnCancelPlan: safeGetElementById('btnCancelHarvestPlan'),
+                frontName: safeGetElementById('harvestFrontName'),
+                startDate: safeGetElementById('harvestStartDate'),
+                dailyRate: safeGetElementById('harvestDailyRate'),
+                fazenda: safeGetElementById('harvestFazenda'),
+                atr: safeGetElementById('harvestAtr'),
+                talhaoSelectionList: safeGetElementById('harvestTalhaoSelectionList'),
+                selectAllTalhoes: safeGetElementById('selectAllTalhoes'),
+                btnAddOrUpdate: safeGetElementById('btnAddOrUpdateHarvestSequence'),
+                btnCancelEdit: safeGetElementById('btnCancelEditSequence'),
+                addOrEditTitle: safeGetElementById('addOrEditSequenceTitle'),
+                editingGroupId: safeGetElementById('editingGroupId'),
+                btnOptimize: safeGetElementById('btnOptimizeHarvest'),
                 tableBody: document.querySelector('#harvestPlanTable tbody'),
-                summary: document.getElementById('harvestSummary'),
-                superAdminHarvestCreation: document.getElementById('superAdminHarvestCreation'),
-                adminTargetCompanyHarvest: document.getElementById('adminTargetCompanyHarvest'),
+                summary: safeGetElementById('harvestSummary'),
+                superAdminHarvestCreation: safeGetElementById('superAdminHarvestCreation'),
+                adminTargetCompanyHarvest: safeGetElementById('adminTargetCompanyHarvest'),
             },
             broca: {
-                form: document.getElementById('lancamentoBroca'),
-                codigo: document.getElementById('codigo'),
-                data: document.getElementById('data'),
-                talhao: document.getElementById('talhao'),
-                varietyDisplay: document.getElementById('varietyDisplay'),
-                entrenos: document.getElementById('entrenos'),
-                base: document.getElementById('brocaBase'),
-                meio: document.getElementById('brocaMeio'),
-                topo: document.getElementById('brocaTopo'),
-                brocado: document.getElementById('brocado'),
-                resultado: document.getElementById('resultado'),
-                btnSalvar: document.getElementById('btnSalvarBrocamento'),
-                filtroFazenda: document.getElementById('fazendaFiltroBrocamento'),
-                tipoRelatorio: document.getElementById('tipoRelatorioBroca'),
-                filtroInicio: document.getElementById('inicioBrocamento'),
-                filtroFim: document.getElementById('fimBrocamento'),
+                form: safeGetElementById('lancamentoBroca'),
+                codigo: safeGetElementById('codigo'),
+                data: safeGetElementById('data'),
+                talhao: safeGetElementById('talhao'),
+                varietyDisplay: safeGetElementById('varietyDisplay'),
+                entrenos: safeGetElementById('entrenos'),
+                base: safeGetElementById('brocaBase'),
+                meio: safeGetElementById('brocaMeio'),
+                topo: safeGetElementById('brocaTopo'),
+                brocado: safeGetElementById('brocado'),
+                resultado: safeGetElementById('resultado'),
+                btnSalvar: safeGetElementById('btnSalvarBrocamento'),
+                filtroFazenda: safeGetElementById('fazendaFiltroBrocamento'),
+                tipoRelatorio: safeGetElementById('tipoRelatorioBroca'),
+                filtroInicio: safeGetElementById('inicioBrocamento'),
+                filtroFim: safeGetElementById('fimBrocamento'),
                 farmTypeFilter: document.querySelectorAll('#brocaReportFarmTypeFilter input[type="checkbox"]'),
-                btnPDF: document.getElementById('btnPDFBrocamento'),
-                btnExcel: document.getElementById('btnExcelBrocamento'),
+                btnPDF: safeGetElementById('btnPDFBrocamento'),
+                btnExcel: safeGetElementById('btnExcelBrocamento'),
             },
             perda: {
-                form: document.getElementById('lancamentoPerda'),
-                data: document.getElementById('dataPerda'),
-                codigo: document.getElementById('codigoPerda'),
-                talhao: document.getElementById('talhaoPerda'),
-                varietyDisplay: document.getElementById('varietyDisplayPerda'),
-                frente: document.getElementById('frenteServico'),
-                turno: document.getElementById('turno'),
-                frota: document.getElementById('frotaEquipamento'),
-                matricula: document.getElementById('matriculaOperador'),
-                operadorNome: document.getElementById('operadorNome'),
-                canaInteira: document.getElementById('canaInteira'),
-                tolete: document.getElementById('tolete'),
-                toco: document.getElementById('toco'),
-                ponta: document.getElementById('ponta'),
-                estilhaco: document.getElementById('estilhaco'),
-                pedaco: document.getElementById('pedaco'),
-                resultado: document.getElementById('resultadoPerda'),
-                btnSalvar: document.getElementById('btnSalvarPerda'),
-                filtroFazenda: document.getElementById('fazendaFiltroPerda'),
-                filtroTalhao: document.getElementById('talhaoFiltroPerda'),
-                filtroOperador: document.getElementById('operadorFiltroPerda'),
-                filtroFrente: document.getElementById('frenteFiltroPerda'),
-                filtroInicio: document.getElementById('inicioPerda'),
-                filtroFim: document.getElementById('fimPerda'),
+                form: safeGetElementById('lancamentoPerda'),
+                data: safeGetElementById('dataPerda'),
+                codigo: safeGetElementById('codigoPerda'),
+                talhao: safeGetElementById('talhaoPerda'),
+                varietyDisplay: safeGetElementById('varietyDisplayPerda'),
+                frente: safeGetElementById('frenteServico'),
+                turno: safeGetElementById('turno'),
+                frota: safeGetElementById('frotaEquipamento'),
+                matricula: safeGetElementById('matriculaOperador'),
+                operadorNome: safeGetElementById('operadorNome'),
+                canaInteira: safeGetElementById('canaInteira'),
+                tolete: safeGetElementById('tolete'),
+                toco: safeGetElementById('toco'),
+                ponta: safeGetElementById('ponta'),
+                estilhaco: safeGetElementById('estilhaco'),
+                pedaco: safeGetElementById('pedaco'),
+                resultado: safeGetElementById('resultadoPerda'),
+                btnSalvar: safeGetElementById('btnSalvarPerda'),
+                filtroFazenda: safeGetElementById('fazendaFiltroPerda'),
+                filtroTalhao: safeGetElementById('talhaoFiltroPerda'),
+                filtroOperador: safeGetElementById('operadorFiltroPerda'),
+                filtroFrente: safeGetElementById('frenteFiltroPerda'),
+                filtroInicio: safeGetElementById('inicioPerda'),
+                filtroFim: safeGetElementById('fimPerda'),
                 farmTypeFilter: document.querySelectorAll('#perdaReportFarmTypeFilter input[type="checkbox"]'),
-                tipoRelatorio: document.getElementById('tipoRelatorioPerda'),
-                btnPDF: document.getElementById('btnPDFPerda'),
-                btnExcel: document.getElementById('btnExcelPerda'),
+                tipoRelatorio: safeGetElementById('tipoRelatorioPerda'),
+                btnPDF: safeGetElementById('btnPDFPerda'),
+                btnExcel: safeGetElementById('btnExcelPerda'),
             },
             cigarrinha: {
-                form: document.getElementById('lancamentoCigarrinha'),
-                data: document.getElementById('dataCigarrinha'),
-                codigo: document.getElementById('codigoCigarrinha'),
-                talhao: document.getElementById('talhaoCigarrinha'),
-                varietyDisplay: document.getElementById('varietyDisplayCigarrinha'),
-                fase1: document.getElementById('fase1Cigarrinha'),
-                fase2: document.getElementById('fase2Cigarrinha'),
-                fase3: document.getElementById('fase3Cigarrinha'),
-                fase4: document.getElementById('fase4Cigarrinha'),
-                fase5: document.getElementById('fase5Cigarrinha'),
-                adulto: document.getElementById('adultoPresenteCigarrinha'),
-                resultado: document.getElementById('resultadoCigarrinha'),
-                btnSalvar: document.getElementById('btnSalvarCigarrinha'),
-                filtroFazenda: document.getElementById('fazendaFiltroCigarrinha'),
-                filtroInicio: document.getElementById('inicioCigarrinha'),
-                filtroFim: document.getElementById('fimCigarrinha'),
-                btnPDF: document.getElementById('btnPDFCigarrinha'),
-                btnExcel: document.getElementById('btnExcelCigarrinha'),
+                form: safeGetElementById('lancamentoCigarrinha'),
+                data: safeGetElementById('dataCigarrinha'),
+                codigo: safeGetElementById('codigoCigarrinha'),
+                talhao: safeGetElementById('talhaoCigarrinha'),
+                varietyDisplay: safeGetElementById('varietyDisplayCigarrinha'),
+                fase1: safeGetElementById('fase1Cigarrinha'),
+                fase2: safeGetElementById('fase2Cigarrinha'),
+                fase3: safeGetElementById('fase3Cigarrinha'),
+                fase4: safeGetElementById('fase4Cigarrinha'),
+                fase5: safeGetElementById('fase5Cigarrinha'),
+                adulto: safeGetElementById('adultoPresenteCigarrinha'),
+                resultado: safeGetElementById('resultadoCigarrinha'),
+                btnSalvar: safeGetElementById('btnSalvarCigarrinha'),
+                filtroFazenda: safeGetElementById('fazendaFiltroCigarrinha'),
+                filtroInicio: safeGetElementById('inicioCigarrinha'),
+                filtroFim: safeGetElementById('fimCigarrinha'),
+                btnPDF: safeGetElementById('btnPDFCigarrinha'),
+                btnExcel: safeGetElementById('btnExcelCigarrinha'),
             },
             cigarrinhaAmostragem: {
-                form: document.getElementById('formCigarrinhaAmostragem'),
-                data: document.getElementById('dataCigarrinhaAmostragem'),
-                codigo: document.getElementById('codigoCigarrinhaAmostragem'),
-                talhao: document.getElementById('talhaoCigarrinhaAmostragem'),
-                varietyDisplay: document.getElementById('varietyDisplayCigarrinhaAmostragem'),
-                addAmostraBtn: document.getElementById('addAmostraCigarrinhaAmostragem'),
-                amostrasContainer: document.getElementById('amostrasCigarrinhaAmostragemContainer'),
-                adulto: document.getElementById('adultoPresenteCigarrinhaAmostragem'),
-                resultado: document.getElementById('resultadoCigarrinhaAmostragem'),
-                btnSalvar: document.getElementById('btnSalvarCigarrinhaAmostragem'),
-                filtroFazenda: document.getElementById('fazendaFiltroCigarrinhaAmostragem'),
-                filtroInicio: document.getElementById('inicioCigarrinhaAmostragem'),
-                filtroFim: document.getElementById('fimCigarrinhaAmostragem'),
-                btnPDF: document.getElementById('btnPDFCigarrinhaAmostragem'),
-                btnExcel: document.getElementById('btnExcelCigarrinhaAmostragem'),
+                form: safeGetElementById('formCigarrinhaAmostragem'),
+                data: safeGetElementById('dataCigarrinhaAmostragem'),
+                codigo: safeGetElementById('codigoCigarrinhaAmostragem'),
+                talhao: safeGetElementById('talhaoCigarrinhaAmostragem'),
+                varietyDisplay: safeGetElementById('varietyDisplayCigarrinhaAmostragem'),
+                addAmostraBtn: safeGetElementById('addAmostraCigarrinhaAmostragem'),
+                amostrasContainer: safeGetElementById('amostrasCigarrinhaAmostragemContainer'),
+                adulto: safeGetElementById('adultoPresenteCigarrinhaAmostragem'),
+                resultado: safeGetElementById('resultadoCigarrinhaAmostragem'),
+                btnSalvar: safeGetElementById('btnSalvarCigarrinhaAmostragem'),
+                filtroFazenda: safeGetElementById('fazendaFiltroCigarrinhaAmostragem'),
+                filtroInicio: safeGetElementById('inicioCigarrinhaAmostragem'),
+                filtroFim: safeGetElementById('fimCigarrinhaAmostragem'),
+                btnPDF: safeGetElementById('btnPDFCigarrinhaAmostragem'),
+                btnExcel: safeGetElementById('btnExcelCigarrinhaAmostragem'),
             },
             gerenciamento: {
-                lista: document.getElementById('listaGerenciamento'),
-                dataType: document.getElementById('manageDataType'),
-                startDate: document.getElementById('manageStartDate'),
-                endDate: document.getElementById('manageEndDate'),
-                applyBtn: document.getElementById('btnApplyManageFilters')
+                lista: safeGetElementById('listaGerenciamento'),
+                dataType: safeGetElementById('manageDataType'),
+                startDate: safeGetElementById('manageStartDate'),
+                endDate: safeGetElementById('manageEndDate'),
+                applyBtn: safeGetElementById('btnApplyManageFilters')
             },
             relatorioColheita: {
-                select: document.getElementById('planoRelatorioSelect'),
-                optionsContainer: document.getElementById('reportOptionsContainer'),
-                colunasDetalhadoContainer: document.getElementById('colunas-detalhado-container'),
-                tipoRelatorioSelect: document.getElementById('tipoRelatorioColheita'),
-                btnPDF: document.getElementById('btnGerarRelatorioCustomPDF'),
-                btnExcel: document.getElementById('btnGerarRelatorioCustomExcel'),
+                select: safeGetElementById('planoRelatorioSelect'),
+                optionsContainer: safeGetElementById('reportOptionsContainer'),
+                colunasDetalhadoContainer: safeGetElementById('colunas-detalhado-container'),
+                tipoRelatorioSelect: safeGetElementById('tipoRelatorioColheita'),
+                btnPDF: safeGetElementById('btnGerarRelatorioCustomPDF'),
+                btnExcel: safeGetElementById('btnGerarRelatorioCustomExcel'),
             },
-            monitoramentoAereo: {
-                container: document.getElementById('monitoramentoAereo-container'),
-                mapContainer: document.getElementById('map'),
-                btnAddTrap: document.getElementById('btnAddTrap'),
-                btnCenterMap: document.getElementById('btnCenterMap'),
-                btnHistory: document.getElementById('btnHistory'),
-                btnToggleRiskView: document.getElementById('btnToggleRiskView'),
-                infoBox: document.getElementById('talhao-info-box'),
-                infoBoxContent: document.getElementById('talhao-info-box-content'),
-                infoBoxCloseBtn: document.getElementById('close-info-box'),
-                trapInfoBox: document.getElementById('trap-info-box'),
-                trapInfoBoxContent: document.getElementById('trap-info-box-content'),
-                trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
-                    mapFarmSearchInput: document.getElementById('map-farm-search-input'),
-                    mapFarmSearchBtn: document.getElementById('map-farm-search-btn'),
-            },
+
             estimativaSafra: {
-                container: document.getElementById('estimativaSafra'),
-                mapContainer: document.getElementById('estimativaSafraMap'),
-                farmFilter: document.getElementById('estimativaSafraFarmFilter'),
-                varietyFilter: document.getElementById('estimativaSafraVarietyFilter'),
-                stageFilter: document.getElementById('estimativaSafraStageFilter'),
-                searchInput: document.getElementById('estimativaSafraSearch'),
-                openFiltersBtn: document.getElementById('estimativaSafraOpenFilters'),
-                toggleToolbarBtn: document.getElementById('estimativaSafraToggleToolbar'),
-                toolbarCard: document.getElementById('estimativaSafraToolbarCard'),
-                activeFilters: document.getElementById('estimativaSafraActiveFilters'),
-                filtersModal: document.getElementById('estimativaSafraFiltersModal'),
-                filtersModalClose: document.getElementById('estimativaSafraFiltersModalClose'),
-                applyFiltersBtn: document.getElementById('estimativaSafraApplyFilters'),
-                clearFiltersBtn: document.getElementById('estimativaSafraClearFilters'),
-                centerMapBtn: document.getElementById('estimativaSafraCenterMap'),
-                infoBox: document.getElementById('estimativaSafraInfoBox'),
-                infoContent: document.getElementById('estimativaSafraInfoContent'),
-                closeInfoBtn: document.getElementById('estimativaSafraCloseInfo'),
-                legend: document.getElementById('estimativaSafraLegend'),
-                summary: document.getElementById('estimativaSafraSummary'),
-                modal: document.getElementById('estimativaSafraModal'),
-                modalTitle: document.getElementById('estimativaSafraModalTitle'),
-                modalSubtitle: document.getElementById('estimativaSafraModalSubtitle'),
-                modalClose: document.getElementById('estimativaSafraModalClose'),
-                modalCancel: document.getElementById('estimativaSafraModalCancel'),
-                modalSave: document.getElementById('estimativaSafraModalSave'),
-                modalFeatureKey: document.getElementById('estimativaSafraModalFeatureKey'),
-                modalFarm: document.getElementById('estimativaSafraModalFarm'),
-                modalTalhao: document.getElementById('estimativaSafraModalTalhao'),
-                modalVariedade: document.getElementById('estimativaSafraModalVariedade'),
-                modalEstagio: document.getElementById('estimativaSafraModalEstagio'),
-                modalSafra: document.getElementById('estimativaSafraModalSafra'),
-                modalData: document.getElementById('estimativaSafraModalData'),
-                modalArea: document.getElementById('estimativaSafraModalArea'),
-                modalTch: document.getElementById('estimativaSafraModalTch'),
-                modalToneladas: document.getElementById('estimativaSafraModalToneladas'),
-                modalResponsavel: document.getElementById('estimativaSafraModalResponsavel'),
-                modalObs: document.getElementById('estimativaSafraModalObs'),
-                modalEstimateWholeFarm: document.getElementById('estimativaSafraModalEstimateWholeFarm'),
-                modalEstimateSelected: document.getElementById('estimativaSafraModalEstimateSelected'),
-                modalEstimateFiltered: document.getElementById('estimativaSafraModalEstimateFiltered'),
+                container: safeGetElementById('estimativaSafra'),
+                mapContainer: safeGetElementById('estimativaSafraMap'),
+                farmFilter: safeGetElementById('estimativaSafraFarmFilter'),
+                varietyFilter: safeGetElementById('estimativaSafraVarietyFilter'),
+                stageFilter: safeGetElementById('estimativaSafraStageFilter'),
+                searchInput: safeGetElementById('estimativaSafraSearch'),
+                openFiltersBtn: safeGetElementById('estimativaSafraOpenFilters'),
+                toggleToolbarBtn: safeGetElementById('estimativaSafraToggleToolbar'),
+                toolbarCard: safeGetElementById('estimativaSafraToolbarCard'),
+                activeFilters: safeGetElementById('estimativaSafraActiveFilters'),
+                filtersModal: safeGetElementById('estimativaSafraFiltersModal'),
+                filtersModalClose: safeGetElementById('estimativaSafraFiltersModalClose'),
+                applyFiltersBtn: safeGetElementById('estimativaSafraApplyFilters'),
+                clearFiltersBtn: safeGetElementById('estimativaSafraClearFilters'),
+                centerMapBtn: safeGetElementById('estimativaSafraCenterMap'),
+                infoBox: safeGetElementById('estimativaSafraInfoBox'),
+                infoContent: safeGetElementById('estimativaSafraInfoContent'),
+                closeInfoBtn: safeGetElementById('estimativaSafraCloseInfo'),
+                legend: safeGetElementById('estimativaSafraLegend'),
+                summary: safeGetElementById('estimativaSafraSummary'),
+                modal: safeGetElementById('estimativaSafraModal'),
+                modalTitle: safeGetElementById('estimativaSafraModalTitle'),
+                modalSubtitle: safeGetElementById('estimativaSafraModalSubtitle'),
+                modalClose: safeGetElementById('estimativaSafraModalClose'),
+                modalCancel: safeGetElementById('estimativaSafraModalCancel'),
+                modalSave: safeGetElementById('estimativaSafraModalSave'),
+                modalFeatureKey: safeGetElementById('estimativaSafraModalFeatureKey'),
+                modalFarm: safeGetElementById('estimativaSafraModalFarm'),
+                modalTalhao: safeGetElementById('estimativaSafraModalTalhao'),
+                modalVariedade: safeGetElementById('estimativaSafraModalVariedade'),
+                modalEstagio: safeGetElementById('estimativaSafraModalEstagio'),
+                modalSafra: safeGetElementById('estimativaSafraModalSafra'),
+                modalData: safeGetElementById('estimativaSafraModalData'),
+                modalArea: safeGetElementById('estimativaSafraModalArea'),
+                modalTch: safeGetElementById('estimativaSafraModalTch'),
+                modalToneladas: safeGetElementById('estimativaSafraModalToneladas'),
+                modalResponsavel: safeGetElementById('estimativaSafraModalResponsavel'),
+                modalObs: safeGetElementById('estimativaSafraModalObs'),
+                modalEstimateWholeFarm: safeGetElementById('estimativaSafraModalEstimateWholeFarm'),
+                modalEstimateSelected: safeGetElementById('estimativaSafraModalEstimateSelected'),
+                modalEstimateFiltered: safeGetElementById('estimativaSafraModalEstimateFiltered'),
             },
-            relatorioPlantio: {
-                frente: document.getElementById('plantioRelatorioFrente'),
-                cultura: document.getElementById('plantioRelatorioCultura'),
-                fazenda: document.getElementById('plantioRelatorioFazenda'),
-                inicio: document.getElementById('plantioRelatorioInicio'),
-                fim: document.getElementById('plantioRelatorioFim'),
-                tipo: document.getElementById('tipoRelatorioPlantio'),
-                btnPDF: document.getElementById('btnPDFPlantio'),
-                btnExcel: document.getElementById('btnExcelPlantio'),
-            },
-                lancamentoClima: {
-                    form: document.getElementById('formLancamentoClima'),
-                    entryId: document.getElementById('climaEntryId'),
-                    data: document.getElementById('climaData'),
-                    fazenda: document.getElementById('climaFazenda'),
-                    talhao: document.getElementById('climaTalhao'),
-                    tempMax: document.getElementById('climaTempMax'),
-                    tempMin: document.getElementById('climaTempMin'),
-                    umidade: document.getElementById('climaUmidade'),
-                    pluviosidade: document.getElementById('climaPluviosidade'),
-                    vento: document.getElementById('climaVento'),
-                    obs: document.getElementById('climaObs'),
-                    btnSave: document.getElementById('btnSaveLancamentoClima'),
-                },
-                relatorioClima: {
-                    fazenda: document.getElementById('climaRelatorioFazenda'),
-                    inicio: document.getElementById('climaRelatorioInicio'),
-                    fim: document.getElementById('climaRelatorioFim'),
-                    btnPDF: document.getElementById('btnPDFClima'),
-                    btnExcel: document.getElementById('btnExcelClima'),
-                },
-            relatorioMonitoramento: {
-                tipoRelatorio: document.getElementById('monitoramentoTipoRelatorio'),
-                fazendaFiltro: document.getElementById('monitoramentoFazendaFiltro'),
-                inicio: document.getElementById('monitoramentoInicio'),
-                fim: document.getElementById('monitoramentoFim'),
-                btnPDF: document.getElementById('btnPDFMonitoramento'),
-                btnExcel: document.getElementById('btnExcelMonitoramento'),
-            },
-            relatorioRisco: {
-                inicio: document.getElementById('riscoRelatorioInicio'),
-                fim: document.getElementById('riscoRelatorioFim'),
-                btnPDF: document.getElementById('btnPDFRisco'),
-                btnExcel: document.getElementById('btnExcelRisco'),
-            },
+
+
+
+
+
             trapPlacementModal: {
-                overlay: document.getElementById('trapPlacementModal'),
-                body: document.getElementById('trapPlacementModalBody'),
-                closeBtn: document.getElementById('trapPlacementModalCloseBtn'),
-                cancelBtn: document.getElementById('trapPlacementModalCancelBtn'),
-                manualBtn: document.getElementById('trapPlacementModalManualBtn'),
-                confirmBtn: document.getElementById('trapPlacementModalConfirmBtn'),
+                overlay: safeGetElementById('trapPlacementModal'),
+                body: safeGetElementById('trapPlacementModalBody'),
+                closeBtn: safeGetElementById('trapPlacementModalCloseBtn'),
+                cancelBtn: safeGetElementById('trapPlacementModalCancelBtn'),
+                manualBtn: safeGetElementById('trapPlacementModalManualBtn'),
+                confirmBtn: safeGetElementById('trapPlacementModalConfirmBtn'),
             },
-            installAppBtn: document.getElementById('installAppBtn'),
+            installAppBtn: safeGetElementById('installAppBtn'),
         },
 
         isFeatureGloballyActive(featureKey) {
@@ -3139,11 +2824,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             App.state.companyLogo = configData.logoBase64 || null;
 
                             // Atualiza a UI com o valor carregado
-                            const cigarrinhaMethodSelect = document.getElementById('cigarrinhaCalcMethod');
+                            const cigarrinhaMethodSelect = safeGetElementById('cigarrinhaCalcMethod');
                             if (cigarrinhaMethodSelect) {
                                 cigarrinhaMethodSelect.value = configData.cigarrinhaCalcMethod || '5';
                             }
-                            const gemasDivisorInput = document.getElementById('divisorAmostragemGemasViaveis');
+                            const gemasDivisorInput = safeGetElementById('divisorAmostragemGemasViaveis');
                             if (gemasDivisorInput) {
                                 gemasDivisorInput.value = Number.isFinite(configData.divisorAmostragemGemasViaveis)
                                     ? String(configData.divisorAmostragemGemasViaveis)
@@ -3275,7 +2960,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setMapTransparencyMode(isActive) {
                 document.body.classList.toggle('map-active', isActive);
                 document.documentElement.classList.toggle('map-active', isActive);
-                document.getElementById('appScreen')?.classList.toggle('map-active', isActive);
+                safeGetElementById('appScreen')?.classList.toggle('map-active', isActive);
             },
             _getThemeColors() {
                 const styles = getComputedStyle(document.documentElement);
@@ -3317,7 +3002,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 App.elements.loginForm.style.display = 'none';
                 App.elements.offlineUserSelection.style.display = 'block';
                 // No longer need to populate a select list
-                const offlineEmailInput = document.getElementById('offlineEmail');
+                const offlineEmailInput = safeGetElementById('offlineEmail');
                 if(offlineEmailInput) {
                     offlineEmailInput.value = ''; // Clear previous entries
                     offlineEmailInput.focus();
@@ -3436,7 +3121,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         break;
                     case 'registros':
-                        if (activeTab === 'dashboard' && document.getElementById('dashboard-broca').style.display !== 'none') {
+                        if (activeTab === 'dashboard' && safeGetElementById('dashboard-broca').style.display !== 'none') {
                             _perfDebounce('snap_chart_broca', () => App.charts.renderBrocaDashboardCharts(), 250);
                         }
                         if (activeTab === 'excluirDados') {
@@ -3444,7 +3129,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         break;
                     case 'perdas':
-                        if (activeTab === 'dashboard' && document.getElementById('dashboard-perda').style.display !== 'none') {
+                        if (activeTab === 'dashboard' && safeGetElementById('dashboard-perda').style.display !== 'none') {
                             _perfDebounce('snap_chart_perda', () => App.charts.renderPerdaDashboardCharts(), 250);
                         }
                         if (activeTab === 'excluirDados') {
@@ -3485,7 +3170,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderWithCatch('populateHarvestPlanSelect', () => this.populateHarvestPlanSelect());
 
                 renderWithCatch('dashboard-view', () => {
-                    if (document.getElementById('dashboard').classList.contains('active')) {
+                    if (safeGetElementById('dashboard').classList.contains('active')) {
                         this.showDashboardView('broca');
                     }
                 });
@@ -4075,7 +3760,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                const tab = document.getElementById(id);
+                const tab = safeGetElementById(id);
                 if (tab) {
                     tab.classList.add('active');
                     tab.hidden = false;
@@ -4109,7 +3794,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             adminTargetCompanyUsers.innerHTML += `<option value="${c.id}">${c.name}</option>`;
                         });
                     } else {
-                        const superAdminUserCreationEl = document.getElementById('superAdminUserCreation');
+                        const superAdminUserCreationEl = safeGetElementById('superAdminUserCreation');
                         if (superAdminUserCreationEl) {
                            superAdminUserCreationEl.style.display = 'none';
                         }
@@ -4133,7 +3818,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             adminTargetCompanyFarms.innerHTML += `<option value="${c.id}">${c.name}</option>`;
                         });
                     } else {
-                        const superAdminFarmCreationEl = document.getElementById('superAdminFarmCreation');
+                        const superAdminFarmCreationEl = safeGetElementById('superAdminFarmCreation');
                         if (superAdminFarmCreationEl) {
                             superAdminFarmCreationEl.style.display = 'none';
                         }
@@ -4173,7 +3858,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             adminTargetCompanyHarvest.innerHTML += `<option value="${c.id}">${c.name}</option>`;
                         });
                     } else {
-                        const superAdminHarvestCreationEl = document.getElementById('superAdminHarvestCreation');
+                        const superAdminHarvestCreationEl = safeGetElementById('superAdminHarvestCreation');
                         if (superAdminHarvestCreationEl) {
                            superAdminHarvestCreationEl.style.display = 'none';
                         }
@@ -4191,7 +3876,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             switchAuxTab(tabId) {
                 document.querySelectorAll('.aux-tab-content').forEach(el => el.style.display = 'none');
-                const target = document.getElementById(`aux-tab-${tabId}`);
+                const target = safeGetElementById(`aux-tab-${tabId}`);
                 if (target) target.style.display = 'block';
 
                 document.querySelectorAll('#cadastrosAuxiliares .qualidade-tab').forEach(btn => btn.classList.remove('active'));
@@ -4382,8 +4067,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.dashboard.perdaDashboardInicio.value = firstDayOfYear;
                     App.elements.dashboard.perdaDashboardFim.value = todayDate;
                 } else if (type === 'clima') {
-                    document.getElementById('climaDashboardInicio').value = firstDayOfYear;
-                    document.getElementById('climaDashboardFim').value = todayDate;
+                    safeGetElementById('climaDashboardInicio').value = firstDayOfYear;
+                    safeGetElementById('climaDashboardFim').value = todayDate;
                 }
                 App.actions.saveDashboardDates(type, firstDayOfYear, todayDate);
             },
@@ -4397,8 +4082,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         App.elements.dashboard.perdaDashboardInicio.value = savedDates.start;
                         App.elements.dashboard.perdaDashboardFim.value = savedDates.end;
                     } else if (type === 'clima') {
-                        document.getElementById('climaDashboardInicio').value = savedDates.start;
-                        document.getElementById('climaDashboardFim').value = savedDates.end;
+                        safeGetElementById('climaDashboardInicio').value = savedDates.start;
+                        safeGetElementById('climaDashboardFim').value = savedDates.end;
                     }
                 } else {
                     this.setDefaultDatesForDashboard(type);
@@ -4964,7 +4649,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.elements.qualidadeConsumo.fazendaOrigem,
                     App.elements.relatorioQualidade.fazenda,
                     App.elements.relatorioQualidade.fazendaOrigem,
-                    document.getElementById('climaDashboardFazenda')
+                    safeGetElementById('climaDashboardFazenda')
                 ];
 
                 const unavailableTalhaoIds = App.actions.getUnavailableTalhaoIds();
@@ -5339,108 +5024,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>`;
             },
-            async renderSyncHistory() {
-                const listEl = document.getElementById('syncHistoryList');
-                if (!listEl) return;
-
-                const syncSection = document.getElementById('syncHistory');
-                if (syncSection && !document.getElementById('offlineOptimizeBtn') && App.state.currentUser?.role === 'admin') {
-                    const optimizeBtn = document.createElement('button');
-                    optimizeBtn.id = 'offlineOptimizeBtn';
-                    optimizeBtn.className = 'save';
-                    optimizeBtn.style.marginBottom = '12px';
-                    optimizeBtn.innerHTML = '<i class="fas fa-download"></i> Otimizar Offline';
-                    optimizeBtn.addEventListener('click', async () => {
-                        try {
-                            App.ui.setLoading(true, 'Pré-aquecendo cache offline...');
-                            const result = await runOfflineOptimization();
-                            App.ui.showAlert(`Offline otimizado: ${result.completed}/${result.total} recursos (~${result.approxSizeKb}KB).`, 'success');
-                        } catch (error) {
-                            App.ui.showAlert('Falha ao otimizar modo offline.', 'error');
-                        } finally {
-                            App.ui.setLoading(false);
-                        }
-                    });
-                    syncSection.insertBefore(optimizeBtn, listEl);
-                }
-
-                listEl.innerHTML = '<div class="spinner-container" style="display:flex; justify-content:center; padding: 20px;"><div class="spinner"></div></div>';
-
-                try {
-                    // Consulta o Firestore para obter o histórico da empresa atual
-                    // Removido orderBy("timestamp", "desc") da query para evitar erro de índice ausente (Firestore)
-                    // A ordenação é feita localmente em seguida.
-                    const q = query(
-                        collection(db, 'sync_history_store'),
-                        where("companyId", "==", App.state.currentUser.companyId)
-                    );
-                    const querySnapshot = await getDocs(q);
-
-                    const logs = [];
-                    querySnapshot.forEach(doc => logs.push({ id: doc.id, ...doc.data() }));
-
-                    // Ordenação local (descendente)
-                    logs.sort((a, b) => {
-                        const timeA = (a.timestamp && a.timestamp.toMillis) ? a.timestamp.toMillis() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
-                        const timeB = (b.timestamp && b.timestamp.toMillis) ? b.timestamp.toMillis() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
-                        return timeB - timeA;
-                    });
-
-                    const statusMap = {
-                        success: { icon: 'fa-check-circle', color: 'var(--color-success)', label: 'Sucesso' },
-                        partial: { icon: 'fa-exclamation-triangle', color: 'var(--color-warning)', label: 'Parcial' },
-                        failure: { icon: 'fa-exclamation-circle', color: 'var(--color-danger)', label: 'Falha' },
-                        no_data: { icon: 'fa-info-circle', color: 'var(--color-info)', label: 'Informativo' },
-                        critical_error: { icon: 'fa-bomb', color: 'var(--color-danger)', label: 'Erro Crítico' },
-                    };
-
-                    new VirtualList({
-                        containerId: 'syncHistoryList',
-                        items: logs,
-                        pageSize: 15,
-                        renderItem: (log) => {
-                            const statusInfo = statusMap[log.status] || { icon: 'fa-question-circle', color: 'var(--color-text-light)', label: 'Desconhecido' };
-
-                            let logTimestamp = new Date();
-                            if (log.timestamp) {
-                                if (typeof log.timestamp.toDate === 'function') {
-                                    logTimestamp = log.timestamp.toDate();
-                                } else if (log.timestamp.seconds) {
-                                    logTimestamp = new Date(log.timestamp.seconds * 1000);
-                                } else {
-                                    logTimestamp = new Date(log.timestamp);
-                                }
-                            }
-
-                            const detailsButton = (log.items && log.items.length > 0)
-                                ? `<button class="btn-excluir" style="background-color: var(--color-info); margin-left: 0;" data-action="view-sync-details" data-id="${log.id}">
-                                    <i class="fas fa-eye"></i> Ver Detalhes
-                                </button>`
-                                : '';
-
-                            return `
-                            <div class="plano-card" style="border-left-color: ${statusInfo.color};">
-                                <div class="plano-header">
-                                    <span class="plano-title"><i class="fas ${statusInfo.icon}" style="color: ${statusInfo.color};"></i> Sincronização por ${log.username || 'Sistema'}</span>
-                                    <span class="plano-status" style="background-color: ${statusInfo.color}; font-size: 12px; text-transform: none;">
-                                        ${logTimestamp.toLocaleString('pt-BR')}
-                                    </span>
-                                </div>
-                                <div class="plano-details" style="grid-template-columns: 1fr;">
-                                    <div><i class="fas fa-comment-alt"></i> Detalhes: ${log.details}</div>
-                                </div>
-                                <div class="plano-actions">
-                                    ${detailsButton}
-                                </div>
-                            </div>`;
-                        }
-                    });
-
-                } catch (error) {
-                    console.error("Erro ao renderizar histórico de sincronização do Firestore:", error);
-                    listEl.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-danger);">Erro ao carregar o histórico.</p>';
-                }
-            },
+            async
             renderUsersList() { 
                 const { list } = App.elements.users; 
                 list.innerHTML = App.state.users
@@ -6079,22 +5663,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 lista.innerHTML = content || '<p style="text-align:center; padding: 20px;">Nenhum lançamento encontrado para os filtros selecionados.</p>';
             },
-            renderPlanejamento() {
-                const { lista } = App.elements.planejamento; lista.innerHTML = '';
-                const hoje = new Date(); hoje.setHours(0,0,0,0);
-                const planosOrdenados = [...App.state.planos].sort((a,b) => new Date(a.dataPrevista) - new Date(b.dataPrevista));
-                if(planosOrdenados.length === 0) { lista.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhuma inspeção planejada.</p>'; return; }
-                planosOrdenados.forEach(plano => {
-                    let status = plano.status;
-                    const dataPlano = new Date(plano.dataPrevista + 'T03:00:00Z');
-                    if (plano.status === 'Pendente' && dataPlano < hoje) { status = 'Atrasado'; }
-                    const fazenda = App.state.fazendas.find(f => f.code === plano.fazendaCodigo);
-                    const fazendaNome = fazenda ? `${fazenda.code} - ${fazenda.name}` : 'Desconhecida';
-                    const card = document.createElement('div'); card.className = 'plano-card';
-                    card.innerHTML = `<div class="plano-header"><span class="plano-title"><i class="fas fa-${plano.tipo === 'broca' ? 'bug' : 'dollar-sign'}"></i> ${fazendaNome} - Talhão: ${plano.talhao}</span><span class="plano-status ${status.toLowerCase()}">${status}</span></div><div class="plano-details"><div><i class="fas fa-calendar-day"></i> Data Prevista: ${dataPlano.toLocaleDateString('pt-BR')}</div><div><i class="fas fa-user-check"></i> Responsável: ${plano.usuarioResponsavel}</div>${plano.meta ? `<div><i class="fas fa-bullseye"></i> Meta: ${plano.meta}</div>` : ''}</div>${plano.observacoes ? `<div style="margin-top:8px;font-size:14px;"><i class="fas fa-info-circle"></i> Obs: ${plano.observacoes}</div>` : ''}<div class="plano-actions">${status !== 'Concluído' ? `<button class="btn-excluir" style="background-color: var(--color-success)" data-action="concluir" data-id="${plano.id}"><i class="fas fa-check"></i> Marcar Concluído</button>` : ''}<button class="btn-excluir" data-action="excluir" data-id="${plano.id}"><i class="fas fa-trash"></i> Excluir</button></div>`;
-                    lista.appendChild(card);
-                });
-            },
+
             async showHarvestPlanList() {
                 const userId = App.state.currentUser?.uid;
                 if (userId && App.state.activeHarvestPlan) {
@@ -6235,7 +5804,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     summary.innerHTML = '<p>Adicione fazendas à sequência para ver o resumo da colheita.</p>';
                 }
             },
-            validateFields(ids) { return ids.every(id => { const el = document.getElementById(id); const valid = el.value.trim() !== ''; el.style.borderColor = valid ? 'var(--color-border)' : 'var(--color-danger)'; if (!valid) el.focus(); return valid; }); },
+            validateFields(ids) { return ids.every(id => { const el = safeGetElementById(id); const valid = el.value.trim() !== ''; el.style.borderColor = valid ? 'var(--color-border)' : 'var(--color-danger)'; if (!valid) el.focus(); return valid; }); },
             updateBrocadoTotal() {
                 const { broca } = App.elements;
                 const base = parseInt(broca.base.value) || 0;
@@ -6257,7 +5826,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             calculatePerda() {
                 const fields = ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'];
-                const total = fields.reduce((sum, id) => sum + (parseFloat(document.getElementById(id).value) || 0), 0);
+                const total = fields.reduce((sum, id) => sum + (parseFloat(safeGetElementById(id).value) || 0), 0);
                 App.elements.perda.resultado.textContent = `Total Perda: ${total.toFixed(2).replace('.', ',')} kg`;
             },
 
@@ -6277,8 +5846,8 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             calculateCigarrinhaAmostragem() {
-                const container = document.getElementById('amostrasCigarrinhaAmostragemContainer');
-                const resultadoEl = document.getElementById('resultadoCigarrinhaAmostragem');
+                const container = safeGetElementById('amostrasCigarrinhaAmostragemContainer');
+                const resultadoEl = safeGetElementById('resultadoCigarrinhaAmostragem');
                 if (!container || !resultadoEl) return;
 
                 const amostras = container.querySelectorAll('.amostra-card');
@@ -6413,10 +5982,10 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             showEnableOfflineLoginModal() {
-                const modal = document.getElementById('enableOfflineLoginModal');
+                const modal = safeGetElementById('enableOfflineLoginModal');
                 if (modal) {
                     modal.classList.add('show');
-                    const passwordInput = document.getElementById('enableOfflinePassword');
+                    const passwordInput = safeGetElementById('enableOfflinePassword');
                     if (passwordInput) {
                         passwordInput.value = '';
                         passwordInput.focus();
@@ -6425,7 +5994,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             closeEnableOfflineLoginModal() {
-                const modal = document.getElementById('enableOfflineLoginModal');
+                const modal = safeGetElementById('enableOfflineLoginModal');
                 if (modal) {
                     modal.classList.remove('show');
                 }
@@ -6458,14 +6027,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.body.style.paddingTop = `${bannerHeight}px`;
 
                 // Adiciona o event listener de forma segura após o elemento estar no DOM
-                const stopBtn = document.getElementById('stop-impersonating-btn');
+                const stopBtn = safeGetElementById('stop-impersonating-btn');
                 if (stopBtn) {
                     stopBtn.addEventListener('click', App.actions.stopImpersonating);
                 }
             },
 
             hideImpersonationBanner() {
-                const banner = document.getElementById('impersonation-banner');
+                const banner = safeGetElementById('impersonation-banner');
                 if (banner) {
                     banner.remove();
                 }
@@ -6591,11 +6160,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 Chart.defaults.color = this._getThemeColors().text;
 
-                if (App.state.currentUser && document.getElementById('dashboard').classList.contains('active')) {
-                    if(document.getElementById('dashboard-broca').style.display !== 'none') {
+                if (App.state.currentUser && safeGetElementById('dashboard').classList.contains('active')) {
+                    if(safeGetElementById('dashboard-broca').style.display !== 'none') {
                         setTimeout(() => App.charts.renderBrocaDashboardCharts(), 50);
                     }
-                    if(document.getElementById('dashboard-perda').style.display !== 'none') {
+                    if(safeGetElementById('dashboard-perda').style.display !== 'none') {
                         setTimeout(() => App.charts.renderPerdaDashboardCharts(), 50);
                     }
                 }
@@ -6639,7 +6208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             renderCompanyModules(containerId) {
-                const container = document.getElementById(containerId);
+                const container = safeGetElementById(containerId);
                 if (!container) return;
                 container.innerHTML = '';
 
@@ -6664,7 +6233,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             renderGlobalFeatures() {
-                const grid = document.getElementById('globalFeaturesGrid');
+                const grid = safeGetElementById('globalFeaturesGrid');
                 if (!grid) return;
 
                 grid.innerHTML = ''; // Limpa para re-renderizar
@@ -6811,7 +6380,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 list.appendChild(adminToolsContainer);
 
                 setTimeout(() => {
-                    const btnFix = document.getElementById('btnFixDateFormats');
+                    const btnFix = safeGetElementById('btnFixDateFormats');
                     if (btnFix) {
                         btnFix.addEventListener('click', async () => {
                             if (!confirm("Tem certeza que deseja rodar a correção de datas? Isso irá verificar e corrigir datas mal formatadas (ex: 2020-1-1 -> 2020-01-01) na coleção 'clima'.")) return;
@@ -6997,27 +6566,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setupEventListeners() {
                 if (App.elements.btnLogin) App.elements.btnLogin.addEventListener('click', () => App.auth.login());
-                const btnOfflineLogin = document.getElementById('btnOfflineLogin');
+                const btnOfflineLogin = safeGetElementById('btnOfflineLogin');
                 if (btnOfflineLogin) {
                     btnOfflineLogin.addEventListener('click', () => {
-                        const email = document.getElementById('offlineEmail').value.trim();
-                        const password = document.getElementById('offlinePassword').value;
+                        const email = safeGetElementById('offlineEmail').value.trim();
+                        const password = safeGetElementById('offlinePassword').value;
                         App.auth.loginOffline(email, password);
                     });
                 }
 
                 // Event Listeners for enabling offline login
-                const btnEnableOffline = document.getElementById('btnEnableOfflineLogin');
+                const btnEnableOffline = safeGetElementById('btnEnableOfflineLogin');
                 if (btnEnableOffline) {
                     btnEnableOffline.addEventListener('click', () => App.ui.showEnableOfflineLoginModal());
                 }
 
-                const btnConfirmEnableOffline = document.getElementById('btnConfirmEnableOffline');
+                const btnConfirmEnableOffline = safeGetElementById('btnConfirmEnableOffline');
                 if (btnConfirmEnableOffline) {
                     btnConfirmEnableOffline.addEventListener('click', () => App.actions.enableOfflineLogin());
                 }
 
-                const offlineModal = document.getElementById('enableOfflineLoginModal');
+                const offlineModal = safeGetElementById('enableOfflineLoginModal');
                 if(offlineModal) {
                     const closeBtn = offlineModal.querySelector('.modal-close-btn');
                     const cancelBtn = offlineModal.querySelector('.btn-cancel');
@@ -7137,25 +6706,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (dashEls.btnBackToSelectorCigarrinha) dashEls.btnBackToSelectorCigarrinha.addEventListener('click', () => this.showDashboardView('selector'));
                 if (dashEls.btnBackToSelectorClima) dashEls.btnBackToSelectorClima.addEventListener('click', () => this.showDashboardView('selector'));
 
-                const btnSavePlantingGoals = document.getElementById('btnSavePlantingGoals');
+                const btnSavePlantingGoals = safeGetElementById('btnSavePlantingGoals');
                 if (btnSavePlantingGoals) {
                     btnSavePlantingGoals.addEventListener('click', () => App.actions.savePlantingGoals());
                 }
 
                 if (dashEls.btnFiltrarBrocaDashboard) dashEls.btnFiltrarBrocaDashboard.addEventListener('click', () => App.charts.renderBrocaDashboardCharts());
                 if (dashEls.btnFiltrarPerdaDashboard) dashEls.btnFiltrarPerdaDashboard.addEventListener('click', () => App.charts.renderPerdaDashboardCharts());
-                if (document.getElementById('btnFiltrarPlantioDashboard')) {
-                    document.getElementById('btnFiltrarPlantioDashboard').addEventListener('click', () => App.charts.renderPlantioDashboardCharts());
+                if (safeGetElementById('btnFiltrarPlantioDashboard')) {
+                    safeGetElementById('btnFiltrarPlantioDashboard').addEventListener('click', () => App.charts.renderPlantioDashboardCharts());
                 }
-                if (document.getElementById('btnFiltrarAereoDashboard')) {
-                    document.getElementById('btnFiltrarAereoDashboard').addEventListener('click', () => App.charts.renderAereoDashboardCharts());
+                if (safeGetElementById('btnFiltrarAereoDashboard')) {
+                    safeGetElementById('btnFiltrarAereoDashboard').addEventListener('click', () => App.charts.renderAereoDashboardCharts());
                 }
-                if (document.getElementById('btnFiltrarCigarrinhaDashboard')) {
-                    document.getElementById('btnFiltrarCigarrinhaDashboard').addEventListener('click', () => App.charts.renderCigarrinhaDashboardCharts());
+                if (safeGetElementById('btnFiltrarCigarrinhaDashboard')) {
+                    safeGetElementById('btnFiltrarCigarrinhaDashboard').addEventListener('click', () => App.charts.renderCigarrinhaDashboardCharts());
                 }
 
-                if (document.getElementById('btnFiltrarClimaDashboard')) {
-                    document.getElementById('btnFiltrarClimaDashboard').addEventListener('click', () => App.charts.renderClimaDashboardCharts());
+                if (safeGetElementById('btnFiltrarClimaDashboard')) {
+                    safeGetElementById('btnFiltrarClimaDashboard').addEventListener('click', () => App.charts.renderClimaDashboardCharts());
                 }
                 
                 const chartModal = App.elements.chartModal;
@@ -7199,7 +6768,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyEls = App.elements.companyManagement;
                 if (companyEls.btnCreate) companyEls.btnCreate.addEventListener('click', () => App.actions.createCompany());
 
-                const btnSaveGlobalFeatures = document.getElementById('btnSaveGlobalFeatures');
+                const btnSaveGlobalFeatures = safeGetElementById('btnSaveGlobalFeatures');
                 if (btnSaveGlobalFeatures) {
                     btnSaveGlobalFeatures.addEventListener('click', () => App.actions.saveGlobalFeatures());
                 }
@@ -7220,7 +6789,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (editCompanyModalEls.saveBtn) editCompanyModalEls.saveBtn.addEventListener('click', () => App.actions.saveCompanyModuleChanges());
                 if (editCompanyModalEls.overlay) editCompanyModalEls.overlay.addEventListener('click', e => { if (e.target === editCompanyModalEls.overlay) this.closeEditCompanyModal(); });
 
-                const btnMigrate = document.getElementById('btnMigrateOldData');
+                const btnMigrate = safeGetElementById('btnMigrateOldData');
                 if (btnMigrate) btnMigrate.addEventListener('click', () => App.actions.migrateOldData());
                 
                 const cpModal = App.elements.changePasswordModal;
@@ -7271,7 +6840,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                const btnCleanDuplicateTraps = document.getElementById('btnCleanDuplicateTraps');
+                const btnCleanDuplicateTraps = safeGetElementById('btnCleanDuplicateTraps');
                 if (btnCleanDuplicateTraps) {
                     btnCleanDuplicateTraps.addEventListener('click', () => App.actions.deduplicateTraps());
                 }
@@ -7434,7 +7003,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.broca.codigo) App.elements.broca.codigo.addEventListener('change', () => App.actions.findVarietyForTalhao('broca'));
                 if (App.elements.broca.talhao) App.elements.broca.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('broca'));
                 ['brocaBase', 'brocaMeio', 'brocaTopo', 'entrenos'].forEach(id => {
-                    const el = document.getElementById(id);
+                    const el = safeGetElementById(id);
                     if (el) el.addEventListener('input', () => {
                         App.ui.updateBrocadoTotal();
                         App.ui.calculateBrocamento();
@@ -7445,7 +7014,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.elements.perda.talhao) App.elements.perda.talhao.addEventListener('input', () => App.actions.findVarietyForTalhao('perda'));
                 if (App.elements.perda.matricula) App.elements.perda.matricula.addEventListener('input', () => App.actions.findOperatorName());
                 ['canaInteira', 'tolete', 'toco', 'ponta', 'estilhaco', 'pedaco'].forEach(id => {
-                    const el = document.getElementById(id);
+                    const el = safeGetElementById(id);
                     if (el) el.addEventListener('input', () => App.ui.calculatePerda());
                 });
                 
@@ -8204,7 +7773,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                const syncHistoryList = document.getElementById('syncHistoryList');
+                const syncHistoryList = safeGetElementById('syncHistoryList');
                 if (syncHistoryList) {
                     syncHistoryList.addEventListener('click', e => {
                         const button = e.target.closest('button[data-action="view-sync-details"]');
@@ -8224,22 +7793,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const debouncedSaveCigarrinha = App.debounce(() => App.actions.saveFormDraft('cigarrinha'), 1000);
                 if (App.elements.cigarrinha.form) App.elements.cigarrinha.form.addEventListener('input', debouncedSaveCigarrinha);
 
-                const btnSaveCompanySettings = document.getElementById('btnSaveCompanySettings');
+                const btnSaveCompanySettings = safeGetElementById('btnSaveCompanySettings');
                 if (btnSaveCompanySettings) {
                     // This button is now only for the logo, shapefile, etc.
                     // The calculation method will save on change.
                 }
 
-                const cigarrinhaCalcMethodSelect = document.getElementById('cigarrinhaCalcMethod');
+                const cigarrinhaCalcMethodSelect = safeGetElementById('cigarrinhaCalcMethod');
                 // O listener de 'change' foi removido e substituído por um botão explícito de salvar
-                const btnSaveCalcMethod = document.getElementById('btnSaveCalcMethod');
+                const btnSaveCalcMethod = safeGetElementById('btnSaveCalcMethod');
                 if (btnSaveCalcMethod) {
                     btnSaveCalcMethod.addEventListener('click', () => App.actions.saveCalcMethodWithAudit());
                 }
 
-                const btnSaveDailyPlantingGoal = document.getElementById('btnSaveDailyPlantingGoal');
+                const btnSaveDailyPlantingGoal = safeGetElementById('btnSaveDailyPlantingGoal');
 
-                const btnViewCalcHistory = document.getElementById('btnViewCalcHistory');
+                const btnViewCalcHistory = safeGetElementById('btnViewCalcHistory');
                 if (btnViewCalcHistory) {
                     btnViewCalcHistory.addEventListener('click', () => App.actions.viewConfigHistory());
                 }
@@ -8307,930 +7876,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        regApp: {
-            init() {
-                this.populateFarmSelect();
-                this.setupEventListeners();
-                this.initMap();
-                // Set default date
-                App.elements.regApp.date.value = new Date().toISOString().split('T')[0];
-            },
 
-            setupEventListeners() {
-                const els = App.elements.regApp;
-                if (!els.farmSelect) return;
-
-                els.farmSelect.addEventListener('change', () => this.handleFarmChange());
-                els.btnSave.addEventListener('click', () => this.saveRegistro());
-
-                if (els.btnCenterMap) {
-                    els.btnCenterMap.addEventListener('click', () => {
-                        const farmId = els.farmSelect.value;
-                        if (farmId) {
-                            const farm = App.state.fazendas.find(f => f.id === farmId);
-                            if (farm) this.zoomToFarm(farm.code);
-                        }
-                    });
-                }
-
-                const btnTogglePanel = document.getElementById('btnToggleRegAppPanel');
-                if (btnTogglePanel) {
-                    btnTogglePanel.addEventListener('click', () => this.toggleMapSize());
-                }
-                const btnRecolherMapa = document.getElementById('btn-recolher-mapa-regapp');
-                if (btnRecolherMapa) {
-                    btnRecolherMapa.addEventListener('click', () => this.toggleMapSize());
-                }
-                const btnMobileToggleMap = document.getElementById('btnMobileToggleRegAppMap');
-                if (btnMobileToggleMap) {
-                    btnMobileToggleMap.addEventListener('click', () => this.toggleMapSize());
-                }
-
-                // Shift change listener to update map colors
-                els.shiftRadios.forEach(radio => {
-                    radio.addEventListener('change', () => this.updateMapVisualization());
-                });
-            },
-
-            initMap() {
-                if (App.state.regAppMap) {
-                    this.loadShapes();
-                    setTimeout(() => App.state.regAppMap.resize(), 200);
-                    return;
-                }
-
-                const mapContainer = App.elements.regApp.mapContainer;
-                if (!mapContainer) return;
-
-                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
-
-                App.state.regAppMap = new mapboxgl.Map({
-                    container: mapContainer,
-                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
-                    center: [-48.45, -21.17],
-                    zoom: 10,
-                    attributionControl: false
-                });
-
-                const map = App.state.regAppMap;
-
-                map.on('load', () => {
-                    this.loadShapes();
-                    const farmId = App.elements.regApp.farmSelect.value;
-                    if (farmId) {
-                        const farm = App.state.fazendas.find(f => f.id === farmId);
-                        if (farm) {
-                            this.filterMap(farm.code);
-                            this.zoomToFarm(farm.code);
-                        }
-                    }
-                });
-
-                // Generic Click Listener for Map (Handles both selection and direction setting)
-                map.on('click', (e) => {
-                    // 1. Direction Selection Mode
-                    if (App.state.regAppDirectionTarget) {
-                        this.handleDirectionClick(e.lngLat);
-                        return;
-                    }
-
-                    // 2. Plot Selection Mode
-                    const features = map.queryRenderedFeatures(e.point, { layers: ['regapp-talhoes-layer'] });
-                    if (features.length > 0) {
-                        const feature = features[0];
-                        this.togglePlotSelection(feature, true);
-                    }
-                });
-
-                // Hover Effects
-                let hoveredFeatureId = null;
-                map.on('mousemove', 'regapp-talhoes-layer', (e) => {
-                    if (App.state.regAppDirectionTarget) {
-                        map.getCanvas().style.cursor = 'crosshair';
-                    } else {
-                        map.getCanvas().style.cursor = 'pointer';
-                    }
-
-                    if (e.features.length > 0) {
-                        if (hoveredFeatureId !== null) {
-                            map.setFeatureState({ source: 'regapp-talhoes-source', id: hoveredFeatureId }, { hover: false });
-                        }
-                        hoveredFeatureId = e.features[0].id;
-                        map.setFeatureState({ source: 'regapp-talhoes-source', id: hoveredFeatureId }, { hover: true });
-                    }
-                });
-
-                map.on('mouseleave', 'regapp-talhoes-layer', () => {
-                    map.getCanvas().style.cursor = '';
-                    if (hoveredFeatureId !== null) {
-                        map.setFeatureState({ source: 'regapp-talhoes-source', id: hoveredFeatureId }, { hover: false });
-                        hoveredFeatureId = null;
-                    }
-                });
-            },
-
-            getPrincipalDirection(feature) {
-                try {
-                    let maxDist = 0;
-                    let bearing = 0;
-                    let coords = feature.geometry.coordinates;
-
-                    if (feature.geometry.type === 'MultiPolygon') {
-                        coords = coords[0]; // Take the first polygon
-                    }
-
-                    // coords is now [ring1, ring2...]. ring1 is outer.
-                    const ring = coords[0];
-
-                    for (let i = 0; i < ring.length - 1; i++) {
-                        const start = turf.point(ring[i]);
-                        const end = turf.point(ring[i+1]);
-                        const dist = turf.distance(start, end);
-                        if (dist > maxDist) {
-                            maxDist = dist;
-                            bearing = turf.bearing(start, end);
-                        }
-                    }
-                    return bearing;
-                } catch (e) {
-                    console.error("Error calculating direction:", e);
-                    return 0;
-                }
-            },
-
-            handleDirectionClick(lngLat) {
-                const map = App.state.regAppMap;
-
-                // STEP 1: If no start point, set it and wait for second click
-                if (!App.state.regAppStartPoint) {
-                    App.state.regAppStartPoint = lngLat;
-
-                    // Add visual marker for start point
-                    const markerEl = document.createElement('div');
-                    markerEl.className = 'temp-start-marker';
-                    markerEl.style.width = '15px';
-                    markerEl.style.height = '15px';
-                    markerEl.style.backgroundColor = '#4caf50'; // Green
-                    markerEl.style.borderRadius = '50%';
-                    markerEl.style.border = '2px solid white';
-                    markerEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
-
-                    new mapboxgl.Marker(markerEl)
-                        .setLngLat(lngLat)
-                        .addTo(map);
-
-                    // Store marker instance on map object to remove later
-                    map.tempStartMarker = markerEl;
-
-                    App.ui.showAlert("Ponto de INÍCIO definido. Agora clique no ponto onde a aplicação PAROU.", "info", 5000);
-                    return;
-                }
-
-                // STEP 2: Second click - Calculate Direction and Sweep
-                const startLngLat = App.state.regAppStartPoint;
-                const endLngLat = lngLat;
-                const talhaoId = App.state.regAppDirectionTarget;
-
-                // Calculate bearing from Start to End
-                const startPoint = turf.point([startLngLat.lng, startLngLat.lat]);
-                const endPoint = turf.point([endLngLat.lng, endLngLat.lat]);
-                const bearing = turf.bearing(startPoint, endPoint);
-
-                // Update State
-                const currentData = App.state.regAppSelectedPlots.get(talhaoId);
-                if (currentData) {
-                    const side = currentData.side || 'left';
-                    const anchor = currentData.anchor || 'edge';
-                    // Update state with new bearing AND the start point coordinates
-                    this.updateSelectedState(talhaoId, currentData.totalArea, true, currentData.appliedArea, bearing, startLngLat, side, anchor);
-                    App.ui.showAlert(`Direção definida! (Ângulo: ${bearing.toFixed(0)}°)`, 'success');
-                }
-
-                // Cleanup
-                if (map.tempStartMarker) {
-                    map.tempStartMarker.remove();
-                    delete map.tempStartMarker;
-                }
-                document.querySelectorAll('.temp-start-marker').forEach(el => el.remove());
-
-                App.state.regAppStartPoint = null;
-                App.state.regAppDirectionTarget = null;
-                map.getCanvas().style.cursor = '';
-            },
-
-            calculateCutPolygon(originalFeature, targetAreaHa, bearing, startPointCoords, side = 'left', anchor = 'edge') {
-                try {
-                    let pivot = turf.centroid(originalFeature);
-                    if (startPointCoords) {
-                        pivot = turf.point([startPointCoords.lng, startPointCoords.lat]);
-                    }
-
-                    // Rotate so Bearing points NORTH (Y-Axis)
-                    const rotated = turf.transformRotate(originalFeature, -bearing, { pivot: pivot });
-
-                    const bbox = turf.bbox(rotated); // [minX, minY, maxX, maxY]
-                    const minX = bbox[0];
-                    const maxX = bbox[2];
-                    const minY = bbox[1];
-                    const maxY = bbox[3];
-
-                    const pivotCoord = pivot.geometry.coordinates;
-                    const lineX = pivotCoord[0];
-
-                    const targetAreaSqm = targetAreaHa * 10000;
-                    const tolerance = targetAreaSqm * 0.05;
-
-                    let finalSlice = null;
-                    let sweepMinX, sweepMaxX;
-                    let low, high;
-
-                    // Standardize search range based on selection
-                    if (side === 'left') {
-                        // Filling the Left/West side
-                        if (anchor === 'edge') {
-                            // Start from minX, grow towards maxX
-                            low = minX; high = maxX;
-                        } else {
-                            // Start from lineX, grow towards minX (Left)
-                            // Interval is [midX, lineX]
-                            low = minX; high = lineX;
-                        }
-                    } else { // right
-                        // Filling the Right/East side
-                        if (anchor === 'edge') {
-                            // Start from maxX, grow towards minX
-                            low = minX; high = maxX;
-                        } else {
-                            // Start from lineX, grow towards maxX (Right)
-                            low = lineX; high = maxX;
-                        }
-                    }
-
-                    // Binary search
-                    for(let i=0; i<20; i++) {
-                        const midX = (low + high) / 2;
-                        let clipPoly;
-
-                        if (side === 'left') {
-                            if (anchor === 'edge') {
-                                clipPoly = turf.bboxPolygon([minX, minY, midX, maxY]);
-                            } else { // line
-                                clipPoly = turf.bboxPolygon([midX, minY, lineX, maxY]);
-                            }
-                        } else { // right
-                            if (anchor === 'edge') {
-                                clipPoly = turf.bboxPolygon([midX, minY, maxX, maxY]);
-                            } else { // line
-                                clipPoly = turf.bboxPolygon([lineX, minY, midX, maxY]);
-                            }
-                        }
-
-                        let sliced = null;
-                        try {
-                            sliced = turf.intersect(rotated, clipPoly);
-                        } catch(e) {
-                            try { sliced = turf.intersect(turf.featureCollection([rotated, clipPoly])); } catch(e2){}
-                        }
-
-                        if (!sliced) {
-                            // Empty intersection: adjust bounds to find the shape
-                            if (side === 'left') {
-                                if (anchor === 'edge') low = midX; // Move right to find shape
-                                else high = midX; // Move left?
-                            } else {
-                                if (anchor === 'edge') high = midX; // Move left to find shape
-                                else low = midX;
-                            }
-                            continue;
-                        }
-
-                        const currentArea = turf.area(sliced);
-
-                        if (Math.abs(currentArea - targetAreaSqm) < tolerance) {
-                            finalSlice = sliced;
-                            break;
-                        }
-
-                        if (currentArea < targetAreaSqm) {
-                            // Need MORE area -> Expand
-                            if (side === 'left') {
-                                if (anchor === 'edge') low = midX; // Expand right
-                                else high = midX; // Expand left (towards minX)
-                            } else { // right
-                                if (anchor === 'edge') high = midX; // Expand left
-                                else low = midX; // Expand right (towards maxX)
-                            }
-                            finalSlice = sliced;
-                        } else {
-                            // Need LESS area -> Shrink
-                            if (side === 'left') {
-                                if (anchor === 'edge') high = midX;
-                                else low = midX;
-                            } else { // right
-                                if (anchor === 'edge') low = midX;
-                                else high = midX;
-                            }
-                        }
-                    }
-
-                    if (finalSlice) {
-                        return turf.transformRotate(finalSlice, bearing, { pivot: pivot });
-                    }
-                    return originalFeature;
-                } catch (e) {
-                    console.error("Error calculating cut polygon:", e);
-                    return originalFeature;
-                }
-            },
-
-            loadShapes() {
-                const map = App.state.regAppMap;
-                if (!map || !App.state.geoJsonData) return;
-
-                const sourceId = 'regapp-talhoes-source';
-                const layerId = 'regapp-talhoes-layer';
-                const appliedLayerId = 'regapp-applied-layer';
-                const borderLayerId = 'regapp-border-layer';
-                const labelLayerId = 'regapp-labels';
-
-                if (map.getSource(sourceId)) {
-                    map.getSource(sourceId).setData(App.state.geoJsonData);
-                } else {
-                    map.addSource(sourceId, {
-                        type: 'geojson',
-                        data: App.state.geoJsonData,
-                        generateId: true
-                    });
-                }
-
-                const themeColors = App.ui._getThemeColors();
-
-                // Base Layer (Similar to OS Manual style)
-                if (!map.getLayer(layerId)) {
-                    map.addLayer({
-                        id: layerId,
-                        type: 'fill',
-                        source: sourceId,
-                        paint: {
-                            'fill-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
-                                ['boolean', ['feature-state', 'hover'], false], '#607D8B',
-                                '#1C1C1C'
-                            ],
-                            'fill-opacity': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], 0.9,
-                                ['boolean', ['feature-state', 'hover'], false], 0.8,
-                                0.7
-                            ]
-                        }
-                    });
-                }
-
-                // Applied Areas Layer (colored by Shift)
-                if (!map.getSource('regapp-applied-source')) {
-                    map.addSource('regapp-applied-source', {
-                        type: 'geojson',
-                        data: { type: 'FeatureCollection', features: [] }
-                    });
-                }
-
-                if (!map.getLayer(appliedLayerId)) {
-                    map.addLayer({
-                        id: appliedLayerId,
-                        type: 'fill',
-                        source: 'regapp-applied-source',
-                        paint: {
-                            'fill-color': ['get', 'color'],
-                            'fill-opacity': 0.7
-                        }
-                    });
-                }
-
-                // Labels (Same style as OS Manual)
-                if (!map.getLayer(labelLayerId)) {
-                    map.addLayer({
-                        id: labelLayerId,
-                        type: 'symbol',
-                        source: sourceId,
-                        minzoom: 10,
-                        layout: {
-                            'symbol-placement': 'point',
-                            'text-field': [
-                                'format',
-                                ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.9 },
-                                '\n', {},
-                                ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }
-                            ],
-                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                            'text-size': 14,
-                            'text-ignore-placement': true,
-                            'text-allow-overlap': true,
-                            'text-pitch-alignment': 'viewport',
-                        },
-                        paint: {
-                            'text-color': '#FFFFFF',
-                            'text-halo-color': 'rgba(0, 0, 0, 0.9)',
-                            'text-halo-width': 2
-                        }
-                    });
-                }
-
-                // Borders (Same style as OS Manual)
-                if (!map.getLayer(borderLayerId)) {
-                     map.addLayer({
-                        id: borderLayerId,
-                        type: 'line',
-                        source: sourceId,
-                        paint: {
-                            'line-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF',
-                                '#FFFFFF'
-                            ],
-                            'line-width': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], 3,
-                                1.5
-                            ],
-                            'line-opacity': 0.9
-                        }
-                    });
-                }
-            },
-
-            populateFarmSelect() {
-                const select = App.elements.regApp.farmSelect;
-                if (!select) return;
-                const currentValue = select.value;
-                select.innerHTML = '<option value="">Selecione uma fazenda...</option>';
-                App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
-                    select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
-                });
-                select.value = currentValue;
-            },
-
-            handleFarmChange() {
-                // Ensure map is loaded with data if it arrived late
-                this.loadShapes();
-
-                const farmId = App.elements.regApp.farmSelect.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-
-                App.state.regAppSelectedPlots.clear();
-                this.updateMapVisualization(); // Clear applied layer
-
-                if (farm) {
-                    this.renderPlotsList(farm.talhoes);
-                    this.zoomToFarm(farm.code);
-                    this.filterMap(farm.code);
-                } else {
-                    App.elements.regApp.plotsList.innerHTML = '<p style="color: #888; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
-                }
-            },
-
-            renderPlotsList(talhoes) {
-                const listContainer = App.elements.regApp.plotsList;
-                listContainer.innerHTML = '';
-
-                if (!talhoes || talhoes.length === 0) {
-                    listContainer.innerHTML = '<p>Nenhum talhão encontrado.</p>';
-                    return;
-                }
-
-                talhoes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).forEach(talhao => {
-                    const container = document.createElement('div');
-                    container.className = 'talhao-selection-item-wrapper';
-                    container.style.marginBottom = '10px';
-                    container.style.backgroundColor = 'var(--color-surface)';
-                    container.style.border = '1px solid var(--color-border)';
-                    container.style.borderRadius = 'var(--border-radius)';
-                    container.style.overflow = 'hidden';
-
-                    const header = document.createElement('div');
-                    header.style.padding = '12px';
-                    header.style.display = 'grid';
-                    header.style.gridTemplateColumns = 'auto 1fr';
-                    header.style.gap = '10px';
-                    header.style.alignItems = 'center';
-                    header.style.cursor = 'pointer';
-
-                    header.innerHTML = `
-                        <input type="checkbox" id="regapp-plot-${talhao.id}" data-id="${talhao.id}">
-                        <div>
-                            <div style="font-weight: 600; color: var(--color-primary-dark);">${talhao.name}</div>
-                            <div style="font-size: 13px; color: var(--color-text-light);">Área Total: ${talhao.area.toFixed(2)} ha</div>
-                        </div>
-                    `;
-
-                    const details = document.createElement('div');
-                    details.id = `regapp-details-${talhao.id}`;
-                    details.style.display = 'none';
-                    details.style.padding = '10px 12px 12px';
-                    details.style.backgroundColor = 'var(--color-bg)';
-                    details.style.borderTop = '1px solid var(--color-border)';
-
-                    details.innerHTML = `
-                        <div style="margin-bottom: 8px;">
-                            <label style="display: flex; align-items: center; font-size: 14px; cursor: pointer;">
-                                <input type="checkbox" class="partial-check" style="width: auto; margin-right: 8px;"> Aplicação Parcial?
-                            </label>
-                        </div>
-                        <div class="partial-inputs" style="display: none; flex-direction: column; gap: 10px;">
-                            <div style="display: flex; gap: 10px; width: 100%; align-items: flex-end;">
-                                <div style="flex: 1; min-width: 100px;">
-                                    <label style="font-size: 12px; display: block; margin-bottom: 2px;">Área (ha)</label>
-                                    <input type="number" class="partial-area-input" max="${talhao.area}" placeholder="0.00">
-                                </div>
-                                <div style="flex: 1; min-width: 120px;">
-                                    <button type="button" class="btn-pick-direction save" style="width:100%; padding: 8px; font-size: 12px; background: var(--color-warning);">
-                                        <i class="fas fa-route"></i> Definir Direção
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Side Selection -->
-                            <div style="width: 100%; background: rgba(0,0,0,0.03); padding: 8px; border-radius: 4px;">
-                                <div style="display: flex; gap: 15px; margin-bottom: 5px;">
-                                    <div style="flex: 1;">
-                                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Lado do Preenchimento:</label>
-                                        <div style="display: flex; gap: 10px;">
-                                            <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center;">
-                                                <input type="radio" name="fill-side-${talhao.id}" value="left" checked style="width:auto; margin-right:4px;"> Esq.
-                                            </label>
-                                            <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center;">
-                                                <input type="radio" name="fill-side-${talhao.id}" value="right" style="width:auto; margin-right:4px;"> Dir.
-                                            </label>
-                                        </div>
-                                    </div>
-                                    <div style="flex: 1;">
-                                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Ponto de Início:</label>
-                                        <div style="display: flex; gap: 10px;">
-                                            <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center;">
-                                                <input type="radio" name="fill-anchor-${talhao.id}" value="edge" checked style="width:auto; margin-right:4px;"> Borda
-                                            </label>
-                                            <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center;">
-                                                <input type="radio" name="fill-anchor-${talhao.id}" value="line" style="width:auto; margin-right:4px;"> Linha
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-
-                    const mainCheckbox = header.querySelector('input[type="checkbox"]');
-                    const partialCheck = details.querySelector('.partial-check');
-                    const partialInputs = details.querySelector('.partial-inputs');
-                    const areaInput = details.querySelector('.partial-area-input');
-                    const pickDirectionBtn = details.querySelector('.btn-pick-direction');
-                    const sideRadios = details.querySelectorAll(`input[name="fill-side-${talhao.id}"]`);
-                    const anchorRadios = details.querySelectorAll(`input[name="fill-anchor-${talhao.id}"]`);
-
-                    // Event Listeners
-                    header.addEventListener('click', (e) => {
-                        if (e.target !== mainCheckbox) {
-                            // Toggle checkbox manually
-                            mainCheckbox.checked = !mainCheckbox.checked;
-                            this.handleSelectionChange(talhao, mainCheckbox.checked);
-                        }
-                    });
-
-                    mainCheckbox.addEventListener('change', (e) => {
-                        this.handleSelectionChange(talhao, e.target.checked);
-                    });
-
-                    const updateState = () => {
-                        let val = parseFloat(areaInput.value);
-                        if (isNaN(val) || val < 0) val = 0;
-                        if (val > talhao.area) {
-                            val = talhao.area;
-                            areaInput.value = val.toFixed(2);
-                            App.ui.showAlert("A área aplicada não pode ser maior que a área total.", "warning");
-                        }
-
-                        const currentData = App.state.regAppSelectedPlots.get(talhao.id);
-                        const bearing = currentData ? currentData.direction : 0;
-                        const startPoint = currentData ? currentData.startPoint : null;
-                        const side = details.querySelector(`input[name="fill-side-${talhao.id}"]:checked`).value;
-                        const anchor = details.querySelector(`input[name="fill-anchor-${talhao.id}"]:checked`).value;
-
-                        this.updateSelectedState(talhao.id, talhao.area, true, val, bearing, startPoint, side, anchor);
-                    };
-
-                    partialCheck.addEventListener('change', (e) => {
-                        const isPartial = e.target.checked;
-                        partialInputs.style.display = isPartial ? 'flex' : 'none';
-
-                        let currentVal = parseFloat(areaInput.value);
-
-                        if (isPartial) {
-                            if (isNaN(currentVal) || currentVal <= 0) {
-                                currentVal = parseFloat(talhao.area.toFixed(2));
-                                areaInput.value = currentVal;
-                            }
-                            updateState();
-                        } else {
-                            this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, 0);
-                        }
-                    });
-
-                    areaInput.addEventListener('input', updateState);
-                    sideRadios.forEach(r => r.addEventListener('change', updateState));
-                    anchorRadios.forEach(r => r.addEventListener('change', updateState));
-
-                    pickDirectionBtn.innerHTML = '<i class="fas fa-route"></i> Definir Pontos (Início -> Fim)';
-                    pickDirectionBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        App.state.regAppDirectionTarget = talhao.id;
-                        App.state.regAppStartPoint = null; // Reset start point for new selection
-                        App.ui.showAlert("1. Clique no Ponto de INÍCIO da aplicação no mapa.", "info", 5000);
-                        if(App.state.regAppMap) App.state.regAppMap.getCanvas().style.cursor = 'crosshair';
-                    });
-
-                    container.appendChild(header);
-                    container.appendChild(details);
-                    listContainer.appendChild(container);
-                });
-            },
-
-            handleSelectionChange(talhao, isChecked) {
-                const details = document.getElementById(`regapp-details-${talhao.id}`);
-                const partialCheck = details.querySelector('.partial-check');
-                const partialInputs = details.querySelector('.partial-inputs');
-                const areaInput = details.querySelector('.partial-area-input');
-
-                if (isChecked) {
-                    details.style.display = 'block';
-
-                    // Default values for new selection
-                    const side = 'left';
-                    const anchor = 'edge';
-
-                    // Calculate automatic direction (Longest Edge)
-                    let direction = 0;
-                    let feature = null;
-
-                    if(App.state.regAppMap) {
-                        const farmCode = App.state.fazendas.find(f => f.id === App.elements.regApp.farmSelect.value)?.code;
-                        feature = App.state.geoJsonData?.features.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
-
-                        if (feature) {
-                            direction = this.getPrincipalDirection(feature);
-                            // Initially select base layer
-                            App.state.regAppMap.setFeatureState({ source: 'regapp-talhoes-source', id: feature.id }, { selected: true });
-                        }
-                    }
-
-                    this.updateSelectedState(talhao.id, talhao.area, false, talhao.area, direction, null, side, anchor);
-
-                } else {
-                    details.style.display = 'none';
-                    partialCheck.checked = false;
-                    partialInputs.style.display = 'none';
-                    areaInput.value = '';
-                    this.removeSelection(talhao.id);
-
-                    if(App.state.regAppMap) {
-                        const farmCode = App.state.fazendas.find(f => f.id === App.elements.regApp.farmSelect.value)?.code;
-                        const feature = App.state.geoJsonData.features.find(f => f.properties.AGV_TALHAO === talhao.name && String(f.properties.AGV_FUNDO) === String(farmCode));
-                        if(feature) App.state.regAppMap.setFeatureState({ source: 'regapp-talhoes-source', id: feature.id }, { selected: false });
-                    }
-                }
-            },
-
-            togglePlotSelection(featureOrTalhao, fromMap = false) {
-                let talhao, talhaoId;
-
-                if (fromMap) {
-                    const talhaoName = featureOrTalhao.properties.AGV_TALHAO;
-                    const farmCode = featureOrTalhao.properties.AGV_FUNDO;
-                    const farm = App.state.fazendas.find(f => f.code == farmCode);
-                    if (!farm) return;
-                    talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName.toUpperCase());
-                    if (!talhao) return;
-                    talhaoId = talhao.id;
-                } else {
-                    talhao = featureOrTalhao;
-                    talhaoId = talhao.id;
-                }
-
-                const checkbox = document.getElementById(`regapp-plot-${talhaoId}`);
-                if (!checkbox) return;
-
-                const newState = !checkbox.checked;
-                checkbox.checked = newState;
-
-                this.handleSelectionChange(talhao, newState);
-            },
-
-            updateSelectedState(talhaoId, totalArea, isPartial, appliedArea, direction, startPoint = null, side = 'left', anchor = 'edge') {
-                App.state.regAppSelectedPlots.set(talhaoId, {
-                    totalArea,
-                    isPartial,
-                    appliedArea: isPartial ? appliedArea : totalArea,
-                    direction: direction,
-                    startPoint: startPoint,
-                    side: side,
-                    anchor: anchor
-                });
-                this.updateMapVisualization();
-            },
-
-            removeSelection(talhaoId) {
-                App.state.regAppSelectedPlots.delete(talhaoId);
-                this.updateMapVisualization();
-            },
-
-            updateMapVisualization() {
-                const map = App.state.regAppMap;
-                const selectedShift = document.querySelector('input[name="regAppShift"]:checked').value;
-                const colors = { 'A': '#2196F3', 'B': '#FF9800', 'C': '#9C27B0' };
-                const color = colors[selectedShift];
-
-                const features = [];
-                const farmCode = App.state.fazendas.find(f => f.id === App.elements.regApp.farmSelect.value)?.code;
-
-                if (!farmCode || !App.state.geoJsonData) return;
-
-                App.state.regAppSelectedPlots.forEach((data, talhaoId) => {
-                    const farm = App.state.fazendas.find(f => f.code == farmCode);
-                    const talhao = farm.talhoes.find(t => t.id == talhaoId);
-
-                    if (!talhao) return;
-
-                    const originalFeature = App.state.geoJsonData.features.find(f =>
-                        f.properties.AGV_TALHAO === talhao.name &&
-                        String(f.properties.AGV_FUNDO) === String(farmCode)
-                    );
-
-                    if (!originalFeature) return;
-
-                    if (data.isPartial && data.appliedArea < data.totalArea && data.appliedArea > 0) {
-                        let finalFeature = originalFeature;
-                        let bearing = 0;
-
-                        if (typeof data.direction === 'number') {
-                            bearing = data.direction;
-                        } else {
-                            const mapDir = { 'N': 0, 'E': 90, 'S': 180, 'W': -90 };
-                            bearing = mapDir[data.direction] !== undefined ? mapDir[data.direction] : 0;
-                        }
-
-                        // Use the new sweep algorithm with side/anchor
-                        finalFeature = this.calculateCutPolygon(originalFeature, data.appliedArea, bearing, data.startPoint, data.side, data.anchor);
-
-                        if (finalFeature) {
-                            finalFeature.properties = { ...finalFeature.properties, color: color };
-                            features.push(finalFeature);
-                        }
-
-                        // For partials, unselect the base layer so the dark background remains visible
-                        if(map.getLayer('regapp-talhoes-layer')) {
-                             map.setFeatureState({ source: 'regapp-talhoes-source', id: originalFeature.id }, { selected: false });
-                        }
-                    } else {
-                        // Full plot
-                        features.push({ ...originalFeature, properties: { ...originalFeature.properties, color: color } });
-                        // For full plots, we can also unselect base since the applied layer covers it
-                        if(map.getLayer('regapp-talhoes-layer')) {
-                             map.setFeatureState({ source: 'regapp-talhoes-source', id: originalFeature.id }, { selected: false });
-                        }
-                    }
-                });
-
-                if (map.getSource('regapp-applied-source')) {
-                    map.getSource('regapp-applied-source').setData({
-                        type: 'FeatureCollection',
-                        features: features
-                    });
-                }
-            },
-
-            filterMap(farmCode) {
-                const map = App.state.regAppMap;
-                if (!map || !map.getLayer('regapp-talhoes-layer')) return;
-                const filter = ['==', ['get', 'AGV_FUNDO'], String(farmCode)];
-                map.setFilter('regapp-talhoes-layer', filter);
-                map.setFilter('regapp-border-layer', filter);
-                map.setFilter('regapp-labels', filter);
-            },
-
-            zoomToFarm(farmCode) {
-                const map = App.state.regAppMap;
-                if (!map || !App.state.geoJsonData) return;
-                const features = App.state.geoJsonData.features.filter(f => f.properties.AGV_FUNDO == farmCode);
-                if (features.length > 0) {
-                    const collection = turf.featureCollection(features);
-                    const bbox = turf.bbox(collection);
-                    map.fitBounds(bbox, { padding: 20 });
-                }
-            },
-
-            toggleMapSize() {
-                const container = document.getElementById('registroAplicacao');
-                const btnToggle = document.getElementById('btnToggleRegAppPanel');
-                const btnRecolher = document.getElementById('btn-recolher-mapa-regapp');
-
-                container.classList.toggle('map-expanded');
-                const isExpanded = container.classList.contains('map-expanded');
-
-                if (btnToggle) {
-                    btnToggle.innerHTML = isExpanded ? '<i class="fas fa-compress-arrows-alt"></i>' : '<i class="fas fa-expand-arrows-alt"></i>';
-                    btnToggle.title = isExpanded ? 'Recolher Mapa' : 'Expandir Mapa';
-                }
-
-                if (btnRecolher) {
-                     if (window.innerWidth <= 768 && isExpanded) {
-                        btnRecolher.style.display = 'flex';
-                    } else {
-                        btnRecolher.style.display = 'none';
-                    }
-                }
-
-                if (App.state.regAppMap) {
-                    setTimeout(() => App.state.regAppMap.resize(), 400);
-                }
-            },
-
-            async saveRegistro() {
-                const { farmSelect, date, product, dosage, operator } = App.elements.regApp;
-                const shift = document.querySelector('input[name="regAppShift"]:checked').value;
-
-                if (!farmSelect.value || !date.value || !product.value || !dosage.value) {
-                    App.ui.showAlert("Preencha todos os campos obrigatórios (Fazenda, Data, Produto, Dosagem).", "error");
-                    return;
-                }
-
-                if (App.state.regAppSelectedPlots.size === 0) {
-                    App.ui.showAlert("Selecione pelo menos um talhão.", "error");
-                    return;
-                }
-
-                const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
-                const plotsData = [];
-                let totalAreaApplied = 0;
-
-                App.state.regAppSelectedPlots.forEach((data, talhaoId) => {
-                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
-                    if (talhao) {
-                        plotsData.push({
-                            talhaoId: talhao.id,
-                            talhaoName: talhao.name,
-                            totalArea: talhao.area,
-                            appliedArea: data.appliedArea,
-                            isPartial: data.isPartial,
-                            direction: data.direction
-                        });
-                        totalAreaApplied += data.appliedArea;
-                    }
-                });
-
-                const registroData = {
-                    companyId: App.state.currentUser.companyId,
-                    farmId: farm.id,
-                    farmName: farm.name,
-                    farmCode: farm.code,
-                    date: date.value,
-                    shift: shift,
-                    product: product.value.trim(),
-                    dosage: parseFloat(dosage.value),
-                    operator: operator.value.trim(),
-                    plots: plotsData,
-                    totalAreaApplied: totalAreaApplied,
-                    createdBy: App.state.currentUser.username
-                };
-
-                App.ui.showConfirmationModal("Confirmar registro de aplicação?", async () => {
-                    App.ui.setLoading(true, "Salvando...");
-                    try {
-                        if (navigator.onLine) {
-                            await App.data.addDocument('registroAplicacao', registroData);
-                            App.ui.showAlert("Registro salvo com sucesso!", "success");
-                        } else {
-                            const entryId = `offline_regApp_${Date.now()}`;
-                            await OfflineDB.add('offline-writes', { id: entryId, collection: 'registroAplicacao', data: registroData });
-                            App.ui.showAlert('Salvo offline. Será enviado quando houver conexão.', 'info');
-                        }
-
-                        // Reset
-                        product.value = '';
-                        dosage.value = '';
-                        operator.value = '';
-                        App.state.regAppSelectedPlots.clear();
-                        this.renderPlotsList(farm.talhoes); // Re-renders list to clear checks
-                        this.updateMapVisualization();
-
-                    } catch (error) {
-                        console.error(error);
-                        App.ui.showAlert("Erro ao salvar registro.", "error");
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
-                });
-            }
-        },
         
         actions: {
             async fixClimateData() {
@@ -10764,7 +9410,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const companyId = App.state.currentUser.companyId;
                 if (!companyId) return;
 
-                const selectEl = document.getElementById('cigarrinhaCalcMethod');
+                const selectEl = safeGetElementById('cigarrinhaCalcMethod');
                 const newValue = selectEl.value;
                 const oldValue = App.state.companyConfig?.cigarrinhaCalcMethod || '5';
 
@@ -12813,7 +11459,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     () => { // onConfirm
                         const formData = JSON.parse(draftData);
                         Object.keys(formData).forEach(id => {
-                            const el = document.getElementById(id);
+                            const el = safeGetElementById(id);
                             if (el) {
                                 if (el.type === 'checkbox') {
                                     el.checked = formData[id];
@@ -13054,7 +11700,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async getAtrPrediction() {
                 const { fazenda: fazendaSelect, atr: atrInput } = App.elements.harvest;
-                const atrSpinner = document.getElementById('atr-spinner');
+                const atrSpinner = safeGetElementById('atr-spinner');
 
                 atrInput.value = '';
                 atrInput.readOnly = true; // Impede a digitação durante o cálculo
@@ -13165,7 +11811,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async saveGlobalFeatures() {
-                const grid = document.getElementById('globalFeaturesGrid');
+                const grid = safeGetElementById('globalFeaturesGrid');
                 if (!grid) {
                     App.ui.showAlert("Elemento de controlo de features não encontrado.", "error");
                     return;
@@ -13354,7 +12000,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
             setupPlantingGoals() {
-                const container = document.getElementById('planting-goals-container');
+                const container = safeGetElementById('planting-goals-container');
                 if (!container) return;
 
                 const cultures = ['CANADEACUCAR', 'SOJA', 'MILHO', 'ALGODAO', 'SORGO'];
@@ -13396,7 +12042,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async savePlantingGoals() {
-                const container = document.getElementById('planting-goals-container');
+                const container = safeGetElementById('planting-goals-container');
                 if (!container) return;
 
                 const newGoals = {};
@@ -13459,7 +12105,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async enableOfflineLogin() {
-                const passwordInput = document.getElementById('enableOfflinePassword');
+                const passwordInput = safeGetElementById('enableOfflinePassword');
                 const password = passwordInput.value;
                 const currentUser = App.state.currentUser;
 
@@ -14006,7 +12652,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     App.ui.showSystemNotification("Importação de Clima", msg, type);
 
-                    const inputEl = document.getElementById('climateCsvInput');
+                    const inputEl = safeGetElementById('climateCsvInput');
                     if (inputEl) inputEl.value = '';
                 };
 
@@ -14310,7 +12956,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async loadContoursOfflineSafe() {
-                const mapContainer = document.getElementById('map-container');
+                const mapContainer = safeGetElementById('map-container');
                 if (mapContainer) mapContainer.classList.add('loading');
                 const key = getContourCacheKey();
                 App.state.activeContourCacheKey = key;
@@ -14495,7 +13141,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             async loadAndCacheShapes(url) {
-                const mapContainer = document.getElementById('map-container');
+                const mapContainer = safeGetElementById('map-container');
                 if (!url) {
                     if (mapContainer) mapContainer.classList.remove('loading');
                     return;
@@ -14648,7 +13294,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
 
             loadShapesOnMap() {
-                const mapContainer = document.getElementById('map-container');
+                const mapContainer = safeGetElementById('map-container');
                 if (!App.state.mapboxMap || !App.state.geoJsonData) {
                     if (mapContainer) mapContainer.classList.remove('loading');
                     return;
@@ -15736,9 +14382,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     `;
 
-                    document.getElementById('btnCollectTrap').onclick = () => this.promptCollectTrap(trapId);
-                    document.getElementById('btnEditTrap').onclick = () => this.editTrap(trapId);
-                    document.getElementById('btnDeleteTrap').onclick = () => this.deleteTrap(trapId);
+                    safeGetElementById('btnCollectTrap').onclick = () => this.promptCollectTrap(trapId);
+                    safeGetElementById('btnEditTrap').onclick = () => this.editTrap(trapId);
+                    safeGetElementById('btnDeleteTrap').onclick = () => this.deleteTrap(trapId);
 
                     this.hideTalhaoInfo();
                     App.elements.monitoramentoAereo.trapInfoBox.classList.add('visible');
@@ -16153,7 +14799,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const exclusiveChecks = [els.modalEstimateWholeFarm, els.modalEstimateSelected, els.modalEstimateFiltered].filter(Boolean);
                 const syncScopeCards = () => {
                     [['estimativaSafraScopeWholeFarmCard', els.modalEstimateWholeFarm], ['estimativaSafraScopeSelectedCard', els.modalEstimateSelected], ['estimativaSafraScopeFilteredCard', els.modalEstimateFiltered]].forEach(([id, input]) => {
-                        const card = document.getElementById(id);
+                        const card = safeGetElementById(id);
                         if (card) card.classList.toggle('active', Boolean(input?.checked));
                     });
                     this.refreshEstimateModalScope();
@@ -16741,7 +15387,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.infoContent.querySelector('[data-action="toggle-info"]')?.addEventListener('click', () => this.toggleInfo());
                 els.infoContent.querySelectorAll('[data-action="estimate"]').forEach((btn) => btn.addEventListener('click', () => this.openModal()));
                 els.infoContent.querySelector('[data-action="history"]')?.addEventListener('click', () => {
-                    const wrap = document.getElementById('estimativaSafraHistoryWrap');
+                    const wrap = safeGetElementById('estimativaSafraHistoryWrap');
                     if (wrap) wrap.style.display = wrap.style.display === 'none' ? 'grid' : 'none';
                 });
                 els.infoContent.querySelectorAll('[data-action="clear-selection"]').forEach((btn) => btn.addEventListener('click', () => this.clearSelection()));
@@ -16798,7 +15444,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (els.modalEstimateSelected) els.modalEstimateSelected.checked = isMulti;
                 if (els.modalEstimateFiltered) els.modalEstimateFiltered.checked = false;
                 [['estimativaSafraScopeWholeFarmCard', els.modalEstimateWholeFarm], ['estimativaSafraScopeSelectedCard', els.modalEstimateSelected], ['estimativaSafraScopeFilteredCard', els.modalEstimateFiltered]].forEach(([id, input]) => {
-                    const card = document.getElementById(id);
+                    const card = safeGetElementById(id);
                     if (card) card.classList.toggle('active', Boolean(input?.checked));
                 });
                 els.modal.classList.add('show');
@@ -16967,2610 +15613,9 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             }
         },
 
-        osPlanning: {
-            initialized: false,
-            async init() {
-                if (!this.initialized) {
-                    this.setupEventListeners();
-                    this.initialized = true;
-                }
-                this.populateStaticFields();
-                this.populateFarmSelect();
-                this.populateSubgroups();
-                this.populateServiceTypes();
-                await this.loadSavedPlans();
-                this.mountActionLayers();
-                this.initMap();
-                this.handleFarmChange();
-                this.switchSecondaryTab(App.state.osPlanningActiveTab || 'novo');
-                this.renderOperationsGrid();
-                this.renderAuxPanels();
-            },
 
-            mountActionLayers() {
-                ['savedModal', 'historyModal', 'readyModal', 'generateModal', 'fullscreenMapModal', 'operationModal', 'actionToast'].forEach(key => {
-                    const node = App.elements.osPlanning[key];
-                    if (node && node.parentElement !== document.body) document.body.appendChild(node);
-                });
-                this.ensureSecondaryPanelsModal();
-            },
 
-            ensureSecondaryPanelsModal() {
-                if (App.elements.osPlanning.secondaryPanelsModal) return;
-                const overlay = document.createElement('div');
-                overlay.id = 'osPlanningSecondaryPanelsModal';
-                overlay.className = 'pos-action-overlay';
-                overlay.dataset.modalKind = 'saved';
-                overlay.innerHTML = `
-                    <div class="pos-action-modal saved-modal" style="width:min(1260px,96vw);">
-                        <div class="pos-action-header">
-                            <div>
-                                <h3 id="osPlanningSecondaryModalTitle">Painel</h3>
-                                <p id="osPlanningSecondaryModalSubtitle" class="pos-action-subtitle">Visualização</p>
-                            </div>
-                            <button id="osPlanningSecondaryModalCloseBtn" type="button" class="pos-action-close">Fechar ✕</button>
-                        </div>
-                        <div id="osPlanningSecondaryModalBody"></div>
-                    </div>`;
-                document.body.appendChild(overlay);
-                App.elements.osPlanning.secondaryPanelsModal = overlay;
-                App.elements.osPlanning.secondaryPanelsModalBody = overlay.querySelector('#osPlanningSecondaryModalBody');
-                App.elements.osPlanning.secondaryPanelsModalTitle = overlay.querySelector('#osPlanningSecondaryModalTitle');
-                App.elements.osPlanning.secondaryPanelsModalSubtitle = overlay.querySelector('#osPlanningSecondaryModalSubtitle');
-                App.elements.osPlanning.secondaryPanelsModalCloseBtn = overlay.querySelector('#osPlanningSecondaryModalCloseBtn');
-                overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeSecondaryPanelModal(); });
-                App.elements.osPlanning.secondaryPanelsModalCloseBtn?.addEventListener('click', () => this.closeSecondaryPanelModal());
-            },
 
-            openSecondaryPanelModal(tab) {
-                if (tab === 'novo') {
-                    this.closeSecondaryPanelModal();
-                    this.switchSecondaryTab('novo');
-                    return;
-                }
-                this.ensureSecondaryPanelsModal();
-                const els = App.elements.osPlanning;
-                const map = {
-                    salvos: {
-                        panel: els.panelSalvos,
-                        title: 'Planejamentos Salvos',
-                        subtitle: 'Consulte, filtre, abra, clone ou gere O.S. a partir dos planejamentos já salvos.',
-                        kind: 'saved',
-                        width: 'min(1260px,96vw)'
-                    },
-                    alertas: {
-                        panel: els.panelAlertas,
-                        title: 'Alertas',
-                        subtitle: 'Itens vencendo, próximos do prazo, atrasados ou prontos para virar O.S.',
-                        kind: 'history',
-                        width: 'min(1180px,96vw)'
-                    },
-                    pendencias: {
-                        panel: els.panelPendencias,
-                        title: 'Pendências',
-                        subtitle: 'Casos que exigem revisão manual antes de liberar o planejamento.',
-                        kind: 'ready',
-                        width: 'min(1180px,96vw)'
-                    },
-                    historico: {
-                        panel: els.panelHistorico,
-                        title: 'Histórico',
-                        subtitle: 'Timeline por fazenda, talhão e programa para rastrear apontamentos, planejamentos e O.S.',
-                        kind: 'generate',
-                        width: 'min(1180px,96vw)'
-                    }
-                };
-                const config = map[tab];
-                if (!config || !config.panel || !els.secondaryPanelsModalBody) return;
-                if (tab === 'salvos') this.renderSavedPlansPanel();
-                if (tab === 'alertas') this.renderAlertsPanel();
-                if (tab === 'pendencias') this.renderPendenciasPanel();
-                if (tab === 'historico') this.renderHistoryPanel();
-                this.closeSecondaryPanelModal();
-                if (!config.panel.__originalParent) {
-                    config.panel.__originalParent = config.panel.parentElement;
-                    config.panel.__originalNextSibling = config.panel.nextElementSibling;
-                }
-                els.secondaryTabs?.forEach(btn => btn.classList.toggle('active', btn.dataset.osPlanningTab === tab));
-                [els.panelSalvos, els.panelAlertas, els.panelPendencias, els.panelHistorico].forEach(panel => panel?.classList.remove('active'));
-                els.secondaryPanelsModal.dataset.modalKind = config.kind;
-                const modalCard = els.secondaryPanelsModal.querySelector('.pos-action-modal');
-                if (modalCard) modalCard.style.width = config.width;
-                if (els.secondaryPanelsModalTitle) els.secondaryPanelsModalTitle.textContent = config.title;
-                if (els.secondaryPanelsModalSubtitle) els.secondaryPanelsModalSubtitle.textContent = config.subtitle;
-                config.panel.classList.add('active');
-                els.secondaryPanelsModalBody.innerHTML = '';
-                els.secondaryPanelsModalBody.appendChild(config.panel);
-                els.secondaryPanelsModal.classList.add('show');
-                document.body.classList.add('modal-open');
-                App.state.osPlanningActiveTab = tab;
-            },
-
-            closeSecondaryPanelModal() {
-                const els = App.elements.osPlanning;
-                const overlay = els.secondaryPanelsModal;
-                const body = els.secondaryPanelsModalBody;
-                if (!overlay || !body) return;
-                const activePanel = body.querySelector('.pos-secondary-panel');
-                if (activePanel && activePanel.__originalParent) {
-                    activePanel.classList.remove('active');
-                    if (activePanel.__originalNextSibling && activePanel.__originalNextSibling.parentElement === activePanel.__originalParent) {
-                        activePanel.__originalParent.insertBefore(activePanel, activePanel.__originalNextSibling);
-                    } else {
-                        activePanel.__originalParent.appendChild(activePanel);
-                    }
-                }
-                overlay.classList.remove('show');
-                els.secondaryTabs?.forEach(btn => btn.classList.toggle('active', btn.dataset.osPlanningTab === 'novo'));
-                App.state.osPlanningActiveTab = 'novo';
-                document.body.classList.remove('modal-open');
-            },
-
-            populateStaticFields() {
-                const els = App.elements.osPlanning;
-                if (els.companyName) {
-                    const company = App.state.companies?.find(c => c.id === App.state.currentUser?.companyId);
-                    els.companyName.value = company?.name || App.state.currentUser?.companyName || 'Empresa Atual';
-                }
-                if (els.dateInput && !els.dateInput.value) {
-                    els.dateInput.value = new Date().toISOString().split('T')[0];
-                }
-            },
-
-            resetOperationDraft() {
-                App.state.osPlanningEditingOperationId = null;
-                App.state.osPlanningOperationDraftProducts = [];
-                const els = App.elements.osPlanning;
-                if (els.operationModalTitle) els.operationModalTitle.textContent = 'Adicionar Operação';
-                if (els.operationModalSubgroup) els.operationModalSubgroup.value = '';
-                if (els.operationModalOperation) els.operationModalOperation.value = '';
-                if (els.operationModalServiceType) els.operationModalServiceType.value = '';
-                if (els.operationModalResponsibleMatricula) els.operationModalResponsibleMatricula.value = '';
-                if (els.operationModalResponsibleName) els.operationModalResponsibleName.value = '';
-                if (els.operationModalObservation) els.operationModalObservation.value = '';
-                this.renderOperationProductsDraft();
-            },
-
-            resetPlanningForm() {
-                const els = App.elements.osPlanning;
-                App.state.osPlanningEditingId = null;
-                App.state.osPlanningSelectedPlots = new Set();
-                App.state.osPlanningCurrentItems = [];
-                App.state.osPlanningOperations = [];
-                App.state.osPlanningImportedHistoryCache = {};
-                this.resetOperationDraft();
-                if (els.farmSelect) els.farmSelect.value = '';
-                if (els.subgroupSelect) els.subgroupSelect.value = '';
-                if (els.operationSelect) els.operationSelect.value = '';
-                if (els.serviceTypeSelect) els.serviceTypeSelect.value = '';
-                if (els.programInput) els.programInput.value = '';
-                if (els.dateInput) els.dateInput.value = new Date().toISOString().split('T')[0];
-                if (els.responsibleMatricula) els.responsibleMatricula.value = '';
-                if (els.responsibleName) els.responsibleName.value = '';
-                if (els.modeSelect) els.modeSelect.value = 'RASCUNHO';
-                if (els.notes) els.notes.value = '';
-                if (els.talhaoSearch) els.talhaoSearch.value = '';
-                if (els.historyStatus) els.historyStatus.textContent = 'Selecione uma fazenda e os talhões para consultar o histórico.';
-                if (els.selectedCount) els.selectedCount.textContent = '0 talhões';
-                if (els.selectedArea) els.selectedArea.textContent = '0,00 ha';
-                if (els.summarySelected) els.summarySelected.textContent = '0';
-                if (els.summaryArea) els.summaryArea.textContent = '0,00 ha';
-                if (els.summaryReady) els.summaryReady.textContent = '0';
-                if (els.summaryTrusted) els.summaryTrusted.textContent = '0';
-                if (els.gridBody) els.gridBody.innerHTML = '<tr><td colspan="10" style="padding:18px; text-align:center; color:var(--color-text-light);">Selecione uma fazenda e talhões para montar o planejamento.</td></tr>';
-                if (els.operationsBody) els.operationsBody.innerHTML = '<tr><td colspan="7" style="padding:18px; text-align:center; color:var(--color-text-light);">Nenhuma operação adicionada.</td></tr>';
-                if (els.plotsList) els.plotsList.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Selecione uma fazenda para ver os talhões.</p>';
-                this.populateSubgroups();
-                this.populateServiceTypes();
-                this.renderPlotsList();
-                this.renderOperationsGrid();
-                this.refreshPlanningGrid();
-                if (App.state.osPlanningMap && App.state.osPlanningMap.getSource('os-planning-talhoes')) {
-                    App.state.osPlanningMap.getSource('os-planning-talhoes').setData({ type: 'FeatureCollection', features: [] });
-                }
-                if (App.state.osPlanningMap && App.state.osPlanningMap.getSource('os-planning-selected-talhoes')) {
-                    App.state.osPlanningMap.getSource('os-planning-selected-talhoes').setData({ type: 'FeatureCollection', features: [] });
-                }
-            },
-
-            setupEventListeners() {
-                const els = App.elements.osPlanning;
-                if (!els.farmSelect) return;
-                els.farmSelect.addEventListener('change', () => this.handleFarmChange());
-                els.subgroupSelect.addEventListener('change', () => this.handleSubgroupChange());
-                els.operationSelect.addEventListener('change', () => this.refreshPlanningGrid());
-                els.serviceTypeSelect.addEventListener('change', () => this.refreshPlanningGrid());
-                els.talhaoSearch.addEventListener('input', () => this.renderPlotsList());
-                els.addOperationBtn?.addEventListener('click', () => this.openOperationModal());
-                document.addEventListener('click', (e) => {
-                    const btn = e.target.closest && e.target.closest('#osPlanningAddOperationBtn');
-                    if (btn) this.openOperationModal();
-                });
-                els.operationModal?.addEventListener('click', (e) => { if (e.target === els.operationModal) this.closeOperationModal(); });
-                els.operationModalCloseBtn?.addEventListener('click', () => this.closeOperationModal());
-                els.operationModalCancelBtn?.addEventListener('click', () => this.closeOperationModal());
-                els.operationModalSaveBtn?.addEventListener('click', () => this.saveOperationDraft());
-                els.operationModalSubgroup?.addEventListener('change', () => this.populateOperationModalOperations());
-                els.operationModalResponsibleMatricula?.addEventListener('input', App.debounce((e) => this.lookupOperationResponsible(e.target.value), 300));
-                els.operationAddProductBtn?.addEventListener('click', () => this.addProductDraftRow());
-                els.btnCenterMap?.addEventListener('click', () => this.centerMapToFarm());
-                els.btnExpandMap?.addEventListener('click', () => this.openFullscreenMapModal());
-                els.btnSyncMap?.addEventListener('click', () => this.updateMapHighlight());
-                els.btnSelectAll?.addEventListener('click', () => this.toggleSelectAll());
-                els.fullscreenMapModal?.addEventListener('click', (e) => { if (e.target === els.fullscreenMapModal) this.closeFullscreenMapModal(); });
-                els.fullscreenMapCloseBtn?.addEventListener('click', () => this.closeFullscreenMapModal());
-                els.fullscreenMapCancelBtn?.addEventListener('click', () => this.closeFullscreenMapModal());
-                els.fullscreenMapConfirmBtn?.addEventListener('click', () => this.closeFullscreenMapModal());
-                els.fullscreenMapCenterBtn?.addEventListener('click', () => this.centerMapToFarm());
-                els.fullscreenMapSelectAllBtn?.addEventListener('click', () => this.toggleSelectAll());
-                els.fullscreenMapSyncBtn?.addEventListener('click', () => { this.updateMapHighlight(); this.centerMapToFarm(); });
-                els.btnRefresh?.addEventListener('click', async () => await this.confirmRefreshHistory());
-                els.btnLoadSaved?.addEventListener('click', async () => await this.openSavedPlansModal());
-                els.btnSaveDraft?.addEventListener('click', async () => await this.savePlanning('RASCUNHO'));
-                els.btnSave?.addEventListener('click', async () => await this.savePlanning('PLANEJADO'));
-                els.btnSaveReady?.addEventListener('click', async () => await this.confirmSaveReady());
-                els.btnGenerateOS?.addEventListener('click', async () => await this.confirmGenerateOSNow());
-                els.responsibleMatricula?.addEventListener('input', App.debounce((e) => this.lookupResponsible(e.target.value), 400));
-                els.secondaryTabs?.forEach(tab => tab.addEventListener('click', () => {
-                    const targetTab = tab.dataset.osPlanningTab || 'novo';
-                    if (targetTab === 'novo') this.switchSecondaryTab('novo');
-                    else this.openSecondaryPanelModal(targetTab);
-                }));
-                els.savedPanelFilterBtn?.addEventListener('click', () => this.renderSavedPlansPanel());
-                els.savedPanelSearch?.addEventListener('input', App.debounce(() => this.renderSavedPlansPanel(), 200));
-                els.savedPanelFarmFilter?.addEventListener('change', () => this.renderSavedPlansPanel());
-                els.savedPanelStatusFilter?.addEventListener('change', () => this.renderSavedPlansPanel());
-                els.savedPanelDateFilter?.addEventListener('change', () => this.renderSavedPlansPanel());
-                els.savedPanelBody?.addEventListener('click', async (e) => { const btn = e.target.closest('[data-plan-action]'); if (!btn) return; const planId = btn.dataset.planId; const action = btn.dataset.planAction; if (action === 'open') await this.openSavedPlanById(planId); else if (action === 'clone') await this.cloneSavedPlan(planId); else if (action === 'generate') await this.generateOSFromSavedPlan(planId); });
-                els.historyFarmFilter?.addEventListener('change', () => this.populateHistoryTalhaoFilter());
-                els.historyQueryBtn?.addEventListener('click', async () => await this.renderHistoryPanel());
-                els.savedModalCloseBtn?.addEventListener('click', () => this.closeActionModal('savedModal'));
-                els.savedRefreshBtn?.addEventListener('click', () => this.renderSavedPlansModal());
-                els.savedSearch?.addEventListener('input', App.debounce(() => this.renderSavedPlansModal(), 200));
-                els.savedFarmFilter?.addEventListener('change', () => this.renderSavedPlansModal());
-                els.savedStatusFilter?.addEventListener('change', () => this.renderSavedPlansModal());
-                els.savedDateFilter?.addEventListener('change', () => this.renderSavedPlansModal());
-                els.savedModal?.addEventListener('click', (e) => { if (e.target === els.savedModal) this.closeActionModal('savedModal'); });
-                els.historyModal?.addEventListener('click', (e) => { if (e.target === els.historyModal) this.closeActionModal('historyModal'); });
-                els.readyModal?.addEventListener('click', (e) => { if (e.target === els.readyModal) this.closeActionModal('readyModal'); });
-                els.generateModal?.addEventListener('click', (e) => { if (e.target === els.generateModal) this.closeActionModal('generateModal'); });
-                els.historyModalCloseBtn?.addEventListener('click', () => this.closeActionModal('historyModal'));
-                els.historyCancelBtn?.addEventListener('click', () => this.closeActionModal('historyModal'));
-                els.historyConfirmBtn?.addEventListener('click', async () => await this.executeRefreshHistory());
-                els.readyModalCloseBtn?.addEventListener('click', () => this.closeActionModal('readyModal'));
-                els.readyBackBtn?.addEventListener('click', () => this.closeActionModal('readyModal'));
-                els.readyConfirmBtn?.addEventListener('click', async () => await this.executeSaveReady());
-                els.generateModalCloseBtn?.addEventListener('click', () => this.closeActionModal('generateModal'));
-                els.generateBackBtn?.addEventListener('click', () => this.closeActionModal('generateModal'));
-                els.generateConfirmBtn?.addEventListener('click', async () => await this.executeGenerateOSNow());
-                els.savedModalBody?.addEventListener('click', async (e) => {
-                    const actionBtn = e.target.closest('[data-plan-action]');
-                    if (!actionBtn) return;
-                    const planId = actionBtn.dataset.planId;
-                    const action = actionBtn.dataset.planAction;
-                    if (action === 'open') {
-                        await this.openSavedPlanById(planId);
-                    } else if (action === 'clone') {
-                        await this.cloneSavedPlan(planId);
-                    }
-                });
-            },
-
-            populateFarmSelect() {
-                const select = App.elements.osPlanning.farmSelect;
-                if (!select) return;
-                const current = select.value;
-                select.innerHTML = '<option value="">Selecione...</option>';
-                (App.state.fazendas || []).slice().sort((a,b) => String(a.code).localeCompare(String(b.code), undefined, {numeric:true})).forEach(farm => {
-                    select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
-                });
-                select.value = current;
-            },
-
-            populateSubgroups() {
-                const select = App.elements.osPlanning.subgroupSelect;
-                if (!select) return;
-                const current = select.value;
-                const groups = [...new Set((App.state.operacoes || []).filter(x => x.ativo !== false).map(o => (o.grupo || '').trim()).filter(Boolean))].sort();
-                select.innerHTML = '<option value="">Selecione...</option>' + groups.map(g => `<option value="${g}">${g}</option>`).join('');
-                select.value = current;
-                this.handleSubgroupChange();
-            },
-
-            populateServiceTypes() {
-                const select = App.elements.osPlanning.serviceTypeSelect;
-                if (!select) return;
-                const current = select.value;
-                select.innerHTML = '<option value="">Selecione...</option>' + ((App.state.tipos_servico || []).filter(x => x.ativo !== false).map(t => `<option value="${t.id}">${t.descricao}</option>`).join(''));
-                select.value = current;
-            },
-
-            handleSubgroupChange() {
-                const group = App.elements.osPlanning.subgroupSelect.value;
-                const select = App.elements.osPlanning.operationSelect;
-                const current = select.value;
-                let ops = (App.state.operacoes || []).filter(x => x.ativo !== false);
-                if (group) ops = ops.filter(o => (o.grupo || '').trim() === group);
-                select.innerHTML = '<option value="">Selecione...</option>' + ops.map(o => `<option value="${o.id}">${o.codigo_externo ? o.codigo_externo + ' - ' : ''}${o.nome}</option>`).join('');
-                if ([...select.options].some(op => op.value === current)) select.value = current;
-                this.refreshPlanningGrid();
-            },
-
-            lookupResponsible(matricula) {
-                const nameInput = App.elements.osPlanning.responsibleName;
-                if (!nameInput) return;
-                if (!matricula) {
-                    nameInput.value = '';
-                    return;
-                }
-                const person = (App.state.personnel || []).find(p => String(p.matricula) === String(matricula));
-                nameInput.value = person ? person.name : 'Não encontrado';
-            },
-
-            syncHiddenDefaultsFromOperations() {
-                const els = App.elements.osPlanning;
-                const firstOperation = (App.state.osPlanningOperations || [])[0] || null;
-                if (!firstOperation) {
-                    if (els.subgroupSelect) els.subgroupSelect.value = '';
-                    if (els.operationSelect) els.operationSelect.value = '';
-                    if (els.serviceTypeSelect) els.serviceTypeSelect.value = '';
-                    if (els.responsibleMatricula) els.responsibleMatricula.value = '';
-                    if (els.responsibleName) els.responsibleName.value = '';
-                    return;
-                }
-                if (els.subgroupSelect) els.subgroupSelect.value = firstOperation.subgrupo_nome || '';
-                if (els.operationSelect) {
-                    this.handleSubgroupChange();
-                    els.operationSelect.value = firstOperation.operacao_id || '';
-                }
-                if (els.serviceTypeSelect) els.serviceTypeSelect.value = firstOperation.tipo_servico_id || '';
-                if (els.responsibleMatricula) els.responsibleMatricula.value = firstOperation.responsavel_matricula || '';
-                if (els.responsibleName) els.responsibleName.value = firstOperation.responsavel_nome || '';
-            },
-
-            populateSavedFarmFilter() {
-                const select = App.elements.osPlanning.savedFarmFilter;
-                if (!select) return;
-                const current = select.value;
-                const farms = [...new Set((App.state.osPlanningLoadedPlans || []).map(plan => plan.fazenda_nome).filter(Boolean))].sort();
-                select.innerHTML = '<option value="">Todas</option>' + farms.map(name => `<option value="${name}">${name}</option>`).join('');
-                if ([...select.options].some(opt => opt.value === current)) select.value = current;
-            },
-
-            openActionModal(key) {
-                const modal = App.elements.osPlanning[key];
-                if (!modal) return;
-                document.body.classList.add('pos-modal-open');
-                modal.classList.add('show');
-                const dialog = modal.querySelector('.pos-action-modal');
-                if (dialog) dialog.scrollTop = 0;
-            },
-
-            closeActionModal(key) {
-                const modal = App.elements.osPlanning[key];
-                if (modal) modal.classList.remove('show');
-                const anyOpen = document.querySelector('.pos-action-overlay.show');
-                if (!anyOpen) document.body.classList.remove('pos-modal-open');
-            },
-
-            showActionToast(message) {
-                const toast = App.elements.osPlanning.actionToast;
-                if (!toast) {
-                    App.ui.showAlert(message, 'success');
-                    return;
-                }
-                toast.textContent = message;
-                toast.classList.add('show');
-                clearTimeout(this._toastTimer);
-                this._toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
-            },
-
-            switchSecondaryTab(tab) {
-                const els = App.elements.osPlanning;
-                if (tab !== 'novo') {
-                    this.openSecondaryPanelModal(tab);
-                    return;
-                }
-                this.closeSecondaryPanelModal();
-                App.state.osPlanningActiveTab = 'novo';
-                els.secondaryTabs?.forEach(btn => btn.classList.toggle('active', btn.dataset.osPlanningTab === 'novo'));
-                [els.panelSalvos, els.panelAlertas, els.panelPendencias, els.panelHistorico].forEach(panel => panel?.classList.remove('active'));
-            },
-
-            getSavedPanelFilters() {
-                const els = App.elements.osPlanning;
-                return {
-                    term: String(els.savedPanelSearch?.value || '').trim().toLowerCase(),
-                    farm: String(els.savedPanelFarmFilter?.value || ''),
-                    status: String(els.savedPanelStatusFilter?.value || ''),
-                    date: String(els.savedPanelDateFilter?.value || ''),
-                };
-            },
-
-            populateSavedPanelFarmFilter() {
-                const select = App.elements.osPlanning.savedPanelFarmFilter;
-                if (!select) return;
-                const current = select.value;
-                const farms = [...new Set((App.state.osPlanningLoadedPlans || []).map(plan => plan.fazenda_nome).filter(Boolean))].sort();
-                select.innerHTML = '<option value="">Todas as fazendas</option>' + farms.map(name => `<option value="${name}">${name}</option>`).join('');
-                if ([...select.options].some(opt => opt.value === current)) select.value = current;
-            },
-
-            getFilteredSavedPlansForPanel() {
-                const { term, farm, status, date } = this.getSavedPanelFilters();
-                return (App.state.osPlanningLoadedPlans || []).filter(plan => {
-                    const matchesTerm = !term || [plan.fazenda_nome, plan.operacao_nome, plan.responsavel_nome, plan.programa_nome, plan.subgrupo_nome]
-                        .filter(Boolean).some(value => String(value).toLowerCase().includes(term));
-                    const matchesFarm = !farm || String(plan.fazenda_nome || '') === farm;
-                    const matchesStatus = !status || String(plan.status || '') === status;
-                    const matchesDate = !date || String(plan.data_planejada || '') >= date;
-                    return matchesTerm && matchesFarm && matchesStatus && matchesDate;
-                });
-            },
-
-            renderSavedPlansPanel() {
-                const els = App.elements.osPlanning;
-                const body = els.savedPanelBody;
-                if (!body) return;
-                this.populateSavedPanelFarmFilter();
-                const plans = this.getFilteredSavedPlansForPanel();
-                const allPlans = App.state.osPlanningLoadedPlans || [];
-                if (els.savedCountTotal) els.savedCountTotal.textContent = String(allPlans.length);
-                if (els.savedCountDraft) els.savedCountDraft.textContent = String(allPlans.filter(p => String(p.status) === 'RASCUNHO').length);
-                if (els.savedCountPlanned) els.savedCountPlanned.textContent = String(allPlans.filter(p => String(p.status) === 'PLANEJADO').length);
-                if (els.savedCountReady) els.savedCountReady.textContent = String(allPlans.filter(p => String(p.status) === 'PRONTO_PARA_OS').length);
-                if (!plans.length) {
-                    body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--color-text-light); padding:24px;">Nenhum planejamento salvo encontrado com os filtros atuais.</td></tr>';
-                    return;
-                }
-                body.innerHTML = plans.map(plan => {
-                    const rawStatus = String(plan.status || 'RASCUNHO');
-                    const label = rawStatus.replaceAll('_', ' ');
-                    const statusClass = rawStatus === 'RASCUNHO' ? 'draft' : (rawStatus === 'PRONTO_PARA_OS' ? 'info' : (rawStatus === 'OS_GERADA' ? 'warn' : 'ok'));
-                    return `<tr>
-                        <td>${plan.data_planejada || '-'}</td>
-                        <td>${plan.fazenda_nome || '-'}</td>
-                        <td>${plan.operacao_nome || '-'}</td>
-                        <td>${plan.qtde_talhoes || (plan.itens || []).length || 0}</td>
-                        <td><span class="pos-status ${statusClass}">${label}</span></td>
-                        <td>${plan.responsavel_nome || '-'}</td>
-                        <td style="white-space:nowrap;">
-                            <button type="button" class="pos-action-mini-btn" data-plan-action="open" data-plan-id="${plan.id}">Abrir</button>
-                            <button type="button" class="pos-action-mini-btn" data-plan-action="clone" data-plan-id="${plan.id}" style="margin-left:8px;">Clonar</button>
-                            ${rawStatus === 'PRONTO_PARA_OS' ? `<button type="button" class="pos-action-mini-btn" data-plan-action="generate" data-plan-id="${plan.id}" style="margin-left:8px;">Gerar O.S.</button>` : ''}
-                        </td>
-                    </tr>`;
-                }).join('');
-            },
-
-            getAllPlannedItems() {
-                return (App.state.osPlanningLoadedPlans || []).flatMap(plan => (plan.itens || []).map(item => ({ ...item, __plan: plan })));
-            },
-
-            getItemDayDiff(item) {
-                const date = item?.data_planejada || item?.__plan?.data_planejada;
-                if (!date) return null;
-                const today = new Date();
-                today.setHours(0,0,0,0);
-                const target = new Date(date + 'T00:00:00');
-                return Math.round((target - today) / 86400000);
-            },
-
-            renderAlertsPanel() {
-                const els = App.elements.osPlanning;
-                const items = this.getAllPlannedItems().filter(item => !['OS_GERADA','EXECUTADO','CONCLUIDO','CANCELADO'].includes(String(item.status_item || item.__plan?.status || '')));
-                const today = [];
-                const soon = [];
-                const late = [];
-                const ready = [];
-                items.forEach(item => {
-                    const diff = this.getItemDayDiff(item);
-                    if (item.status_item === 'PRONTO_PARA_OS' || item.__plan?.status === 'PRONTO_PARA_OS') ready.push(item);
-                    if (diff === 0) today.push(item);
-                    else if (diff !== null && diff > 0 && diff <= 3) soon.push(item);
-                    else if (diff !== null && diff < 0) late.push(item);
-                });
-                if (els.alertToday) els.alertToday.textContent = String(today.length);
-                if (els.alertSoon) els.alertSoon.textContent = String(soon.length);
-                if (els.alertLate) els.alertLate.textContent = String(late.length);
-                if (els.alertReady) els.alertReady.textContent = String(ready.length);
-                const prioritized = [
-                    ...today.map(item => ({ item, badge: 'VENCE HOJE', cls: 'warn' })),
-                    ...soon.map(item => ({ item, badge: 'PRÓXIMO PRAZO', cls: 'info' })),
-                    ...late.map(item => ({ item, badge: 'ATRASADO', cls: 'warn' })),
-                    ...ready.filter(entry => !today.includes(entry) && !soon.includes(entry) && !late.includes(entry)).map(item => ({ item, badge: 'PRONTO P/ O.S.', cls: 'ok' })),
-                ].slice(0, 12);
-                if (!els.alertsList) return;
-                if (!prioritized.length) {
-                    els.alertsList.innerHTML = '<div class="pos-empty">Nenhum alerta operacional encontrado no momento.</div>';
-                    return;
-                }
-                els.alertsList.innerHTML = prioritized.map(({ item, badge, cls }) => {
-                    const plan = item.__plan || {};
-                    return `<div class="pos-aux-list-card">
-                        <div class="pos-aux-list-top">
-                            <div><strong>${plan.fazenda_nome || '-'} • ${item.talhao_nome || '-'}</strong><div style="color:var(--color-text-light);">${plan.programa_nome || plan.operacao_nome || '-'} • data planejada ${item.data_planejada || plan.data_planejada || '-'}</div></div>
-                            <span class="pos-status ${cls}">${badge}</span>
-                        </div>
-                        <div class="pos-aux-actions">
-                            <button type="button" class="pos-action-mini-btn" data-plan-action="open" data-plan-id="${plan.id}">Abrir planejamento</button>
-                            <button type="button" class="pos-action-mini-btn" data-alert-action="refresh-current">Atualizar histórico</button>
-                            ${(item.status_item === 'PRONTO_PARA_OS' || plan.status === 'PRONTO_PARA_OS') ? `<button type="button" class="pos-action-mini-btn" data-plan-action="generate" data-plan-id="${plan.id}">Gerar O.S.</button>` : ''}
-                        </div>
-                    </div>`;
-                }).join('');
-                els.alertsList.querySelectorAll('[data-plan-action="open"]').forEach(btn => btn.addEventListener('click', async () => await this.openSavedPlanById(btn.dataset.planId)));
-                els.alertsList.querySelectorAll('[data-plan-action="generate"]').forEach(btn => btn.addEventListener('click', async () => await this.generateOSFromSavedPlan(btn.dataset.planId)));
-                els.alertsList.querySelectorAll('[data-alert-action="refresh-current"]').forEach(btn => btn.addEventListener('click', async () => await this.confirmRefreshHistory()));
-            },
-
-            renderPendenciasPanel() {
-                const els = App.elements.osPlanning;
-                const items = this.getAllPlannedItems();
-                const noHistory = items.filter(item => !item.trusted || item.status_item === 'REVISAR');
-                const ambiguous = items.filter(item => String(item.observacao_item || '').toLowerCase().includes('amb') || String(item.observacao_item || '').toLowerCase().includes('não identificado'));
-                const divergent = items.filter(item => item.status_item === 'DIVERGENTE' || String(item.observacao_item || '').toLowerCase().includes('diverg'));
-                const blocked = items.filter(item => item.status_item === 'BLOQUEADO');
-                if (els.pendingNoHistory) els.pendingNoHistory.textContent = String(noHistory.length);
-                if (els.pendingAmbiguous) els.pendingAmbiguous.textContent = String(ambiguous.length);
-                if (els.pendingDivergent) els.pendingDivergent.textContent = String(divergent.length);
-                if (els.pendingBlocked) els.pendingBlocked.textContent = String(blocked.length);
-                const combined = [...new Set([...noHistory, ...ambiguous, ...divergent, ...blocked])].slice(0, 20);
-                if (!els.pendenciasList) return;
-                if (!combined.length) {
-                    els.pendenciasList.innerHTML = '<div class="pos-empty">Nenhuma pendência encontrada. Os itens atuais estão consistentes.</div>';
-                    return;
-                }
-                els.pendenciasList.innerHTML = combined.map(item => {
-                    const plan = item.__plan || {};
-                    const note = item.observacao_item || 'Revisão necessária';
-                    const badge = item.status_item === 'DIVERGENTE' ? 'DIVERGENTE' : (!item.trusted ? 'REVISAR' : 'PENDENTE');
-                    const cls = item.status_item === 'DIVERGENTE' ? 'warn' : 'info';
-                    return `<div class="pos-aux-list-card">
-                        <div class="pos-aux-list-top">
-                            <div><strong>${item.talhao_nome || '-'} • ${plan.fazenda_nome || '-'}</strong><div style="color:var(--color-text-light);">${note}</div></div>
-                            <span class="pos-status ${cls}">${badge}</span>
-                        </div>
-                        <div class="pos-aux-actions">
-                            <button type="button" class="pos-action-mini-btn" data-plan-action="open" data-plan-id="${plan.id}">Abrir item</button>
-                            <button type="button" class="pos-action-mini-btn" data-alert-action="refresh-current">Recalcular</button>
-                        </div>
-                    </div>`;
-                }).join('');
-                els.pendenciasList.querySelectorAll('[data-plan-action="open"]').forEach(btn => btn.addEventListener('click', async () => await this.openSavedPlanById(btn.dataset.planId)));
-                els.pendenciasList.querySelectorAll('[data-alert-action="refresh-current"]').forEach(btn => btn.addEventListener('click', async () => await this.confirmRefreshHistory()));
-            },
-
-            populateHistoryFilters() {
-                const els = App.elements.osPlanning;
-                const farmSelect = els.historyFarmFilter;
-                if (!farmSelect) return;
-                const currentFarm = farmSelect.value;
-                const farms = App.state.fazendas || [];
-                farmSelect.innerHTML = '<option value="">Selecione a fazenda</option>' + farms.map(f => `<option value="${f.id}">${f.code} - ${f.name}</option>`).join('');
-                if ([...farmSelect.options].some(opt => opt.value === currentFarm)) farmSelect.value = currentFarm;
-                const currentProgram = els.historyProgramFilter?.value || '';
-                const programs = [...new Set((App.state.osPlanningLoadedPlans || []).map(p => p.programa_nome).filter(Boolean))].sort();
-                if (els.historyProgramFilter) {
-                    els.historyProgramFilter.innerHTML = '<option value="">Todos os programas</option>' + programs.map(p => `<option value="${p}">${p}</option>`).join('');
-                    if ([...els.historyProgramFilter.options].some(opt => opt.value === currentProgram)) els.historyProgramFilter.value = currentProgram;
-                }
-                this.populateHistoryTalhaoFilter();
-            },
-
-            populateHistoryTalhaoFilter() {
-                const els = App.elements.osPlanning;
-                const farm = (App.state.fazendas || []).find(f => String(f.id) === String(els.historyFarmFilter?.value || ''));
-                const currentTalhao = els.historyTalhaoFilter?.value || '';
-                const talhoes = Array.isArray(farm?.talhoes) ? [...farm.talhoes].sort((a,b) => String(a.name).localeCompare(String(b.name), undefined, { numeric:true })) : [];
-                if (els.historyTalhaoFilter) {
-                    els.historyTalhaoFilter.innerHTML = '<option value="">Todos os talhões</option>' + talhoes.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
-                    if ([...els.historyTalhaoFilter.options].some(opt => opt.value === currentTalhao)) els.historyTalhaoFilter.value = currentTalhao;
-                }
-            },
-
-            async renderHistoryPanel() {
-                const els = App.elements.osPlanning;
-                if (!els.historyTimeline) return;
-                this.populateHistoryFilters();
-                const farm = (App.state.fazendas || []).find(f => String(f.id) === String(els.historyFarmFilter?.value || '')) || this.getCurrentFarm();
-                const talhao = String(els.historyTalhaoFilter?.value || '');
-                const program = String(els.historyProgramFilter?.value || '');
-                const rangeDays = Number(els.historyRangeFilter?.value || 90);
-                let rows = [];
-                if (farm) rows = await this.loadImportedHistoryForFarm(farm);
-                const minDate = new Date();
-                minDate.setHours(0,0,0,0);
-                minDate.setDate(minDate.getDate() - rangeDays);
-                const importedEvents = rows.filter(row => {
-                    const rowDate = row.data ? new Date(`${row.data}T00:00:00`) : null;
-                    const withinRange = !rowDate || rowDate >= minDate;
-                    const matchesTalhao = !talhao || String(row.talhao || '') === talhao;
-                    const matchesProgram = !program || [row.operacao, row.produto].filter(Boolean).some(value => String(value).toLowerCase().includes(program.toLowerCase()));
-                    return withinRange && matchesTalhao && matchesProgram;
-                }).map(row => ({
-                    sortDate: row.data || row.created_at || '',
-                    title: `${row.data || '-'} • Apontamento importado`,
-                    desc: `${row.operacao || row.produto || 'Operação não identificada'} • talhão ${row.talhao || '-'} • origem Motor Universal`,
-                }));
-                const planningEvents = (App.state.osPlanningLoadedPlans || []).filter(plan => {
-                    const planDate = plan.data_planejada ? new Date(`${plan.data_planejada}T00:00:00`) : null;
-                    const withinRange = !planDate || planDate >= minDate;
-                    const matchesFarm = !farm || String(plan.fazenda_id || '') === String(farm.id);
-                    const matchesProgram = !program || String(plan.programa_nome || '').toLowerCase().includes(program.toLowerCase());
-                    const matchesTalhao = !talhao || (plan.itens || []).some(item => String(item.talhao_nome || '') === talhao);
-                    return withinRange && matchesFarm && matchesProgram && matchesTalhao;
-                }).flatMap(plan => [{
-                    sortDate: plan.data_planejada || plan.created_at || '',
-                    title: `${plan.data_planejada || '-'} • Planejamento salvo`,
-                    desc: `${plan.programa_nome || plan.operacao_nome || '-'} • ${plan.qtde_talhoes || (plan.itens || []).length || 0} talhões • status ${String(plan.status || '').replaceAll('_',' ')}`,
-                }]);
-                const osEvents = (App.state.ordens_servico || []).filter(os => {
-                    const osDate = os.data ? new Date(`${os.data}T00:00:00`) : null;
-                    const withinRange = !osDate || osDate >= minDate;
-                    const matchesFarm = !farm || String(os.fazenda_id || '') === String(farm.id);
-                    const matchesProgram = !program || String(os.programa_nome || os.operacao_nome || '').toLowerCase().includes(program.toLowerCase());
-                    const matchesTalhao = !talhao || (os.itens || []).some(item => String(item.talhao_nome || item.talhao_id || '') === talhao);
-                    return withinRange && matchesFarm && matchesProgram && matchesTalhao;
-                }).map(os => ({
-                    sortDate: os.data || os.created_at || '',
-                    title: `${os.data || '-'} • O.S. ${os.os_numero || ''}`,
-                    desc: `${os.operacao_nome || '-'} • status ${os.status || '-'} • ${os.total_area_ha || 0} ha`,
-                }));
-                const events = [...importedEvents, ...planningEvents, ...osEvents].sort((a,b) => String(b.sortDate).localeCompare(String(a.sortDate)));
-                if (!events.length) {
-                    els.historyTimeline.innerHTML = '<div class="pos-empty">Nenhum evento encontrado com os filtros atuais.</div>';
-                    return;
-                }
-                els.historyTimeline.innerHTML = events.slice(0, 30).map(event => `<div class="pos-history-event"><strong>${event.title}</strong><div style="color:var(--color-text-light);">${event.desc}</div></div>`).join('');
-            },
-
-            renderAuxPanels() {
-                this.renderSavedPlansPanel();
-                this.renderAlertsPanel();
-                this.renderPendenciasPanel();
-                this.renderHistoryPanel();
-            },
-
-            getFilteredSavedPlans() {
-                const els = App.elements.osPlanning;
-                const term = String(els.savedSearch?.value || '').trim().toLowerCase();
-                const farm = String(els.savedFarmFilter?.value || '');
-                const status = String(els.savedStatusFilter?.value || '');
-                const date = String(els.savedDateFilter?.value || '');
-                return (App.state.osPlanningLoadedPlans || []).filter(plan => {
-                    const matchesTerm = !term || [plan.fazenda_nome, plan.operacao_nome, plan.responsavel_nome, plan.programa_nome, plan.subgrupo_nome]
-                        .filter(Boolean)
-                        .some(value => String(value).toLowerCase().includes(term));
-                    const matchesFarm = !farm || String(plan.fazenda_nome || '') === farm;
-                    const matchesStatus = !status || String(plan.status || '') === status;
-                    const matchesDate = !date || String(plan.data_planejada || '') >= date;
-                    return matchesTerm && matchesFarm && matchesStatus && matchesDate;
-                });
-            },
-
-            renderSavedPlansModal() {
-                const body = App.elements.osPlanning.savedModalBody;
-                if (!body) return;
-                const plans = this.getFilteredSavedPlans();
-                if (!plans.length) {
-                    body.innerHTML = '<tr><td colspan="7" style="padding:26px; text-align:center; color:var(--color-text-light);">Nenhum planejamento encontrado com os filtros atuais.</td></tr>';
-                    return;
-                }
-                body.innerHTML = plans.map(plan => {
-                    const rawStatus = String(plan.status || 'RASCUNHO');
-                    const statusLabel = rawStatus.replaceAll('_', ' ');
-                    const statusClass = rawStatus === 'RASCUNHO'
-                        ? 'is-draft'
-                        : rawStatus === 'PRONTO_PARA_OS'
-                            ? 'is-ready'
-                            : rawStatus === 'OS_GERADA'
-                                ? 'is-generated'
-                                : 'is-planned';
-                    return `
-                    <tr>
-                        <td>${plan.data_planejada || '-'}</td>
-                        <td>${plan.fazenda_nome || '-'}</td>
-                        <td>${plan.operacao_nome || '-'}</td>
-                        <td>${plan.qtde_talhoes || (plan.itens || []).length || 0}</td>
-                        <td><span class="pos-action-status ${statusClass}">${statusLabel}</span></td>
-                        <td>${plan.responsavel_nome || '-'}</td>
-                        <td style="text-align:right; white-space:nowrap;">
-                            <button type="button" class="pos-action-mini-btn" data-plan-action="open" data-plan-id="${plan.id}">Abrir</button>
-                            <button type="button" class="pos-action-mini-btn" data-plan-action="clone" data-plan-id="${plan.id}" style="margin-left:8px;">Clonar</button>
-                        </td>
-                    </tr>
-                `}).join('');
-            },
-
-            async openSavedPlansModal() {
-                await this.loadSavedPlans();
-                this.populateSavedFarmFilter();
-                this.renderSavedPlansModal();
-                this.openActionModal('savedModal');
-            },
-
-            closeSavedPlansModal() {
-                this.closeActionModal('savedModal');
-            },
-
-            applyPlanningToForm(plan, { preserveId = false } = {}) {
-                App.elements.osPlanning.farmSelect.value = plan.fazenda_id || '';
-                this.populateSubgroups();
-                App.elements.osPlanning.subgroupSelect.value = plan.subgrupo_nome || '';
-                this.handleSubgroupChange();
-                App.elements.osPlanning.operationSelect.value = plan.operacao_id || '';
-                App.elements.osPlanning.serviceTypeSelect.value = plan.tipo_servico_id || '';
-                App.elements.osPlanning.programInput.value = plan.programa_nome || '';
-                App.elements.osPlanning.dateInput.value = plan.data_planejada || new Date().toISOString().split('T')[0];
-                App.elements.osPlanning.responsibleMatricula.value = plan.responsavel_matricula || '';
-                App.elements.osPlanning.responsibleName.value = plan.responsavel_nome || '';
-                App.elements.osPlanning.notes.value = plan.observacoes || '';
-                App.elements.osPlanning.modeSelect.value = (plan.status === 'PRONTO_PARA_OS' || plan.modo_fechamento === 'PRONTO_PARA_OS') ? 'PRONTO_PARA_OS' : (plan.status || plan.modo_fechamento || 'PLANEJADO');
-                App.state.osPlanningSelectedPlots = new Set((plan.itens || []).map(item => item.talhao_id).filter(Boolean));
-                this.renderPlotsList();
-                this.filterMapToCurrentFarm();
-                this.centerMapToFarm();
-                this.updateMapHighlight();
-                App.state.osPlanningCurrentItems = (plan.itens || []).map(item => ({ ...item }));
-                this.renderGrid();
-                this.updateSummary();
-                this.populateHistoryFilters();
-                this.renderAuxPanels();
-                if (!preserveId) delete App.state.osPlanningEditingId;
-            },
-
-            async openSavedPlanById(planId) {
-                const plan = (App.state.osPlanningLoadedPlans || []).find(item => String(item.id) === String(planId));
-                if (!plan) {
-                    App.ui.showAlert('Planejamento não encontrado.', 'warning');
-                    return;
-                }
-                this.applyPlanningToForm(plan, { preserveId: true });
-                App.state.osPlanningEditingId = plan.id;
-                this.closeSavedPlansModal();
-                this.switchSecondaryTab('novo');
-                this.showActionToast('Planejamento carregado na tela principal.');
-                this.renderAuxPanels();
-            },
-
-            async cloneSavedPlan(planId) {
-                const plan = (App.state.osPlanningLoadedPlans || []).find(item => String(item.id) === String(planId));
-                if (!plan) {
-                    App.ui.showAlert('Planejamento não encontrado para clonagem.', 'warning');
-                    return;
-                }
-                const clone = { ...plan, id: undefined, status: 'RASCUNHO', modo_fechamento: 'RASCUNHO', data_planejada: new Date().toISOString().split('T')[0] };
-                this.applyPlanningToForm(clone);
-                this.closeSavedPlansModal();
-                this.switchSecondaryTab('novo');
-                this.showActionToast('Planejamento clonado para edição como rascunho.');
-                this.renderAuxPanels();
-            },
-
-            async generateOSFromSavedPlan(planId) {
-                const plan = (App.state.osPlanningLoadedPlans || []).find(item => String(item.id) === String(planId));
-                if (!plan) {
-                    App.ui.showAlert('Planejamento não encontrado para gerar O.S.', 'warning');
-                    return;
-                }
-                this.applyPlanningToForm(plan, { preserveId: true });
-                App.state.osPlanningEditingId = plan.id;
-                this.switchSecondaryTab('novo');
-                await this.generateOSNow();
-                await this.loadSavedPlans();
-                this.renderAuxPanels();
-            },
-
-            async confirmRefreshHistory() {
-                const farm = this.getCurrentFarm();
-                const items = App.state.osPlanningCurrentItems || [];
-                if (App.elements.osPlanning.historyFarmText) App.elements.osPlanning.historyFarmText.textContent = farm?.name || '-';
-                if (App.elements.osPlanning.historySelectedText) App.elements.osPlanning.historySelectedText.textContent = String(App.state.osPlanningSelectedPlots?.size || 0);
-                if (App.elements.osPlanning.historyReviewText) App.elements.osPlanning.historyReviewText.textContent = String(items.filter(item => item.status_item === 'REVISAR').length);
-                this.openActionModal('historyModal');
-            },
-
-            async executeRefreshHistory() {
-                this.closeActionModal('historyModal');
-                await this.refreshPlanningGrid();
-                this.renderAuxPanels();
-                this.showActionToast('Histórico atualizado e grade recalculada.');
-            },
-
-            async confirmSaveReady() {
-                this.openActionModal('readyModal');
-            },
-
-            async executeSaveReady() {
-                this.closeActionModal('readyModal');
-                await this.savePlanning('PRONTO_PARA_OS');
-                this.renderAuxPanels();
-            },
-
-            async confirmGenerateOSNow() {
-                this.openActionModal('generateModal');
-            },
-
-            async executeGenerateOSNow() {
-                this.closeActionModal('generateModal');
-                await this.generateOSNow();
-                this.renderAuxPanels();
-            },
-
-            handleFarmChange() {
-                App.state.osPlanningSelectedPlots.clear();
-                App.state.osPlanningCurrentItems = [];
-                this.renderPlotsList();
-                this.filterMapToCurrentFarm();
-                this.centerMapToFarm();
-                this.renderGrid();
-                this.updateSummary();
-            },
-
-            getCurrentFarm() {
-                const farmId = App.elements.osPlanning.farmSelect.value;
-                return (App.state.fazendas || []).find(f => String(f.id) === String(farmId));
-            },
-
-            renderPlotsList() {
-                const els = App.elements.osPlanning;
-                const list = els.plotsList;
-                const farm = this.getCurrentFarm();
-                if (!farm) {
-                    list.innerHTML = '<p style="padding:18px; color:var(--color-text-light); text-align:center;">Selecione uma fazenda para listar os talhões.</p>';
-                    return;
-                }
-                let talhoes = Array.isArray(farm.talhoes) ? [...farm.talhoes] : [];
-                const term = (els.talhaoSearch.value || '').trim().toLowerCase();
-                if (term) {
-                    talhoes = talhoes.filter(t => String(t.name || '').toLowerCase().includes(term) || String(t.id || '').toLowerCase().includes(term));
-                }
-                talhoes.sort((a,b) => String(a.name).localeCompare(String(b.name), undefined, {numeric:true}));
-                if (!talhoes.length) {
-                    list.innerHTML = '<p style="padding:18px; color:var(--color-text-light); text-align:center;">Nenhum talhão encontrado.</p>';
-                    return;
-                }
-                list.innerHTML = talhoes.map(t => {
-                    const checked = App.state.osPlanningSelectedPlots.has(t.id) ? 'checked' : '';
-                    const selected = App.state.osPlanningSelectedPlots.has(t.id) ? 'selected' : '';
-                    return `<label class="pos-talhao-item ${selected}" for="osplanning-plot-${t.id}"><input ${checked} id="osplanning-plot-${t.id}" type="checkbox" data-id="${t.id}"><div><strong>${t.name} • ${(Number(t.area)||0).toFixed(1)} ha</strong><small>${t.variedade ? `Variedade: ${t.variedade}` : 'Clique para planejar esse talhão'}</small></div></label>`;
-                }).join('');
-                list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                    cb.addEventListener('change', e => {
-                        const talhao = talhoes.find(t => String(t.id) === String(e.target.dataset.id));
-                        if (talhao) this.togglePlotSelectionFromList(talhao, e.target.checked);
-                    });
-                });
-            },
-
-            toggleSelectAll() {
-                const farm = this.getCurrentFarm();
-                if (!farm) return;
-                const allSelected = farm.talhoes?.length && farm.talhoes.every(t => App.state.osPlanningSelectedPlots.has(t.id));
-                (farm.talhoes || []).forEach(t => {
-                    if (allSelected) App.state.osPlanningSelectedPlots.delete(t.id); else App.state.osPlanningSelectedPlots.add(t.id);
-                });
-                this.renderPlotsList();
-                this.updateMapHighlight();
-                this.refreshPlanningGrid();
-            },
-
-            initMap() {
-                if (App.state.osPlanningMap) {
-                    setTimeout(() => App.state.osPlanningMap.resize(), 200);
-                    this.loadShapes();
-                    return;
-                }
-                const container = App.elements.osPlanning.mapContainer;
-                if (!container || typeof mapboxgl === 'undefined') return;
-                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
-                App.state.osPlanningMap = new mapboxgl.Map({
-                    container,
-                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
-                    center: [-48.45, -21.17],
-                    zoom: 10,
-                    attributionControl: false,
-                });
-                const map = App.state.osPlanningMap;
-                map.on('load', () => {
-                    this.loadShapes();
-                    this.filterMapToCurrentFarm();
-                    this.centerMapToFarm();
-                });
-                map.on('click', 'osplanning-talhoes-layer', (e) => {
-                    if (!e.features?.length) return;
-                    this.togglePlotSelectionFromMap(e.features[0]);
-                });
-                let hovered = null;
-                map.on('mousemove', 'osplanning-talhoes-layer', (e) => {
-                    map.getCanvas().style.cursor = 'pointer';
-                    if (e.features?.length) {
-                        if (hovered !== null) map.setFeatureState({ source: 'osplanning-talhoes-source', id: hovered }, { hover: false });
-                        hovered = e.features[0].id;
-                        map.setFeatureState({ source: 'osplanning-talhoes-source', id: hovered }, { hover: true });
-                    }
-                });
-                map.on('mouseleave', 'osplanning-talhoes-layer', () => {
-                    map.getCanvas().style.cursor = '';
-                    if (hovered !== null) map.setFeatureState({ source: 'osplanning-talhoes-source', id: hovered }, { hover: false });
-                    hovered = null;
-                });
-            },
-
-            loadShapes() {
-                const map = App.state.osPlanningMap;
-                if (!map || !App.state.geoJsonData) return;
-                const sourceId = 'osplanning-talhoes-source';
-                if (map.getSource(sourceId)) {
-                    map.getSource(sourceId).setData(App.state.geoJsonData);
-                } else {
-                    map.addSource(sourceId, { type: 'geojson', data: App.state.geoJsonData, generateId: true });
-                }
-                if (!map.getLayer('osplanning-talhoes-layer')) {
-                    map.addLayer({
-                        id: 'osplanning-talhoes-layer',
-                        type: 'fill',
-                        source: sourceId,
-                        paint: {
-                            'fill-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], '#2e7d32',
-                                ['boolean', ['feature-state', 'hover'], false], '#607D8B',
-                                '#1C1C1C'
-                            ],
-                            'fill-opacity': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], 0.88,
-                                ['boolean', ['feature-state', 'hover'], false], 0.78,
-                                0.62
-                            ]
-                        }
-                    });
-                    map.addLayer({
-                        id: 'osplanning-talhoes-border-layer',
-                        type: 'line',
-                        source: sourceId,
-                        paint: {
-                            'line-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], '#00ffff',
-                                '#FFFFFF'
-                            ],
-                            'line-width': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], 3,
-                                1.4
-                            ]
-                        }
-                    });
-                    map.addLayer({
-                        id: 'osplanning-talhoes-labels',
-                        type: 'symbol',
-                        source: sourceId,
-                        minzoom: 10,
-                        layout: {
-                            'symbol-placement': 'point',
-                            'text-field': ['upcase', ['get', 'AGV_TALHAO']],
-                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                            'text-size': 12,
-                            'text-ignore-placement': true,
-                            'text-allow-overlap': true,
-                        },
-                        paint: {
-                            'text-color': '#FFFFFF',
-                            'text-halo-color': 'rgba(0,0,0,.95)',
-                            'text-halo-width': 1.8,
-                        }
-                    });
-                }
-                this.updateMapHighlight();
-            },
-
-            filterMapToCurrentFarm() {
-                const map = App.state.osPlanningMap;
-                const farm = this.getCurrentFarm();
-                if (!map || !map.getLayer('osplanning-talhoes-layer')) return;
-                const filter = farm ? ['==', ['get', 'AGV_FUNDO'], String(farm.code)] : null;
-                map.setFilter('osplanning-talhoes-layer', filter);
-                map.setFilter('osplanning-talhoes-border-layer', filter);
-                map.setFilter('osplanning-talhoes-labels', filter);
-            },
-
-            centerMapToFarm() {
-                const map = App.state.osPlanningMap;
-                const farm = this.getCurrentFarm();
-                if (!map || !App.state.geoJsonData || !farm) return;
-                const features = App.state.geoJsonData.features.filter(f => String(f.properties?.AGV_FUNDO) === String(farm.code));
-                if (!features.length) return;
-                const bbox = turf.bbox(turf.featureCollection(features));
-                map.fitBounds(bbox, { padding: 20, maxZoom: 15 });
-            },
-
-            togglePlotSelectionFromMap(feature) {
-                const farm = this.getCurrentFarm();
-                if (!farm) return;
-                const talhaoName = feature.properties?.AGV_TALHAO;
-                const talhao = (farm.talhoes || []).find(t => String(t.name).toUpperCase() === String(talhaoName).toUpperCase());
-                if (!talhao) return;
-                const isSelected = App.state.osPlanningSelectedPlots.has(talhao.id);
-                if (isSelected) App.state.osPlanningSelectedPlots.delete(talhao.id); else App.state.osPlanningSelectedPlots.add(talhao.id);
-                this.renderPlotsList();
-                this.updateMapHighlight();
-                this.refreshPlanningGrid();
-            },
-
-            togglePlotSelectionFromList(talhao, isChecked) {
-                if (isChecked) App.state.osPlanningSelectedPlots.add(talhao.id); else App.state.osPlanningSelectedPlots.delete(talhao.id);
-                this.updateMapHighlight();
-                this.refreshPlanningGrid();
-            },
-
-            updateMapHighlight() {
-                const map = App.state.osPlanningMap;
-                const farm = this.getCurrentFarm();
-                if (!map || !farm || !map.getSource('osplanning-talhoes-source') || !App.state.geoJsonData?.features) return;
-                App.state.geoJsonData.features.forEach(feature => {
-                    if (feature.id === undefined) return;
-                    const sameFarm = String(feature.properties?.AGV_FUNDO) === String(farm.code);
-                    let selected = false;
-                    if (sameFarm) {
-                        const talhao = (farm.talhoes || []).find(t => String(t.name).toUpperCase() === String(feature.properties?.AGV_TALHAO).toUpperCase());
-                        selected = Boolean(talhao && App.state.osPlanningSelectedPlots.has(talhao.id));
-                    }
-                    map.setFeatureState({ source: 'osplanning-talhoes-source', id: feature.id }, { selected, hover: false });
-                });
-            },
-
-            openFullscreenMapModal() {
-                const els = App.elements.osPlanning;
-                const modal = els.fullscreenMapModal;
-                const mapHost = els.mapContainer;
-                const fullscreenHost = els.fullscreenMapContainer;
-                if (!modal || !mapHost || !fullscreenHost) return;
-                if (!App.state.osPlanningMapOriginalParent) {
-                    App.state.osPlanningMapOriginalParent = mapHost.parentNode;
-                    App.state.osPlanningMapOriginalNextSibling = mapHost.nextSibling;
-                }
-                fullscreenHost.replaceWith(mapHost);
-                mapHost.id = 'planejamentoOSMapFullscreen';
-                mapHost.style.width = '100%';
-                mapHost.style.height = '72vh';
-                mapHost.style.minHeight = '72vh';
-                els.fullscreenMapContainer = mapHost;
-                modal.classList.add('show');
-                document.body.classList.add('pos-modal-lock');
-                requestAnimationFrame(() => {
-                    setTimeout(() => {
-                        App.state.osPlanningMap?.resize();
-                        this.loadShapes();
-                        this.filterMapToCurrentFarm();
-                        this.updateMapHighlight();
-                        this.centerMapToFarm();
-                    }, 120);
-                });
-            },
-
-            closeFullscreenMapModal() {
-                const els = App.elements.osPlanning;
-                const modal = els.fullscreenMapModal;
-                const currentMapHost = document.getElementById('planejamentoOSMapFullscreen');
-                if (!modal || !currentMapHost || !App.state.osPlanningMapOriginalParent) return;
-                const placeholder = document.createElement('div');
-                placeholder.id = 'planejamentoOSMapFullscreen';
-                currentMapHost.parentNode.replaceChild(placeholder, currentMapHost);
-                currentMapHost.id = 'planejamentoOSMap';
-                currentMapHost.style.width = '100%';
-                currentMapHost.style.height = '440px';
-                currentMapHost.style.minHeight = '440px';
-                if (App.state.osPlanningMapOriginalNextSibling) {
-                    App.state.osPlanningMapOriginalParent.insertBefore(currentMapHost, App.state.osPlanningMapOriginalNextSibling);
-                } else {
-                    App.state.osPlanningMapOriginalParent.appendChild(currentMapHost);
-                }
-                els.mapContainer = currentMapHost;
-                els.fullscreenMapContainer = placeholder;
-                modal.classList.remove('show');
-                document.body.classList.remove('pos-modal-lock');
-                requestAnimationFrame(() => {
-                    setTimeout(() => {
-                        App.state.osPlanningMap?.resize();
-                        this.loadShapes();
-                        this.filterMapToCurrentFarm();
-                        this.updateMapHighlight();
-                    }, 120);
-                });
-            },
-
-            populateOperationModalDefaults() {
-                const els = App.elements.osPlanning;
-                if (!els.operationModalSubgroup) return;
-                els.operationModalSubgroup.innerHTML = '<option value="">Selecione...</option>' + ((App.state.operacoes || []).filter(x => x.ativo !== false).map(o => (o.grupo || '').trim()).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).sort().map(g => `<option value="${g}">${g}</option>`).join(''));
-                els.operationModalServiceType.innerHTML = '<option value="">Selecione...</option>' + ((App.state.tipos_servico || []).filter(x => x.ativo !== false).map(t => `<option value="${t.id}">${t.descricao}</option>`).join(''));
-                const firstOperation = (App.state.osPlanningOperations || [])[0] || null;
-                if (firstOperation?.subgrupo_nome) els.operationModalSubgroup.value = firstOperation.subgrupo_nome;
-                this.populateOperationModalOperations();
-                if (firstOperation?.tipo_servico_id) els.operationModalServiceType.value = firstOperation.tipo_servico_id;
-                if (firstOperation?.responsavel_matricula) els.operationModalResponsibleMatricula.value = firstOperation.responsavel_matricula;
-                if (firstOperation?.responsavel_nome) els.operationModalResponsibleName.value = firstOperation.responsavel_nome;
-            },
-
-            populateOperationModalOperations() {
-                const subgroup = App.elements.osPlanning.operationModalSubgroup?.value || '';
-                const options = (App.state.operacoes || []).filter(x => x.ativo !== false).filter(o => !subgroup || (o.grupo || '').trim() === subgroup).map(o => `<option value="${o.id}">${o.nome}</option>`).join('');
-                App.elements.osPlanning.operationModalOperation.innerHTML = `<option value="">Selecione...</option>${options}`;
-                const currentMain = App.elements.osPlanning.operationSelect?.value || '';
-                if (currentMain) App.elements.osPlanning.operationModalOperation.value = currentMain;
-            },
-
-            lookupOperationResponsible(matricula) {
-                const person = (App.state.personnel || []).find(p => String(p.matricula) === String(matricula));
-                App.elements.osPlanning.operationModalResponsibleName.value = person?.name || '';
-            },
-
-            getPlanningSelectedTotalArea() {
-                return (App.state.osPlanningCurrentItems || []).reduce((sum, item) => sum + (Number(item.area_ha) || 0), 0);
-            },
-
-            parseDoseValue(value) {
-                if (value === null || value === undefined) return null;
-                const cleaned = String(value).replace(/\s+/g, '').replace(',', '.');
-                const num = parseFloat(cleaned);
-                return Number.isFinite(num) ? num : null;
-            },
-
-            recalculateDraftProductQuantities() {
-                const totalArea = this.getPlanningSelectedTotalArea();
-                (App.state.osPlanningOperationDraftProducts || []).forEach(row => {
-                    const dose = this.parseDoseValue(row.dose);
-                    if (dose === null || !totalArea) {
-                        row.quantidade = '';
-                        return;
-                    }
-                    row.quantidade = (dose * totalArea).toFixed(2).replace(/\.00$/, '');
-                });
-            },
-
-            openOperationModal(editId = null) {
-                const els = App.elements.osPlanning;
-                this.populateOperationModalDefaults();
-                App.state.osPlanningEditingOperationId = editId;
-                const existing = (App.state.osPlanningOperations || []).find(op => op.id === editId);
-                els.operationModalTitle.textContent = existing ? 'Editar Operação' : 'Adicionar Operação';
-                if (existing) {
-                    els.operationModalSubgroup.value = existing.subgrupo_nome || '';
-                    this.populateOperationModalOperations();
-                    els.operationModalOperation.value = existing.operacao_id || '';
-                    els.operationModalServiceType.value = existing.tipo_servico_id || '';
-                    els.operationModalResponsibleMatricula.value = existing.responsavel_matricula || '';
-                    els.operationModalResponsibleName.value = existing.responsavel_nome || '';
-                    els.operationModalObservation.value = existing.observacao_operacao || '';
-                    App.state.osPlanningOperationDraftProducts = JSON.parse(JSON.stringify(existing.produtos || []));
-                } else {
-                    if (!els.operationModalResponsibleMatricula.value && App.state.currentUser?.matricula) els.operationModalResponsibleMatricula.value = App.state.currentUser.matricula;
-                    if (!els.operationModalResponsibleName.value && (App.state.currentUser?.username || App.state.currentUser?.name)) els.operationModalResponsibleName.value = App.state.currentUser.username || App.state.currentUser.name;
-                    els.operationModalObservation.value = '';
-                    App.state.osPlanningOperationDraftProducts = [];
-                }
-                this.renderOperationProductsDraft();
-                els.operationModal.classList.add('show');
-                document.body.classList.add('modal-open');
-            },
-
-            closeOperationModal() {
-                const els = App.elements.osPlanning;
-                els.operationModal?.classList.remove('show');
-                document.body.classList.remove('modal-open');
-                App.state.osPlanningEditingOperationId = null;
-                App.state.osPlanningOperationDraftProducts = [];
-            },
-
-            addProductDraftRow() {
-                const products = (App.state.produtos || []).filter(x => x.ativo !== false);
-                const first = products[0] || {};
-                App.state.osPlanningOperationDraftProducts.push({
-                    row_id: `row_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
-                    produto_id: first.id || '',
-                    produto_nome: first.nome || '',
-                    dose: '',
-                    unidade: first.unidade || '',
-                    quantidade: '',
-                    observacao_produto: ''
-                });
-                this.recalculateDraftProductQuantities();
-                this.renderOperationProductsDraft();
-            },
-
-            updateProductDraft(rowId, field, value) {
-                const row = (App.state.osPlanningOperationDraftProducts || []).find(p => p.row_id === rowId);
-                if (!row) return;
-                row[field] = value;
-                if (field === 'produto_id') {
-                    const prod = (App.state.produtos || []).find(p => String(p.id) === String(value));
-                    row.produto_nome = prod?.nome || '';
-                    if (!row.unidade) row.unidade = prod?.unidade || '';
-                }
-                if (field === 'dose' || field === 'produto_id') {
-                    this.recalculateDraftProductQuantities();
-                    this.renderOperationProductsDraft();
-                }
-            },
-
-            removeProductDraftRow(rowId) {
-                App.state.osPlanningOperationDraftProducts = (App.state.osPlanningOperationDraftProducts || []).filter(p => p.row_id !== rowId);
-                this.renderOperationProductsDraft();
-            },
-
-            renderOperationProductsDraft() {
-                const body = App.elements.osPlanning.operationProductsBody;
-                this.recalculateDraftProductQuantities();
-                const rows = App.state.osPlanningOperationDraftProducts || [];
-                const productOptions = '<option value="">Selecione...</option>' + ((App.state.produtos || []).filter(x => x.ativo !== false).map(p => `<option value="${p.id}">${p.nome} (${p.unidade || '-'})</option>`).join(''));
-                if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="6" class="pos-operation-empty">Nenhum produto adicionado para esta operação. Use <strong>Adicionar Produto</strong> para montar a mistura.</td></tr>';
-                    return;
-                }
-                body.innerHTML = rows.map(row => `
-                    <tr>
-                        <td><select onchange="App.osPlanning.updateProductDraft('${row.row_id}','produto_id', this.value)">${productOptions}</select></td>
-                        <td><input value="${row.dose || ''}" placeholder="Dose" oninput="App.osPlanning.updateProductDraft('${row.row_id}','dose', this.value)" /></td>
-                        <td><input value="${row.unidade || ''}" placeholder="Unid." oninput="App.osPlanning.updateProductDraft('${row.row_id}','unidade', this.value)" /></td>
-                        <td><input value="${row.quantidade || ''}" placeholder="Qtd. calculada" readonly class="pos-readonly-input" /></td>
-                        <td><input value="${row.observacao_produto || ''}" placeholder="Observação" oninput="App.osPlanning.updateProductDraft('${row.row_id}','observacao_produto', this.value)" /></td>
-                        <td><button type="button" class="pos-btn pos-btn-warning pos-product-remove-btn" onclick="App.osPlanning.removeProductDraftRow('${row.row_id}')"><i class="fas fa-trash"></i></button></td>
-                    </tr>
-                `).join('');
-                rows.forEach(row => {
-                    const select = body.querySelector(`select[onchange*="${row.row_id}"]`);
-                    if (select) select.value = row.produto_id || '';
-                });
-            },
-
-            saveOperationDraft() {
-                const els = App.elements.osPlanning;
-                const subgroup = els.operationModalSubgroup.value;
-                const operationId = els.operationModalOperation.value;
-                const serviceTypeId = els.operationModalServiceType.value;
-                const operation = (App.state.operacoes || []).find(o => String(o.id) === String(operationId));
-                const serviceType = (App.state.tipos_servico || []).find(t => String(t.id) === String(serviceTypeId));
-                if (!subgroup) return App.ui.showAlert('Selecione o subgrupo da operação.', 'warning');
-                if (!operation) return App.ui.showAlert('Selecione a operação.', 'warning');
-                if (!serviceType) return App.ui.showAlert('Selecione o tipo de serviço.', 'warning');
-                const produtos = (App.state.osPlanningOperationDraftProducts || []).filter(p => p.produto_id || p.produto_nome);
-                const payload = {
-                    id: App.state.osPlanningEditingOperationId || `op_${Date.now()}`,
-                    ordem: App.state.osPlanningEditingOperationId ? ((App.state.osPlanningOperations || []).find(o => o.id === App.state.osPlanningEditingOperationId)?.ordem || ((App.state.osPlanningOperations || []).length + 1)) : ((App.state.osPlanningOperations || []).length + 1),
-                    subgrupo_nome: subgroup,
-                    operacao_id: operation.id,
-                    operacao_nome: operation.nome,
-                    tipo_servico_id: serviceTypeId,
-                    tipo_servico_nome: serviceType.descricao || '',
-                    responsavel_matricula: els.operationModalResponsibleMatricula.value || '',
-                    responsavel_nome: els.operationModalResponsibleName.value || '',
-                    observacao_operacao: els.operationModalObservation.value || '',
-                    produtos,
-                };
-                if (App.state.osPlanningEditingOperationId) {
-                    App.state.osPlanningOperations = (App.state.osPlanningOperations || []).map(op => op.id === payload.id ? payload : op);
-                } else {
-                    App.state.osPlanningOperations = [...(App.state.osPlanningOperations || []), payload];
-                }
-                this.renderOperationsGrid();
-                this.closeOperationModal();
-            },
-
-            removeOperation(operationId) {
-                App.state.osPlanningOperations = (App.state.osPlanningOperations || []).filter(op => op.id !== operationId).map((op, idx) => ({ ...op, ordem: idx + 1 }));
-                this.renderOperationsGrid();
-            },
-
-            renderOperationsGrid() {
-                const body = App.elements.osPlanning.operationsBody;
-                const operations = App.state.osPlanningOperations || [];
-                if (!body) return;
-                const summaryCount = App.elements.osPlanning.operationsCount;
-                const summaryProducts = App.elements.osPlanning.operationProductsCount;
-                const summaryLead = App.elements.osPlanning.leadOperationLabel;
-                if (summaryCount) summaryCount.textContent = String(operations.length);
-                if (summaryProducts) summaryProducts.textContent = String(operations.reduce((sum, op) => sum + ((op.produtos || []).length), 0));
-                if (summaryLead) summaryLead.textContent = operations[0] ? `${operations[0].operacao_nome || '-'} • ${operations[0].tipo_servico_nome || '-'}` : 'Nenhuma operação adicionada';
-                this.syncHiddenDefaultsFromOperations();
-                if (!operations.length) {
-                    body.innerHTML = '<tr><td colspan="6" class="pos-operation-empty">Nenhuma operação adicionada. Clique em <strong>Adicionar Operação</strong> para começar.</td></tr>';
-                    return;
-                }
-                body.innerHTML = operations.map(op => {
-                    const produtosHtml = (op.produtos || []).length
-                        ? (op.produtos || []).map(p => `<div class="pos-product-tag"><strong>${p.produto_nome || '-'}</strong>${p.dose ? `<span class="pos-product-badge">${p.dose} ${p.unidade || ''}</span>` : ''}${p.quantidade ? `<span class="pos-product-badge">Qtd. ${p.quantidade}</span>` : ''}</div>`).join('')
-                        : '<span style="color:var(--color-text-light); font-weight:600;">Sem produtos cadastrados</span>';
-                    return `
-                        <tr>
-                            <td><strong>${op.ordem}</strong></td>
-                            <td><div class="pos-operation-name"><strong>${op.operacao_nome || '-'}</strong><span class="pos-operation-meta">${op.subgrupo_nome || '-'} • ${op.tipo_servico_nome || '-'}</span></div></td>
-                            <td><span class="pos-responsavel-chip"><i class="fas fa-user"></i>${op.responsavel_nome || op.responsavel_matricula || 'Sem responsável'}</span></td>
-                            <td><div class="pos-products-stack">${produtosHtml}</div></td>
-                            <td><div class="pos-op-observation">${op.observacao_operacao || 'Sem observação específica.'}</div></td>
-                            <td><div class="pos-op-actions"><button type="button" class="pos-btn pos-btn-secondary" onclick="App.osPlanning.openOperationModal('${op.id}')"><i class="fas fa-pen"></i></button><button type="button" class="pos-btn pos-btn-warning" onclick="App.osPlanning.removeOperation('${op.id}')"><i class="fas fa-trash"></i></button></div></td>
-                        </tr>
-                    `;
-                }).join('');
-            },
-
-            async refreshPlanningGrid() {
-                const farm = this.getCurrentFarm();
-                if (!farm) {
-                    App.state.osPlanningCurrentItems = [];
-                    this.renderGrid();
-                    return;
-                }
-                const selectedIds = [...App.state.osPlanningSelectedPlots];
-                const selectedTalhoes = (farm.talhoes || []).filter(t => selectedIds.includes(t.id));
-                const historyRows = await this.loadImportedHistoryForFarm(farm);
-                const firstPlannedOperation = (App.state.osPlanningOperations || [])[0] || null;
-                const operationId = firstPlannedOperation?.operacao_id || App.elements.osPlanning.operationSelect.value;
-                const operation = (App.state.operacoes || []).find(o => String(o.id) === String(operationId));
-                App.state.osPlanningCurrentItems = selectedTalhoes.map(t => this.buildPlanningItem(farm, t, operation, historyRows, firstPlannedOperation));
-                this.renderGrid();
-                this.updateSummary();
-            },
-
-            async loadImportedHistoryForFarm(farm) {
-                const els = App.elements.osPlanning;
-                els.historyStatus.textContent = 'Buscando histórico...';
-                try {
-                    const q = query(collection(db, 'registros'),
-                        where('companyId', '==', App.state.currentUser.companyId),
-                        where('tipo_registro', '==', 'os_apontamento_importado'),
-                        where('fazendaNome', '==', farm.name)
-                    );
-                    const snap = await getDocs(q);
-                    const rows = [];
-                    snap.forEach(docSnap => rows.push({ id: docSnap.id, ...docSnap.data() }));
-                    App.state.osPlanningImportedHistoryCache[farm.id] = rows;
-                    els.historyStatus.textContent = rows.length ? `${rows.length} apontamentos encontrados` : 'Sem histórico importado';
-                    return rows;
-                } catch (error) {
-                    console.warn('Falha ao carregar histórico importado', error);
-                    els.historyStatus.textContent = 'Falha ao ler histórico';
-                    return [];
-                }
-            },
-
-            buildPlanningItem(farm, talhao, operation, historyRows, firstPlannedOperation = null) {
-                const opName = operation?.nome || '';
-                const subgroup = firstPlannedOperation?.subgrupo_nome || App.elements.osPlanning.subgroupSelect.value;
-                const matches = historyRows.filter(row => {
-                    const sameTalhao = String(row.talhao || '').trim().toUpperCase() === String(talhao.name || '').trim().toUpperCase();
-                    if (!sameTalhao) return false;
-                    if (opName && row.operacao && !App.osEscritorio.fuzzyMatch(row.operacao, opName, 0.7)) return false;
-                    if (subgroup && row.operacao && !String(row.operacao).toLowerCase().includes(String(subgroup).toLowerCase())) {
-                        return opName ? false : true;
-                    }
-                    return true;
-                }).sort((a,b) => String(b.data || '').localeCompare(String(a.data || '')));
-                const latest = matches[0] || null;
-                const currentSeq = latest ? this.extractSequence(latest.operacao || latest.produto || '') : null;
-                const nextSeq = currentSeq ? currentSeq + 1 : 1;
-                const program = App.elements.osPlanning.programInput.value || subgroup || (operation?.grupo || 'Programa');
-                const latestName = latest?.operacao || latest?.produto || 'Não identificado';
-                const trusted = Boolean(latest);
-                return {
-                    talhao_id: talhao.id,
-                    talhao_nome: talhao.name,
-                    area_ha: Number(talhao.area) || 0,
-                    ultima_aplicacao_nome: latestName,
-                    ultima_aplicacao_data: latest?.data || '',
-                    ultima_sequencia_identificada: currentSeq,
-                    proxima_sequencia: nextSeq,
-                    proxima_aplicacao_nome: `${nextSeq}ª ${program}`,
-                    data_planejada: App.elements.osPlanning.dateInput.value || new Date().toISOString().split('T')[0],
-                    status_item: trusted ? (currentSeq ? 'PRONTO_PARA_OS' : 'PLANEJADO') : 'REVISAR',
-                    observacao_item: trusted ? 'Histórico encontrado no Motor Universal' : 'Sem histórico confiável importado',
-                    apontamento_base_id: latest?.id || '',
-                    trusted,
-                };
-            },
-
-            extractSequence(text) {
-                if (!text) return null;
-                const match = String(text).match(/(\d+)\s*[ªa]?/i);
-                return match ? parseInt(match[1], 10) : null;
-            },
-
-            renderGrid() {
-                const body = App.elements.osPlanning.gridBody;
-                const items = App.state.osPlanningCurrentItems || [];
-                if (!items.length) {
-                    body.innerHTML = '<tr><td colspan="10" style="text-align:center; color:var(--color-text-light); padding:24px;">Selecione talhões para montar o planejamento.</td></tr>';
-                    return;
-                }
-                body.innerHTML = items.map(item => {
-                    const statusClass = item.status_item === 'PRONTO_PARA_OS' ? 'ok' : (item.status_item === 'REVISAR' ? 'warn' : 'info');
-                    const statusLabel = item.status_item === 'PRONTO_PARA_OS' ? 'Pronto para O.S.' : (item.status_item === 'REVISAR' ? 'Revisar' : 'Planejado');
-                    return `<tr><td><strong>${item.talhao_nome}</strong></td><td>${item.area_ha.toFixed(1)} ha</td><td>${item.ultima_aplicacao_nome || '-'}</td><td>${item.ultima_aplicacao_data || '-'}</td><td>${item.ultima_sequencia_identificada ?? '-'}</td><td>${item.proxima_sequencia}</td><td>${item.proxima_aplicacao_nome}</td><td>${item.data_planejada}</td><td><span class="pos-status ${statusClass}">${statusLabel}</span></td><td>${item.observacao_item}</td></tr>`;
-                }).join('');
-            },
-
-            updateSummary() {
-                const items = App.state.osPlanningCurrentItems || [];
-                const selectedCount = items.length;
-                const totalArea = items.reduce((sum, item) => sum + (Number(item.area_ha) || 0), 0);
-                const ready = items.filter(item => item.status_item === 'PRONTO_PARA_OS').length;
-                const trusted = items.filter(item => item.trusted).length;
-                const formatArea = `${totalArea.toFixed(1).replace('.', ',')}`;
-                App.elements.osPlanning.selectedCount.textContent = `${selectedCount} selecionados`;
-                App.elements.osPlanning.selectedArea.textContent = `${formatArea} ha`;
-                App.elements.osPlanning.summarySelected.textContent = String(selectedCount);
-                App.elements.osPlanning.summaryArea.textContent = formatArea;
-                App.elements.osPlanning.summaryReady.textContent = String(ready);
-                App.elements.osPlanning.summaryTrusted.textContent = String(trusted);
-            },
-
-            buildPlanningPayload(status) {
-                const farm = this.getCurrentFarm();
-                if (!farm) throw new Error('Selecione uma fazenda.');
-                if (!(App.state.osPlanningCurrentItems || []).length) throw new Error('Selecione ao menos um talhão.');
-                const operationId = App.elements.osPlanning.operationSelect.value;
-                const operation = (App.state.operacoes || []).find(o => String(o.id) === String(operationId));
-                const serviceTypeId = App.elements.osPlanning.serviceTypeSelect.value;
-                const serviceType = (App.state.tipos_servico || []).find(t => String(t.id) === String(serviceTypeId));
-                const operacoesPlanejamento = (App.state.osPlanningOperations || []).length
-                    ? App.state.osPlanningOperations
-                    : (operation ? [{
-                        id: `op_${Date.now()}`,
-                        ordem: 1,
-                        subgrupo_nome: App.elements.osPlanning.subgroupSelect.value || '',
-                        operacao_id: operation.id,
-                        operacao_nome: operation.nome,
-                        tipo_servico_id: serviceTypeId,
-                        tipo_servico_nome: serviceType?.descricao || '',
-                        responsavel_matricula: App.elements.osPlanning.responsibleMatricula.value || '',
-                        responsavel_nome: App.elements.osPlanning.responsibleName.value || '',
-                        observacao_operacao: '',
-                        produtos: []
-                    }] : []);
-                if (!operacoesPlanejamento.length) throw new Error('Adicione ao menos uma operação ao planejamento.');
-                const firstOperation = operacoesPlanejamento[0] || {};
-                return sanitizeFirestoreData({
-                    tipo_registro: 'os_planejamento',
-                    companyId: App.state.currentUser.companyId,
-                    empresa_nome: App.elements.osPlanning.companyName.value,
-                    fazenda_id: farm.id,
-                    fazenda_nome: farm.name,
-                    subgrupo_nome: firstOperation.subgrupo_nome || '',
-                    operacao_id: operation?.id || '',
-                    operacao_nome: operation?.nome || firstOperation.operacao_nome || '',
-                    tipo_servico_id: serviceTypeId,
-                    tipo_servico_nome: serviceType?.descricao || firstOperation.tipo_servico_nome || '',
-                    programa_nome: App.elements.osPlanning.programInput.value || '',
-                    operacoes_planejamento: operacoesPlanejamento,
-                    data_planejada: App.elements.osPlanning.dateInput.value || '',
-                    responsavel_matricula: firstOperation.responsavel_matricula || '',
-                    responsavel_nome: firstOperation.responsavel_nome || '',
-                    observacoes: App.elements.osPlanning.notes.value || '',
-                    status,
-                    modo_fechamento: App.elements.osPlanning.modeSelect.value,
-                    area_total_ha: App.state.osPlanningCurrentItems.reduce((sum, item) => sum + (Number(item.area_ha) || 0), 0),
-                    qtde_talhoes: App.state.osPlanningCurrentItems.length,
-                    itens: App.state.osPlanningCurrentItems,
-                    created_at: new Date().toISOString(),
-                    created_by: App.state.currentUser.username || App.state.currentUser.email || 'Usuário',
-                });
-            },
-
-            async savePlanning(status) {
-                try {
-                    const payload = this.buildPlanningPayload(status);
-                    if (App.state.osPlanningEditingId) {
-                        payload.updated_at = new Date().toISOString();
-                        await App.data.updateDocument('registros', App.state.osPlanningEditingId, payload);
-                    } else {
-                        await App.data.addDocument('registros', payload);
-                    }
-                    this.showActionToast(status === 'RASCUNHO' ? 'Rascunho salvo com sucesso.' : (status === 'PLANEJADO' ? 'Planejamento salvo com status PLANEJADO.' : 'Planejamento salvo e marcado como PRONTO_PARA_OS.'));
-                    await this.loadSavedPlans();
-                    this.populateSavedFarmFilter();
-                    this.populateSavedPanelFarmFilter();
-                    this.renderAuxPanels();
-                    this.resetPlanningForm();
-                } catch (error) {
-                    console.error(error);
-                    App.ui.showAlert(error.message || 'Falha ao salvar planejamento.', 'error');
-                }
-            },
-
-            async loadSavedPlans() {
-                try {
-                    const q = query(collection(db, 'registros'),
-                        where('companyId', '==', App.state.currentUser.companyId),
-                        where('tipo_registro', '==', 'os_planejamento')
-                    );
-                    const snap = await getDocs(q);
-                    const plans = [];
-                    snap.forEach(docSnap => plans.push({ id: docSnap.id, ...docSnap.data() }));
-                    App.state.osPlanningLoadedPlans = plans.sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
-                } catch (error) {
-                    console.warn('Falha ao carregar planejamentos salvos', error);
-                    App.state.osPlanningLoadedPlans = [];
-                }
-            },
-
-            async openLatestSavedPlan() {
-                const latest = (App.state.osPlanningLoadedPlans || [])[0];
-                if (!latest) {
-                    App.ui.showAlert('Nenhum planejamento salvo encontrado.', 'warning');
-                    return;
-                }
-                App.elements.osPlanning.farmSelect.value = latest.fazenda_id || '';
-                this.populateSubgroups();
-                App.elements.osPlanning.programInput.value = latest.programa_nome || '';
-                App.elements.osPlanning.dateInput.value = latest.data_planejada || '';
-                App.elements.osPlanning.notes.value = latest.observacoes || '';
-                App.state.osPlanningSelectedPlots = new Set((latest.itens || []).map(item => item.talhao_id));
-                App.state.osPlanningOperations = JSON.parse(JSON.stringify(latest.operacoes_planejamento || []));
-                this.renderOperationsGrid();
-                this.handleFarmChange();
-                await this.refreshPlanningGrid();
-                App.ui.showAlert('Último planejamento carregado.', 'success');
-            },
-
-            async generateOSNow() {
-                try {
-                    const payload = this.buildPlanningPayload('OS_GERADA');
-                    const farm = this.getCurrentFarm();
-                    const operation = (App.state.operacoes || []).find(o => String(o.id) === String(payload.operacao_id));
-                    const serviceType = (App.state.tipos_servico || []).find(t => String(t.id) === String(payload.tipo_servico_id));
-                    const operationsPayload = (payload.operacoes_planejamento || []).map(op => ({
-                        operacao_id: op.operacao_id || '',
-                        operacao_nome: op.operacao_nome || '',
-                        tipo_servico_id: op.tipo_servico_id || '',
-                        tipo_servico_nome: op.tipo_servico_nome || '',
-                        subgrupo_nome: op.subgrupo_nome || '',
-                        produtos: (op.produtos || []).map(prod => ({
-                            produto_id: prod.produto_id || '',
-                            produto_nome: prod.produto_nome || '',
-                            dose: prod.dose || '',
-                            unidade: prod.unidade || '',
-                            quantidade: prod.quantidade || '',
-                            observacao_produto: prod.observacao_produto || ''
-                        }))
-                    }));
-                    const plots = payload.itens.map(item => ({
-                        talhao_id: item.talhao_nome,
-                        talhao_nome: item.talhao_nome,
-                        variedade: farm.talhoes.find(t => t.id === item.talhao_id)?.variedade || '',
-                        area_ha: item.area_ha,
-                    }));
-                    const nextOsNumber = await App.osManual.getNextOsNumber();
-                    const osData = sanitizeFirestoreData({
-                        os_numero: nextOsNumber,
-                        data: new Date().toISOString().split('T')[0],
-                        safra: App.state.globalConfigs?.safra || '24/25',
-                        ciclo: App.state.globalConfigs?.ciclo || '1',
-                        fazenda_id: farm.id,
-                        fazenda_nome: farm.name,
-                        responsavel_matricula: payload.responsavel_matricula,
-                        responsavel_nome: payload.responsavel_nome,
-                        usuario_abertura_id: App.state.currentUser.uid,
-                        usuario_abertura_nome: App.state.currentUser.username || App.state.currentUser.email,
-                        companyId: App.state.currentUser.companyId,
-                        tipo_servico_id: payload.tipo_servico_id,
-                        tipo_servico_desc: serviceType?.descricao || '',
-                        operacao_id: operation?.id || '',
-                        operacao_nome: operation?.nome || '',
-                        operacoes_multiplas: operationsPayload,
-                        status: 'PLANEJADA',
-                        total_area_ha: payload.area_total_ha,
-                        observacoes: payload.observacoes,
-                        itens: plots,
-                        produtos: operationsPayload.flatMap(op => op.produtos || []),
-                        selectedPlots: plots.map(p => p.talhao_nome),
-                        origem_os: 'PLANEJAMENTO',
-                        planejamento_snapshot: payload,
-                        created_at: new Date().toISOString(),
-                    });
-                    await App.data.addDocument('ordens_servico', osData);
-                    await App.data.addDocument('registros', payload);
-                    this.resetPlanningForm();
-                    App.ui.showAlert('O.S. gerada a partir do planejamento com sucesso.', 'success');
-                    App.ui.showTab('ordemServicoEscritorio');
-                } catch (error) {
-                    console.error(error);
-                    App.ui.showAlert(error.message || 'Falha ao gerar O.S.', 'error');
-                }
-            },
-        },
-
-        osManual: {
-            init() {
-                this.populateFarmSelect();
-                this.populateDropdowns();
-                this.setupEventListeners();
-                this.initMap();
-            },
-
-            populateDropdowns() {
-                const typeSelect = App.elements.osManual.serviceType;
-                const modalGroupSelect = App.elements.osManual.modalGroupSelect;
-
-                if (typeSelect) {
-                    typeSelect.innerHTML = '<option value="">Selecione...</option>' +
-                        (App.state.tipos_servico || []).filter(x => x.ativo !== false).map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
-                }
-
-                if (modalGroupSelect) {
-                    const operacoes = (App.state.operacoes || []).filter(x => x.ativo !== false);
-                    const groups = [...new Set(operacoes.map(o => (o.grupo || '').trim()).filter(g => g !== ''))].sort();
-
-                    modalGroupSelect.innerHTML = '<option value="">1. Todos os grupos...</option>' +
-                        groups.map(g => `<option value="${g}">${g}</option>`).join('');
-                }
-
-                this.renderModalOperationsList();
-            },
-
-            openOperationModal() {
-                if(App.elements.osManual.osOperationModal) {
-                    App.elements.osManual.osOperationModal.style.display = 'flex';
-                    if(App.elements.osManual.modalOperationSearch) {
-                        App.elements.osManual.modalOperationSearch.focus();
-                    }
-                }
-            },
-
-            closeOperationModal() {
-                if(App.elements.osManual.osOperationModal) {
-                    App.elements.osManual.osOperationModal.style.display = 'none';
-                    if(App.elements.osManual.modalOperationSearch) {
-                        App.elements.osManual.modalOperationSearch.value = '';
-                    }
-                    if(App.elements.osManual.modalGroupSelect) {
-                        App.elements.osManual.modalGroupSelect.value = '';
-                    }
-                    this.renderModalOperationsList();
-                }
-            },
-
-            renderModalOperationsList() {
-                const groupSelect = App.elements.osManual.modalGroupSelect;
-                const filterInput = App.elements.osManual.modalOperationSearch;
-                const listContainer = App.elements.osManual.modalOperationList;
-
-                if(!listContainer) return;
-
-                const selectedGroup = groupSelect ? groupSelect.value : '';
-                const filterText = filterInput ? filterInput.value.toLowerCase() : '';
-
-                let operacoes = (App.state.operacoes || []).filter(x => x.ativo !== false);
-
-                if (selectedGroup) {
-                    operacoes = operacoes.filter(o => (o.grupo || '').trim() === selectedGroup);
-                }
-
-                if (filterText) {
-                    operacoes = operacoes.filter(o =>
-                        (o.nome && o.nome.toLowerCase().includes(filterText)) ||
-                        (o.codigo_externo && o.codigo_externo.toLowerCase().includes(filterText)) ||
-                        (o.grupo && o.grupo.toLowerCase().includes(filterText))
-                    );
-                }
-
-                if(operacoes.length === 0) {
-                    listContainer.innerHTML = '<p style="text-align: center; color: var(--color-text-light); padding: 20px;">Nenhuma operação encontrada.</p>';
-                    return;
-                }
-
-                listContainer.innerHTML = operacoes.map(o => `
-                    <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--border-radius); padding: 15px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-                        <div>
-                            <div style="font-weight: bold; color: var(--color-text); margin-bottom: 5px;">${o.codigo_externo ? o.codigo_externo + ' - ' : ''}${o.nome}</div>
-                            ${o.grupo ? `<div style="font-size: 0.85em; color: var(--color-text-light);"><i class="fas fa-layer-group"></i> ${o.grupo}</div>` : ''}
-                        </div>
-                        <button type="button" class="btn-secondary" style="background: var(--color-success); padding: 8px 15px; white-space: nowrap;" onclick="App.osManual.selectOperationFromModal('${o.id}')">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
-                `).join('');
-            },
-
-            selectOperationFromModal(opId) {
-                this.addSelectedOperation(opId);
-                this.closeOperationModal();
-            },
-
-            setupEventListeners() {
-                const els = App.elements.osManual;
-                if (!els.farmSelect) return;
-
-                els.farmSelect.addEventListener('change', () => this.handleFarmChange());
-
-                if (els.modalGroupSelect) els.modalGroupSelect.addEventListener('change', () => this.renderModalOperationsList());
-                if (els.modalOperationSearch) els.modalOperationSearch.addEventListener('input', () => this.renderModalOperationsList());
-                if (els.btnOpenOperationModal) els.btnOpenOperationModal.addEventListener('click', () => this.openOperationModal());
-                if (els.btnCloseOperationModal) els.btnCloseOperationModal.addEventListener('click', () => this.closeOperationModal());
-
-                if (els.responsibleMatricula) {
-                    els.responsibleMatricula.addEventListener('input', App.debounce((e) => this.lookupResponsible(e.target.value), 500));
-                }
-
-                // --- Início: Nova Lógica de Múltiplas Operações ---
-                App.state.osSelectedOperations = [];
-
-                if (els.closeProductModalBtn) {
-                    els.closeProductModalBtn.addEventListener('click', () => {
-                        if(els.productModal) els.productModal.style.display = 'none';
-                    });
-                }
-
-                if (els.saveProductsModalBtn) {
-                    els.saveProductsModalBtn.addEventListener('click', () => {
-                        this.saveProductsForOperation();
-                    });
-                }
-                // --- Fim: Nova Lógica ---
-
-                els.btnGenerate.addEventListener('click', () => this.generateOS());
-
-                const selectAllBtn = document.getElementById('osSelectAllPlotsBtn');
-                if (selectAllBtn) {
-                    selectAllBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        const plotCheckboxes = Array.from(els.plotsList.querySelectorAll('input[type="checkbox"]'));
-                        if (plotCheckboxes.length === 0) return;
-
-                        const allChecked = plotCheckboxes.every(cb => cb.checked);
-                        const targetState = !allChecked;
-
-                        plotCheckboxes.forEach(checkbox => {
-                            if (checkbox.checked !== targetState) {
-                                checkbox.checked = targetState;
-                                checkbox.dispatchEvent(new Event('change'));
-                            }
-                        });
-                    });
-                }
-
-                if (els.btnCenterMap) {
-                    els.btnCenterMap.addEventListener('click', () => {
-                        const farmCode = els.farmSelect.options[els.farmSelect.selectedIndex]?.text?.split(' - ')[0];
-                        if(farmCode) this.zoomToFarm(farmCode);
-                    });
-                }
-
-                const btnToggleOSPanel = document.getElementById('btnToggleOSPanel');
-                if (btnToggleOSPanel) btnToggleOSPanel.addEventListener('click', () => this.toggleMapSize());
-                const btnRecolherMapa = document.getElementById('btn-recolher-mapa-os');
-                if (btnRecolherMapa) btnRecolherMapa.addEventListener('click', () => this.toggleMapSize());
-                const btnMobileToggleMap = document.getElementById('btnMobileToggleMap');
-                if (btnMobileToggleMap) btnMobileToggleMap.addEventListener('click', () => this.toggleMapSize());
-            },
-
-            lookupResponsible(matricula) {
-                const nameInput = App.elements.osManual.responsibleName;
-                if (!matricula) {
-                    nameInput.value = '';
-                    return;
-                }
-                const person = App.state.personnel.find(p => String(p.matricula) === String(matricula));
-                if (person) {
-                    nameInput.value = person.name;
-                } else {
-                    nameInput.value = 'Não encontrado';
-                }
-            },
-
-            // Removed legacy search suggestions functions as they are replaced by direct code input
-
-            addSelectedOperation(opId) {
-                if (!opId) {
-                    App.ui.showAlert('Por favor, selecione uma operação antes de adicionar.', 'warning');
-                    return;
-                }
-
-                const opMatch = (App.state.operacoes || []).find(o => o.id === opId);
-                if (!opMatch) return;
-
-                // Check if already added
-                if ((App.state.osSelectedOperations || []).some(op => op.id === opId)) {
-                    App.ui.showAlert('Esta operação já foi adicionada ao roteiro.', 'warning');
-                    return;
-                }
-
-                // Fetch linked products
-                const links = (App.state.operacao_produtos || []).filter(l => l.operacao_id === opId);
-                const defaultProducts = [];
-
-                links.forEach(link => {
-                    const prod = App.state.produtos.find(p => p.id === link.produto_id);
-                    if (prod) {
-                        defaultProducts.push({
-                            id: prod.id,
-                            nome: prod.nome,
-                            unidade: prod.unidade,
-                            dosagem: link.dosagem_por_ha || 0,
-                            obrigatorio: link.obrigatorio || false,
-                            selecionado: link.obrigatorio || true // Default to true if linked
-                        });
-                    }
-                });
-
-                if(!App.state.osSelectedOperations) App.state.osSelectedOperations = [];
-
-                // Add to state
-                App.state.osSelectedOperations.push({
-                    id: opId,
-                    nome: opMatch.nome,
-                    produtos: defaultProducts
-                });
-
-                this.renderSelectedOperations();
-            },
-
-            removeOperation(opId) {
-                App.state.osSelectedOperations = (App.state.osSelectedOperations || []).filter(op => op.id !== opId);
-                this.renderSelectedOperations();
-            },
-
-            renderSelectedOperations() {
-                const list = App.elements.osManual.selectedOperationsList;
-                if(!list) return;
-                const ops = App.state.osSelectedOperations || [];
-
-                if (ops.length === 0) {
-                    list.innerHTML = '<div style="padding: 10px; color: var(--color-text-light); border: 1px dashed var(--color-border); text-align: center;">Nenhuma operação adicionada.</div>';
-                    this.updateProductCalculations();
-                    return;
-                }
-
-                list.innerHTML = ops.map(op => {
-                    // Count active products
-                    const activeProds = op.produtos.filter(p => p.selecionado).length;
-
-                    return `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--border-radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                        <div style="flex-grow: 1;">
-                            <div style="font-weight: bold; color: var(--color-text); margin-bottom: 4px; font-size: 1.05rem;">${op.nome}</div>
-                            <div style="font-size: 0.85em; color: var(--color-text-light);">
-                                <i class="fas fa-flask" style="color: var(--color-primary); margin-right: 4px;"></i>
-                                ${activeProds} Produto(s) configurado(s)
-                            </div>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px; margin-left: 10px;">
-                            <button type="button" onclick="App.osManual.openProductModal('${op.id}')" class="btn-secondary" style="width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px;" title="Configurar Produtos">
-                                <i class="fas fa-pencil-alt"></i>
-                            </button>
-                            <button type="button" onclick="App.osManual.removeOperation('${op.id}')" class="btn-excluir" style="width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px;" title="Remover Operação">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                `}).join('');
-
-                this.updateProductCalculations();
-            },
-
-            renderProductsModalList(searchQuery = '') {
-                const els = App.elements.osManual;
-                if (!els.productModal) return;
-                const opId = els.productModal.dataset.editingOpId;
-                const op = (App.state.osSelectedOperations || []).find(o => o.id === opId);
-
-                if (!op) return;
-
-                // Exibir TODOS os produtos, não apenas os vinculados, permitindo pesquisa
-                const allProducts = App.state.produtos || [];
-
-                const filteredProducts = allProducts.filter(p =>
-                    p.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    (p.id && String(p.id).toLowerCase().includes(searchQuery.toLowerCase()))
-                );
-
-                if (filteredProducts.length === 0) {
-                    if (els.productsListModal) els.productsListModal.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Nenhum produto encontrado.</p>';
-                    return;
-                }
-
-                if (els.productsListModal) {
-                    els.productsListModal.innerHTML = filteredProducts.map((p) => {
-                        // Verifica se este produto já está na lista da operação
-                        let opProd = op.produtos.find(op_p => op_p.id === p.id);
-
-                        const isSelected = opProd ? opProd.selecionado : false;
-                        const isMandatory = opProd ? opProd.obrigatorio : false;
-                        const dosage = opProd ? opProd.dosagem : 0;
-
-                        const checked = isSelected ? 'checked' : '';
-                        const disabled = isMandatory ? 'disabled' : '';
-
-                        return `
-                        <div class="product-item" style="display: flex; gap: 12px; align-items: center; padding: 12px 15px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: border-color 0.2s;">
-                            <input type="checkbox" id="modal_cb_${p.id}" class="modal-prod-cb" data-id="${p.id}" ${checked} ${disabled} style="width: 18px; height: 18px; cursor: pointer;">
-                            <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center;">
-                                <label for="modal_cb_${p.id}" style="font-weight: 600; font-size: 1rem; color: var(--color-text); cursor: pointer; margin: 0;">${p.nome}</label>
-                                <span style="font-size: 0.85rem; color: var(--color-text-light); margin-top: 2px;">Unidade: ${p.unidade}</span>
-                                ${isMandatory ? '<span style="display: inline-block; font-size: 0.7em; background: var(--color-warning); color: #000; padding: 2px 6px; border-radius: 4px; margin-top: 4px; width: max-content; font-weight: 600;">Obrigatório</span>' : ''}
-                            </div>
-                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
-                                <label for="modal_dose_${p.id}" style="font-size: 0.8rem; color: var(--color-text-light);">Dose (L/kg por ha)</label>
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <input type="number" id="modal_dose_${p.id}" class="modal-prod-dosage" value="${dosage}" step="0.001" style="width: 90px; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 4px; text-align: right; font-size: 0.95rem;">
-                                </div>
-                            </div>
-                        </div>
-                        `;
-                    }).join('');
-                }
-            },
-
-            openProductModal(opId) {
-                const op = (App.state.osSelectedOperations || []).find(o => o.id === opId);
-                if (!op) return;
-
-                const els = App.elements.osManual;
-                if(!els.productModal) return;
-
-                // Store editing id
-                els.productModal.dataset.editingOpId = opId;
-                if(els.productModalTitle) els.productModalTitle.innerHTML = `<i class="fas fa-flask"></i> Produtos para: ${op.nome}`;
-
-                // Setup search listener
-                const searchInput = document.getElementById('osProductModalSearch');
-                if (searchInput) {
-                    searchInput.value = '';
-                    // Remove old listeners to prevent duplicates
-                    const newSearchInput = searchInput.cloneNode(true);
-                    searchInput.parentNode.replaceChild(newSearchInput, searchInput);
-
-                    newSearchInput.addEventListener('input', (e) => {
-                        this.renderProductsModalList(e.target.value);
-                    });
-                }
-
-                this.renderProductsModalList();
-
-                els.productModal.style.display = 'flex';
-            },
-
-            saveProductsForOperation() {
-                const els = App.elements.osManual;
-                if(!els.productModal) return;
-                const opId = els.productModal.dataset.editingOpId;
-                const op = (App.state.osSelectedOperations || []).find(o => o.id === opId);
-
-                if (!op) return;
-
-                // Update product data from modal
-                if(els.productsListModal) {
-                    els.productsListModal.querySelectorAll('.product-item').forEach(item => {
-                        const cb = item.querySelector('.modal-prod-cb');
-                        const doseInput = item.querySelector('.modal-prod-dosage');
-                        if (cb && doseInput) {
-                            const pId = cb.dataset.id;
-                            const isSelected = cb.checked || cb.disabled; // Keep true if disabled (obrigatorio)
-                            const dosage = parseFloat(doseInput.value) || 0;
-
-                            // Acha o produto em todos os produtos
-                            const fullProduct = App.state.produtos.find(p => String(p.id) === String(pId));
-                            if (fullProduct) {
-                                let existingOpProd = op.produtos.find(op_p => String(op_p.id) === String(pId));
-
-                                if (existingOpProd) {
-                                    existingOpProd.selecionado = isSelected;
-                                    existingOpProd.dosagem = dosage;
-                                } else if (isSelected) { // Se selecionou um novo
-                                    op.produtos.push({
-                                        id: fullProduct.id,
-                                        nome: fullProduct.nome,
-                                        unidade: fullProduct.unidade,
-                                        dosagem: dosage,
-                                        obrigatorio: false, // Novos não são obrigatórios
-                                        selecionado: true
-                                    });
-                                }
-                            }
-                        }
-                    });
-                }
-
-                els.productModal.style.display = 'none';
-                this.renderSelectedOperations();
-            },
-
-            updateProductCalculations() {
-                if(App.elements.osManual.totalArea) {
-                    App.elements.osManual.totalArea.textContent = `${(App.state.osTotalArea || 0).toFixed(2)} ha`;
-                }
-            },
-
-            initMap() {
-                if (App.state.osMap) {
-                    setTimeout(() => App.state.osMap.resize(), 200);
-                    return;
-                }
-
-                const mapContainer = App.elements.osManual.mapContainer;
-                if (!mapContainer) return;
-
-                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
-
-                App.state.osMap = new mapboxgl.Map({
-                    container: mapContainer,
-                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
-                    center: [-48.45, -21.17],
-                    zoom: 10,
-                    attributionControl: false
-                });
-
-                const map = App.state.osMap;
-
-                map.on('load', () => {
-                    this.loadShapes();
-                    // Se já houver uma fazenda selecionada, aplica o filtro e zoom
-                    const farmId = App.elements.osManual.farmSelect.value;
-                    if (farmId) {
-                        const farm = App.state.fazendas.find(f => f.id === farmId);
-                        if (farm) {
-                            this.filterMap(farm.code);
-                            this.zoomToFarm(farm.code);
-                        }
-                    }
-                });
-
-                // Map click listener for plot selection
-                map.on('click', 'os-talhoes-layer', (e) => {
-                    if (e.features.length > 0) {
-                        const feature = e.features[0];
-                        this.togglePlotSelection(feature, true);
-                    }
-                });
-
-                let hoveredFeatureId = null;
-                map.on('mousemove', 'os-talhoes-layer', (e) => {
-                    map.getCanvas().style.cursor = 'pointer';
-                    if (e.features.length > 0) {
-                        if (hoveredFeatureId !== null) {
-                            map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: false });
-                        }
-                        hoveredFeatureId = e.features[0].id;
-                        map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: true });
-                    }
-                });
-
-                map.on('mouseleave', 'os-talhoes-layer', () => {
-                    map.getCanvas().style.cursor = '';
-                    if (hoveredFeatureId !== null) {
-                        map.setFeatureState({ source: 'os-talhoes-source', id: hoveredFeatureId }, { hover: false });
-                        hoveredFeatureId = null;
-                    }
-                });
-            },
-
-            loadShapes() {
-                const map = App.state.osMap;
-                if (!map || !App.state.geoJsonData) return;
-
-                const sourceId = 'os-talhoes-source';
-                const layerId = 'os-talhoes-layer';
-                const borderLayerId = 'os-talhoes-border-layer';
-                const labelLayerId = 'os-talhoes-labels';
-
-                if (map.getSource(sourceId)) {
-                    map.getSource(sourceId).setData(App.state.geoJsonData);
-                } else {
-                    map.addSource(sourceId, {
-                        type: 'geojson',
-                        data: App.state.geoJsonData,
-                        generateId: true
-                    });
-                }
-
-                const themeColors = App.ui._getThemeColors();
-
-                if (!map.getLayer(layerId)) {
-                    map.addLayer({
-                        id: layerId,
-                        type: 'fill',
-                        source: sourceId,
-                        paint: {
-                            'fill-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], themeColors.primary,
-                                ['boolean', ['feature-state', 'hover'], false], '#607D8B',
-                                '#1C1C1C'
-                            ],
-                            'fill-opacity': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], 0.9,
-                                ['boolean', ['feature-state', 'hover'], false], 0.8,
-                                0.7
-                            ]
-                        }
-                    });
-                }
-
-                if (!map.getLayer(labelLayerId)) {
-                    map.addLayer({
-                        id: labelLayerId,
-                        type: 'symbol',
-                        source: sourceId,
-                        minzoom: 10,
-                        layout: {
-                            'symbol-placement': 'point',
-                            'text-field': [
-                                'format',
-                                ['upcase', ['get', 'AGV_FUNDO']], { 'font-scale': 0.9 },
-                                '\n', {},
-                                ['upcase', ['get', 'AGV_TALHAO']], { 'font-scale': 1.2 }
-                            ],
-                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                            'text-size': 14,
-                            'text-ignore-placement': true,
-                            'text-allow-overlap': true,
-                            'text-pitch-alignment': 'viewport',
-                        },
-                        paint: {
-                            'text-color': '#FFFFFF',
-                            'text-halo-color': 'rgba(0, 0, 0, 0.9)',
-                            'text-halo-width': 2
-                        }
-                    });
-                }
-
-                if (!map.getLayer(borderLayerId)) {
-                     map.addLayer({
-                        id: borderLayerId,
-                        type: 'line',
-                        source: sourceId,
-                        paint: {
-                            'line-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], '#00FFFF',
-                                '#FFFFFF'
-                            ],
-                            'line-width': [
-                                'case',
-                                ['boolean', ['feature-state', 'selected'], false], 3,
-                                1.5
-                            ],
-                            'line-opacity': 0.9
-                        }
-                    });
-                }
-            },
-
-            populateFarmSelect() {
-                const select = App.elements.osManual.farmSelect;
-                if (!select) return;
-                const currentValue = select.value;
-                select.innerHTML = '<option value="">Selecione uma fazenda...</option>';
-                App.state.fazendas.sort((a, b) => parseInt(a.code) - parseInt(b.code)).forEach(farm => {
-                    select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
-                });
-                select.value = currentValue;
-            },
-
-            handleFarmChange() {
-                const farmId = App.elements.osManual.farmSelect.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-
-                // Limpa o estado visual do mapa antes de qualquer outra coisa
-                if (App.state.osMap && App.state.osMap.isStyleLoaded() && App.state.geoJsonData) {
-                    // Verifica se a fonte existe antes de tentar definir o estado
-                    if (App.state.osMap.getSource('os-talhoes-source')) {
-                        App.state.geoJsonData.features.forEach(feature => {
-                            if (feature.id !== undefined) {
-                                App.state.osMap.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
-                            }
-                        });
-                    }
-                }
-
-                App.state.osSelectedPlots.clear(); // Limpa o estado dos dados
-                this.updateTotalArea();
-                this.updateProductCalculations();
-
-                if (farm) {
-                    this.renderPlotsList(farm.talhoes);
-                    this.zoomToFarm(farm.code);
-                    this.filterMap(farm.code);
-                } else {
-                    App.elements.osManual.plotsList.innerHTML = '<p style="color: #888; text-align: center;">Selecione uma fazenda para ver os talhões.</p>';
-                    if (App.state.osMap) {
-                        const map = App.state.osMap;
-                        if (map.getLayer('os-talhoes-layer')) {
-                            map.setFilter('os-talhoes-layer', null);
-                            map.setFilter('os-talhoes-border-layer', null);
-                            map.setFilter('os-talhoes-labels', null);
-                        }
-                    }
-                }
-            },
-
-            renderPlotsList(talhoes) {
-                const listContainer = App.elements.osManual.plotsList;
-                listContainer.innerHTML = '';
-
-                if (!talhoes || talhoes.length === 0) {
-                    listContainer.innerHTML = '<p>Nenhum talhão encontrado.</p>';
-                    return;
-                }
-
-                talhoes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).forEach(talhao => {
-                    const label = document.createElement('label');
-                    label.className = 'talhao-selection-item';
-                    label.htmlFor = `os-plot-${talhao.id}`;
-
-                    label.innerHTML = `
-                        <input type="checkbox" id="os-plot-${talhao.id}" data-id="${talhao.id}" data-name="${talhao.name}" data-area="${talhao.area}">
-                        <div class="talhao-name">${talhao.name}</div>
-                        <div class="talhao-details">
-                            <span><i class="fas fa-ruler-combined"></i>Área: ${talhao.area ? talhao.area.toFixed(2) : 0} ha</span>
-                            <span><i class="fas fa-seedling"></i>Variedade: ${talhao.variedade || 'N/A'}</span>
-                        </div>
-                    `;
-
-                    const checkbox = label.querySelector('input');
-                    checkbox.addEventListener('change', (e) => {
-                        this.togglePlotSelectionFromList(talhao, e.target.checked);
-                    });
-
-                    listContainer.appendChild(label);
-                });
-            },
-
-            filterMap(farmCode) {
-                const map = App.state.osMap;
-                if (!map || !map.getLayer('os-talhoes-layer')) return;
-                const filter = ['==', ['get', 'AGV_FUNDO'], String(farmCode)];
-                map.setFilter('os-talhoes-layer', filter);
-                map.setFilter('os-talhoes-border-layer', filter);
-                map.setFilter('os-talhoes-labels', filter);
-            },
-
-            zoomToFarm(farmCode) {
-                const map = App.state.osMap;
-                if (!map || !App.state.geoJsonData) return;
-
-                const features = App.state.geoJsonData.features.filter(f => f.properties.AGV_FUNDO == farmCode);
-                if (features.length > 0) {
-                    const collection = turf.featureCollection(features);
-                    const bbox = turf.bbox(collection);
-                    map.fitBounds(bbox, { padding: 20 });
-                }
-            },
-
-            togglePlotSelection(feature, fromMap) {
-                const map = App.state.osMap;
-                const talhaoName = feature.properties.AGV_TALHAO;
-                const farmCode = feature.properties.AGV_FUNDO;
-
-                const farm = App.state.fazendas.find(f => f.code == farmCode);
-                if (!farm) return;
-
-                const talhao = farm.talhoes.find(t => t.name.toUpperCase() === talhaoName.toUpperCase());
-                if (!talhao) return;
-
-                const isSelected = App.state.osSelectedPlots.has(talhao.id);
-
-                if (!isSelected) {
-                    App.state.osSelectedPlots.add(talhao.id);
-                    if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: true });
-                    const checkbox = document.getElementById(`os-plot-${talhao.id}`);
-                    if (checkbox) checkbox.checked = true;
-                } else {
-                    App.state.osSelectedPlots.delete(talhao.id);
-                    if (fromMap) map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
-                    const checkbox = document.getElementById(`os-plot-${talhao.id}`);
-                    if (checkbox) checkbox.checked = false;
-                }
-
-                this.updateTotalArea();
-                this.updateProductCalculations();
-            },
-
-            togglePlotSelectionFromList(talhao, isChecked) {
-                const map = App.state.osMap;
-
-                if (isChecked) {
-                    App.state.osSelectedPlots.add(talhao.id);
-                } else {
-                    App.state.osSelectedPlots.delete(talhao.id);
-                }
-
-                if (map && map.getLayer('os-talhoes-layer')) {
-                    const farmCode = App.state.fazendas.find(f => f.id === App.elements.osManual.farmSelect.value)?.code;
-                    if (farmCode && App.state.geoJsonData && App.state.geoJsonData.features) {
-                        const feature = App.state.geoJsonData.features.find(f =>
-                            f.properties.AGV_TALHAO === talhao.name &&
-                            String(f.properties.AGV_FUNDO) === String(farmCode)
-                        );
-                        if (feature) {
-                            map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: isChecked });
-                        }
-                    }
-                }
-
-                this.updateTotalArea();
-                this.updateProductCalculations();
-            },
-
-            updateMapHighlight() {
-                const map = App.state.osMap;
-                const farmId = App.elements.osManual.farmSelect.value;
-                const farmCode = App.state.fazendas.find(f => f.id === farmId)?.code;
-
-                if (!map || !farmCode || !map.isStyleLoaded() || !map.getSource('os-talhoes-source') || !App.state.geoJsonData?.features) {
-                    return;
-                }
-
-                App.state.geoJsonData.features.forEach(feature => {
-                    if (feature.id === undefined) return;
-
-                    const isSameFarm = String(feature.properties?.AGV_FUNDO) === String(farmCode);
-                    if (!isSameFarm) {
-                        map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected: false });
-                        return;
-                    }
-
-                    const talhaoName = feature.properties?.AGV_TALHAO;
-                    const talhao = App.state.fazendas
-                        .find(f => String(f.code) === String(farmCode))
-                        ?.talhoes
-                        ?.find(t => String(t.name).toUpperCase() === String(talhaoName).toUpperCase());
-
-                    const selected = Boolean(talhao && App.state.osSelectedPlots.has(talhao.id));
-                    map.setFeatureState({ source: 'os-talhoes-source', id: feature.id }, { selected });
-                });
-            },
-
-            updateTotalArea() {
-                const farmId = App.elements.osManual.farmSelect.value;
-                if (!farmId) {
-                    App.elements.osManual.totalArea.textContent = '0.00 ha';
-                    App.state.osTotalArea = 0;
-                    return;
-                }
-
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                if (!farm) {
-                    App.state.osTotalArea = 0;
-                    return;
-                }
-
-                let total = 0;
-                App.state.osSelectedPlots.forEach(id => {
-                    const t = farm.talhoes.find(plot => plot.id === id);
-                    if (!t) return;
-                    const area = Number.parseFloat(t.area);
-                    if (Number.isFinite(area)) {
-                        total += area;
-                    }
-                });
-
-                App.state.osTotalArea = Number.isFinite(total) ? total : 0;
-                App.elements.osManual.totalArea.textContent = `${total.toFixed(2)} ha`;
-            },
-
-            async generateOS() {
-                const els = App.elements.osManual;
-                const { farmSelect, serviceType, responsibleMatricula, responsibleName, observations } = els;
-                let selectedOps = App.state.osSelectedOperations || [];
-
-                if (!farmSelect.value) return App.ui.showAlert("Selecione uma fazenda.", "warning");
-                if (!responsibleMatricula.value || responsibleName.value === 'Não encontrado') return App.ui.showAlert("Informe um responsável válido.", "warning");
-                if (!serviceType.value) return App.ui.showAlert("Selecione o tipo de serviço.", "warning");
-                if (selectedOps.length === 0) return App.ui.showAlert("Adicione pelo menos uma operação ao roteiro.", "warning");
-                if (App.state.osSelectedPlots.size === 0) return App.ui.showAlert("Selecione ao menos 1 talhão.", "warning");
-
-                const blockedPlots = [];
-                const warnings = [];
-                const farm = App.state.fazendas.find(f => f.id === farmSelect.value);
-
-                // Climate Validation
-                try {
-                    const forecast = await App.actions.getWeatherForecast();
-                    if (forecast && forecast.daily && forecast.daily.precipitation_sum && forecast.daily.precipitation_sum[0] > 10) {
-                        warnings.push(`Atenção: Previsão de chuva moderada/forte (${forecast.daily.precipitation_sum[0]}mm) para hoje. Verifique se o roteiro é seguro.`);
-                    }
-                } catch (e) {
-                    console.warn("Could not fetch weather forecast for OS validation", e);
-                }
-
-                // For legacy compatibility, we take the primary operation for basic checks
-                const primaryOpId = selectedOps[0].id;
-                const primaryOpData = App.state.operacoes.find(o => o.id === primaryOpId);
-                const maxApp = primaryOpData ? (primaryOpData.max_aplicacoes || 99) : 99;
-
-                // Checking only the primary operation for max applications limit
-                App.state.osSelectedPlots.forEach(talhaoId => {
-                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
-                    if(!talhao) return;
-
-                    const count = (App.state.ordens_servico || []).filter(os =>
-                        os.operacao_id === primaryOpId &&
-                        os.fazenda_id === farmSelect.value &&
-                        os.status !== 'CANCELADA' &&
-                        os.itens.some(item => item.talhao_id === talhao.name)
-                    ).length;
-
-                    if (count >= maxApp) {
-                        blockedPlots.push(talhao.name);
-                    } else if (count > 0) {
-                        warnings.push(`${talhao.name} (${count}ª ap.)`);
-                    }
-                });
-
-                if (blockedPlots.length > 0) {
-                    return App.ui.showAlert(`Bloqueio: Limite de aplicações excedido na operação principal (${primaryOpId}) para: ${blockedPlots.join(', ')}`, 'error');
-                }
-
-                if (warnings.length > 0) {
-                    App.ui.showConfirmationModal(`Alertas de re-aplicação na operação principal: ${warnings.join(', ')}. Continuar?`, () => {
-                        this._continueGenerateOS(selectedOps, primaryOpId, farm);
-                    });
-                    return;
-                }
-
-                this._continueGenerateOS(selectedOps, primaryOpId, farm);
-            },
-
-            async getNextOsNumber() {
-                const prefix = `OS-${new Date().getFullYear()}-`;
-                const ordens = App.state.ordens_servico || [];
-                const maxNum = ordens
-                    .filter(os => os.os_numero && String(os.os_numero).startsWith(prefix))
-                    .reduce((max, os) => {
-                        const num = parseInt(String(os.os_numero).replace(prefix, ''), 10);
-                        return !isNaN(num) && num > max ? num : max;
-                    }, 0);
-                return `${prefix}${String(maxNum + 1).padStart(5, '0')}`;
-            },
-
-            async _continueGenerateOS(selectedOps, primaryOpId, farm) {
-                const els = App.elements.osManual;
-                const companyId = App.state.currentUser.companyId;
-
-                // Prepare Data for multiple operations
-                const operacoesFormatadas = selectedOps.map(op => {
-                    const operacaoProdutos = op.produtos.filter(p => p.selecionado).map(p => ({
-                        produto_id: p.id,
-                        produto_nome: p.nome,
-                        unidade: p.unidade,
-                        dosagem_por_ha: p.dosagem,
-                        qtde_total: p.dosagem * App.state.osTotalArea
-                    }));
-                    return {
-                        operacao_id: op.id,
-                        operacao_nome: op.nome,
-                        produtos: operacaoProdutos
-                    };
-                });
-
-                // Legacy products (from the first operation) to keep old reports working
-                const products = operacoesFormatadas[0].produtos || [];
-
-                const plots = [];
-                let totalAreaHa = 0;
-                App.state.osSelectedPlots.forEach(talhaoId => {
-                    const talhao = farm.talhoes.find(t => t.id === talhaoId);
-                    if(talhao) {
-                        const areaHa = Number.parseFloat(talhao.area);
-                        const safeAreaHa = Number.isFinite(areaHa) ? areaHa : 0;
-                        totalAreaHa += safeAreaHa;
-                        plots.push({
-                            talhao_id: talhao.name,
-                            talhao_nome: talhao.name,
-                            variedade: talhao.variedade,
-                            area_ha: safeAreaHa
-                        });
-                    }
-                });
-
-                const safeTotalAreaHa = Number.isFinite(totalAreaHa) ? totalAreaHa : 0;
-                App.state.osTotalArea = safeTotalAreaHa;
-
-                const novoNumeroOS = await this.getNextOsNumber();
-
-                const osData = {
-                    os_numero: novoNumeroOS,
-                    data: new Date().toISOString().split('T')[0],
-                    safra: App.state.globalConfigs?.safra || '24/25',
-                    ciclo: App.state.globalConfigs?.ciclo || '1',
-                    fazenda_id: farm.id,
-                    fazenda_nome: farm.name,
-                    responsavel_matricula: els.responsibleMatricula.value,
-                    responsavel_nome: els.responsibleName.value,
-                    usuario_abertura_id: App.state.currentUser.uid,
-                    usuario_abertura_nome: App.state.currentUser.username || App.state.currentUser.email,
-                    companyId: App.state.currentUser.companyId,
-                    tipo_servico_id: els.serviceType.value,
-                    tipo_servico_desc: App.state.tipos_servico.find(t => t.id === els.serviceType.value)?.descricao,
-
-                    // Estrutura Legada / Simplificada
-                    operacao_id: operacoesFormatadas[0].operacao_id,
-                    operacao_nome: operacoesFormatadas[0].operacao_nome,
-
-                    // Nova estrutura: Múltiplas Operações
-                    operacoes_multiplas: operacoesFormatadas,
-
-                    status: 'PLANEJADA', // Novo status padrão para roteiros
-                    total_area_ha: safeTotalAreaHa,
-                    observacoes: els.observations.value,
-                    itens: plots,
-                    produtos: products, // Mantido por compatibilidade
-                    created_at: new Date().toISOString(),
-                };
-
-                try {
-                    if (App.state.osEditingId) {
-                        // Modo Edição
-                        await App.data.updateDocument('ordens_servico', App.state.osEditingId, sanitizeFirestoreData(osData));
-                        App.ui.showAlert('O.S. Atualizada com Sucesso!', 'success');
-                        App.state.osEditingId = null; // Reseta o id
-                        App.elements.osManual.btnGenerate.innerHTML = '<i class="fas fa-file-pdf"></i> Gerar O.S.';
-                        App.ui.showTab('ordemServicoEscritorio'); // Volta pro escritorio
-                    } else {
-                        // Modo Criação Normal
-                        await App.data.addDocument('ordens_servico', sanitizeFirestoreData(osData));
-                        App.ui.showAlert('O.S. Salva com Sucesso! Acesse o Escritório para visualizar.', 'success');
-                    }
-
-                    this.resetForm();
-                } catch (e) {
-                    console.error(e);
-                    App.ui.showAlert(`Erro: ${e.message}`, 'error');
-                }
-            },
-
-            resetForm() {
-                const els = App.elements.osManual;
-                if (els.responsibleMatricula) els.responsibleMatricula.value = '';
-                if (els.responsibleName) els.responsibleName.value = '';
-                if (els.observations) els.observations.value = '';
-                if (els.operationSelect) els.operationSelect.value = '';
-                if (els.serviceType) els.serviceType.value = '';
-                if (els.farmSelect) els.farmSelect.value = '';
-
-                const prodSec = document.getElementById('osProductSection');
-                if(prodSec) prodSec.style.display = 'none';
-
-                const prodList = document.getElementById('osProductsList');
-                if(prodList) prodList.innerHTML = '';
-
-                const prodPrev = document.getElementById('osProductsPreview');
-                if(prodPrev) prodPrev.innerHTML = '';
-
-                App.state.osSelectedOperations = [];
-                this.renderSelectedOperations();
-
-                App.state.osSelectedPlots.clear();
-                this.updateTotalArea();
-
-                els.plotsList.innerHTML = '<p style="color: #888; text-align: center;">Selecione uma fazenda para carregar os talhões.</p>';
-
-                if (App.state.osMap) {
-                    const map = App.state.osMap;
-                    if (map.getLayer('os-talhoes-layer')) {
-                        map.setFilter('os-talhoes-layer', null);
-                        map.setFilter('os-talhoes-border-layer', null);
-                        map.setFilter('os-talhoes-labels', null);
-                    }
-                }
-
-                App.state.osEditingId = null;
-                if(App.elements.osManual.btnGenerate) {
-                    App.elements.osManual.btnGenerate.innerHTML = '<i class="fas fa-save"></i> Salvar O.S.';
-                }
-            },
-
-            toggleMapSize() {
-                const section = document.getElementById('ordemServicoManual');
-                section.classList.toggle('map-expanded');
-                setTimeout(() => {
-                    if (App.state.osMap) App.state.osMap.resize();
-                }, 500);
-            }
-        },
 
         charts: {
             _getVibrantColors(count) {
@@ -19631,7 +15676,7 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             },
             _createOrUpdateChart(id, config, isExpanded = false) {
                 const canvasId = isExpanded ? 'expandedChartCanvas' : id;
-                const ctx = document.getElementById(canvasId)?.getContext('2d');
+                const ctx = safeGetElementById(canvasId)?.getContext('2d');
                 if (!ctx) return;
 
                 // Adjust specific charts for Neon theme colors
@@ -20001,9 +16046,9 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             },
 
             async renderPlantioDashboardCharts() {
-                const startDateEl = document.getElementById('plantioDashboardInicio');
-                const endDateEl = document.getElementById('plantioDashboardFim');
-                const culturaEl = document.getElementById('plantioDashboardCultura');
+                const startDateEl = safeGetElementById('plantioDashboardInicio');
+                const endDateEl = safeGetElementById('plantioDashboardFim');
+                const culturaEl = safeGetElementById('plantioDashboardCultura');
                 App.actions.saveDashboardDates('plantio', startDateEl.value, endDateEl.value);
 
                 const consolidatedData = await App.actions.getConsolidatedData('apontamentosPlantio');
@@ -20054,11 +16099,11 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
 
 
                 // 2. Update KPI elements
-                document.getElementById('kpi-plantio-area-total').textContent = `${totalAreaPlantada.toFixed(2)} ha`;
-                document.getElementById('kpi-plantio-meta').textContent = `${totalGoal.toFixed(2)} ha`;
-                document.getElementById('kpi-plantio-percentual').textContent = `${percentualConcluido.toFixed(1)}%`;
-                document.getElementById('kpi-plantio-media-diaria').textContent = `${mediaDiariaReal.toFixed(2)} ha/dia`;
-                document.getElementById('kpi-plantio-area-restante').textContent = `${areaRestante.toFixed(2)} ha`;
+                safeGetElementById('kpi-plantio-area-total').textContent = `${totalAreaPlantada.toFixed(2)} ha`;
+                safeGetElementById('kpi-plantio-meta').textContent = `${totalGoal.toFixed(2)} ha`;
+                safeGetElementById('kpi-plantio-percentual').textContent = `${percentualConcluido.toFixed(1)}%`;
+                safeGetElementById('kpi-plantio-media-diaria').textContent = `${mediaDiariaReal.toFixed(2)} ha/dia`;
+                safeGetElementById('kpi-plantio-area-restante').textContent = `${areaRestante.toFixed(2)} ha`;
 
                 // 3. Render Charts
                 this.renderAreaPlantadaPorMes(data);
@@ -20243,7 +16288,7 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
 
                 // Lógica de cálculo da meta diária
                 const plantingGoals = App.state.companyConfig.plantingGoals || {};
-                const selectedCulture = document.getElementById('plantioDashboardCultura').value;
+                const selectedCulture = safeGetElementById('plantioDashboardCultura').value;
                 const normalizeCultureKey = (cultureString) => {
                     if (!cultureString) return '';
                     return cultureString.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, '');
@@ -20366,8 +16411,8 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             },
 
             async renderAereoDashboardCharts() {
-                const startDateEl = document.getElementById('aereoDashboardInicio');
-                const endDateEl = document.getElementById('aereoDashboardFim');
+                const startDateEl = safeGetElementById('aereoDashboardInicio');
+                const endDateEl = safeGetElementById('aereoDashboardFim');
                 App.actions.saveDashboardDates('aereo', startDateEl.value, endDateEl.value);
 
                 const consolidatedData = await App.actions.getConsolidatedData('armadilhas');
@@ -20383,10 +16428,10 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                 const totalMariposas = data.reduce((sum, trap) => sum + (trap.contagemMariposas || 0), 0);
                 const infestacaoMedia = data.length > 0 ? totalMariposas / data.length : 0;
 
-                document.getElementById('kpi-aereo-fazendas-monitoradas').textContent = fazendasMonitoradas;
-                document.getElementById('kpi-aereo-fazendas-risco').textContent = `${percentualFazendasRisco.toFixed(1)}%`;
-                document.getElementById('kpi-aereo-infestacao-media').textContent = `${infestacaoMedia.toFixed(1)}`;
-                document.getElementById('kpi-aereo-custo-total').textContent = 'R$ 0,00'; // Placeholder
+                safeGetElementById('kpi-aereo-fazendas-monitoradas').textContent = fazendasMonitoradas;
+                safeGetElementById('kpi-aereo-fazendas-risco').textContent = `${percentualFazendasRisco.toFixed(1)}%`;
+                safeGetElementById('kpi-aereo-infestacao-media').textContent = `${infestacaoMedia.toFixed(1)}`;
+                safeGetElementById('kpi-aereo-custo-total').textContent = 'R$ 0,00'; // Placeholder
 
                 // Charts
                 this.renderFazendasRiscoChart(fazendasMonitoradas, fazendasEmRisco);
@@ -20558,8 +16603,8 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             },
 
             async renderCigarrinhaDashboardCharts() {
-                const startDateEl = document.getElementById('cigarrinhaDashboardInicio');
-                const endDateEl = document.getElementById('cigarrinhaDashboardFim');
+                const startDateEl = safeGetElementById('cigarrinhaDashboardInicio');
+                const endDateEl = safeGetElementById('cigarrinhaDashboardFim');
                 App.actions.saveDashboardDates('cigarrinha', startDateEl.value, endDateEl.value);
 
                 const cigarrinhaData = await App.actions.getConsolidatedData('cigarrinha');
@@ -20587,10 +16632,10 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                 const talhoesAvaliados = talhaoAverages.length;
                 const talhoesEmAlerta = talhaoAverages.filter(t => t.avgResult >= 2.0).length;
 
-                document.getElementById('kpi-cigarrinha-infestacao-media').textContent = infestacaoMedia.toFixed(2);
-                document.getElementById('kpi-cigarrinha-talhoes-avaliados').textContent = talhoesAvaliados;
-                document.getElementById('kpi-cigarrinha-eficiencia-controle').textContent = 'N/A';
-                document.getElementById('kpi-cigarrinha-talhoes-alerta').textContent = talhoesEmAlerta;
+                safeGetElementById('kpi-cigarrinha-infestacao-media').textContent = infestacaoMedia.toFixed(2);
+                safeGetElementById('kpi-cigarrinha-talhoes-avaliados').textContent = talhoesAvaliados;
+                safeGetElementById('kpi-cigarrinha-eficiencia-controle').textContent = 'N/A';
+                safeGetElementById('kpi-cigarrinha-talhoes-alerta').textContent = talhoesEmAlerta;
 
                 // Charts
                 this.renderInfestacaoMediaTalhao(talhaoAverages);
@@ -20750,9 +16795,9 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             },
 
             async renderClimaDashboardCharts() {
-                const startDateEl = document.getElementById('climaDashboardInicio');
-                const endDateEl = document.getElementById('climaDashboardFim');
-                const fazendaEl = document.getElementById('climaDashboardFazenda');
+                const startDateEl = safeGetElementById('climaDashboardInicio');
+                const endDateEl = safeGetElementById('climaDashboardFim');
+                const fazendaEl = safeGetElementById('climaDashboardFazenda');
 
                 App.actions.saveDashboardDates('clima', startDateEl.value, endDateEl.value);
 
@@ -21006,11 +17051,11 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
 
             _renderClimateDashboardFromStats(stats) {
                 // Update KPIs
-                document.getElementById('kpi-clima-temp-max').textContent = `${stats.kpis.tempMax.toFixed(1)}°C`;
-                document.getElementById('kpi-clima-temp-min').textContent = `${stats.kpis.tempMin.toFixed(1)}°C`;
-                document.getElementById('kpi-clima-pluviosidade').textContent = `${stats.kpis.pluviosidade.toFixed(1)} mm`;
-                document.getElementById('kpi-clima-umidade').textContent = `${stats.kpis.umidade.toFixed(1)}%`;
-                document.getElementById('kpi-clima-vento').textContent = `${stats.kpis.vento.toFixed(1)} km/h`;
+                safeGetElementById('kpi-clima-temp-max').textContent = `${stats.kpis.tempMax.toFixed(1)}°C`;
+                safeGetElementById('kpi-clima-temp-min').textContent = `${stats.kpis.tempMin.toFixed(1)}°C`;
+                safeGetElementById('kpi-clima-pluviosidade').textContent = `${stats.kpis.pluviosidade.toFixed(1)} mm`;
+                safeGetElementById('kpi-clima-umidade').textContent = `${stats.kpis.umidade.toFixed(1)}%`;
+                safeGetElementById('kpi-clima-vento').textContent = `${stats.kpis.vento.toFixed(1)} km/h`;
 
                 const commonOptions = this._getCommonChartOptions();
                 const isDarkTheme = document.body.classList.contains('theme-dark');
@@ -21241,848 +17286,55 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
 
         },
 
-        reports: {
-                async _fetchAndDownloadReport(endpoint, filters, filename) {
-                    const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
-                    cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
-                    if (App.state.currentUser && App.state.currentUser.companyId) {
-                        cleanFilters.companyId = App.state.currentUser.companyId;
-                    }
-
-                    // Security check: Abort if companyId is missing, preventing cross-tenant data leakage.
-                    if (!cleanFilters.companyId) {
-                        App.ui.showAlert("Erro de segurança: ID da empresa não especificado. Não é possível gerar o relatório.", "error");
-                        console.error("Aborted report generation due to missing companyId.");
-                        return;
-                    }
-
-                    const params = new URLSearchParams(cleanFilters);
-                    const apiUrl = `${App.config.backendUrl}/reports/${endpoint}?${params.toString()}&_cacheBust=${Date.now()}`;
-
-                    App.ui.setLoading(true, "A gerar relatório no servidor...");
-
-                    try {
-                        const token = await auth.currentUser.getIdToken();
-
-                        const response = await fetch(apiUrl, {
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-
-                        if (!response.ok) {
-                            const text = await response.text();
-                            throw new Error(text || `Erro do servidor: ${response.statusText}`);
-                        }
-
-                        const blob = await response.blob();
-
-                        if (window.Capacitor && Capacitor.isNativePlatform()) {
-                            // ANDROID NATIVE PATH
-                            // Bypasses the blob URL limitation on WebView by saving to filesystem
-                            try {
-                                const reader = new FileReader();
-                                reader.readAsDataURL(blob);
-                                reader.onloadend = async () => {
-                                    const base64data = reader.result; // This includes the data:application/pdf;base64, prefix
-                                    // Strip the prefix to get pure base64 for the writeFile call
-                                    const base64Content = base64data.substring(base64data.indexOf(',') + 1);
-
-                                    const { Filesystem } = Capacitor.Plugins;
-                                    const { FileOpener } = Capacitor.Plugins;
-
-                                    try {
-                                        // Save file to the Cache directory to avoid permission issues (Android 11+)
-                                        const savedFile = await Filesystem.writeFile({
-                                            path: filename,
-                                            data: base64Content,
-                                            directory: 'CACHE',
-                                            recursive: true
-                                        });
-
-                                        // Open the file with the default native viewer
-                                        // We need to guess the MIME type or map it from filename
-                                        let mimeType = 'application/pdf';
-                                        if (filename.endsWith('.xlsx')) mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-                                        if (filename.endsWith('.csv')) mimeType = 'text/csv';
-
-                                        // Use FileOpener if available (Community Plugin)
-                                        if (FileOpener) {
-                                            await FileOpener.open({
-                                                filePath: savedFile.uri,
-                                                contentType: mimeType
-                                            });
-                                            // App.ui.showAlert('Relatório gerado e aberto com sucesso.', 'success');
-                                        } else {
-                                            App.ui.showAlert(`Relatório salvo no Cache: ${filename}`, 'success');
-                                        }
-
-                                    } catch (fsError) {
-                                        console.error('Erro ao salvar arquivo no dispositivo:', fsError);
-                                        throw new Error(`Erro ao salvar arquivo: ${fsError.message}`);
-                                    }
-                                };
-                            } catch (nativeError) {
-                                throw new Error(`Falha no processamento nativo: ${nativeError.message}`);
-                            }
-
-                        } else {
-                            // WEB PWA PATH (Existing Logic)
-                            const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.style.display = 'none';
-                            a.href = url;
-                            a.download = filename;
-                            document.body.appendChild(a);
-                            a.click();
-                            window.URL.revokeObjectURL(url);
-                            a.remove();
-                            App.ui.showAlert('Relatório gerado com sucesso!');
-                        }
-
-                    } catch (error) {
-                        console.error('Erro ao gerar relatório via API:', error);
-                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
-                },
-                async _fetchAndDownloadReportByUrl(endpointUrl, filters, filename) {
-                    const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([_, v]) => v != null && v !== ''));
-                    cleanFilters.generatedBy = App.state.currentUser?.username || 'Usuário Desconhecido';
-                    if (App.state.currentUser && App.state.currentUser.companyId) {
-                        cleanFilters.companyId = App.state.currentUser.companyId;
-                    }
-
-                    if (!cleanFilters.companyId) {
-                        App.ui.showAlert("Erro de segurança: ID da empresa não especificado. Não é possível gerar o relatório.", "error");
-                        console.error("Aborted report generation due to missing companyId.");
-                        return;
-                    }
-                    const queryParams = new URLSearchParams(cleanFilters);
-                    queryParams.set('_cacheBust', Date.now().toString());
-
-                    const baseUrl = endpointUrl.split('?')[0];
-                    const apiUrl = `${baseUrl}?${queryParams.toString()}`;
-
-                    App.ui.setLoading(true, "A gerar relatório no servidor...");
-
-                    try {
-                        const token = await auth.currentUser.getIdToken();
-
-                        const response = await fetch(apiUrl, {
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-
-                        if (!response.ok) {
-                            const text = await response.text();
-                            throw new Error(text || `Erro do servidor: ${response.statusText}`);
-                        }
-
-                        const blob = await response.blob();
-
-                        if (window.Capacitor && Capacitor.isNativePlatform()) {
-                            try {
-                                const reader = new FileReader();
-                                reader.readAsDataURL(blob);
-                                reader.onloadend = async () => {
-                                    const base64data = reader.result;
-                                    const base64Content = base64data.substring(base64data.indexOf(',') + 1);
-
-                                    const { Filesystem } = Capacitor.Plugins;
-                                    const { FileOpener } = Capacitor.Plugins;
-
-                                    try {
-                                        const savedFile = await Filesystem.writeFile({
-                                            path: filename,
-                                            data: base64Content,
-                                            directory: 'CACHE',
-                                            recursive: true
-                                        });
-
-                                        let mimeType = 'application/pdf';
-                                        if (filename.endsWith('.xlsx')) mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-                                        if (filename.endsWith('.csv')) mimeType = 'text/csv';
-
-                                        if (FileOpener) {
-                                            await FileOpener.open({
-                                                filePath: savedFile.uri,
-                                                contentType: mimeType
-                                            });
-                                        } else {
-                                            App.ui.showAlert(`Relatório salvo no Cache: ${filename}`, 'success');
-                                        }
-
-                                    } catch (fsError) {
-                                        console.error('Erro ao salvar arquivo no dispositivo:', fsError);
-                                        throw new Error(`Erro ao salvar arquivo: ${fsError.message}`);
-                                    }
-                                };
-                            } catch (nativeError) {
-                                throw new Error(`Falha no processamento nativo: ${nativeError.message}`);
-                            }
-
-                        } else {
-                            const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.style.display = 'none';
-                            a.href = url;
-                            a.download = filename;
-                            document.body.appendChild(a);
-                            a.click();
-                            window.URL.revokeObjectURL(url);
-                            a.remove();
-                            App.ui.showAlert('Relatório gerado com sucesso!');
-                        }
-
-                    } catch (error) {
-                        console.error('Erro ao gerar relatório via API:', error);
-                        App.ui.showAlert(`Não foi possível gerar o relatório: ${error.message}`, "error");
-                    } finally {
-                        App.ui.setLoading(false);
-                    }
-                },
-                resetQualidadePlantioReport() {
-                    const els = App.elements.relatorioQualidade;
-                    if (els.resultado) {
-                        els.resultado.innerHTML = '';
-                    }
-                },
-                _getQualidadeReportFilters() {
-                    const els = App.elements.relatorioQualidade;
-                    return {
-                        inicio: els.inicio.value,
-                        fim: els.fim.value,
-                        fazendaId: els.fazenda.value,
-                        talhaoId: els.talhao.value,
-                        tipoPlantio: els.tipoPlantio.value,
-                        indicador: els.indicador.value,
-                        tipoInspecao: els.tipoInspecao.value,
-                        tipoPrestador: els.tipoPrestador.value,
-                        prestadorTirou: els.prestadorTirou.value,
-                        fazendaOrigem: els.fazendaOrigem.value,
-                        frentePlantioId: els.frentePlantio.value,
-                        modelo: els.modelo.value,
-                    };
-                },
-                generateQualidadePlantioPDF() {
-                    const els = App.elements.relatorioQualidade;
-                    if (!els.inicio.value || !els.fim.value) {
-                        App.ui.showAlert("Selecione Data Início e Data Fim.", "warning");
-                        return;
-                    }
-                    const filters = this._getQualidadeReportFilters();
-                    const endpointUrl = `${App.config.backendUrl}/api/reports/qualidade-plantio/pdf`;
-                    this._fetchAndDownloadReportByUrl(endpointUrl, filters, 'relatorio_qualidade_plantio.pdf');
-                },
-                generateQualidadePlantioExcel() {
-                    const els = App.elements.relatorioQualidade;
-                    if (!els.inicio.value || !els.fim.value) {
-                        App.ui.showAlert("Selecione Data Início e Data Fim.", "warning");
-                        return;
-                    }
-                    const filters = this._getQualidadeReportFilters();
-                    const endpointUrl = `${App.config.backendUrl}/api/reports/qualidade-plantio/excel`;
-                    this._fetchAndDownloadReportByUrl(endpointUrl, filters, 'relatorio_qualidade_plantio.xlsx');
-                },
-
-                generateBrocamentoPDF() {
-                    const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                    const farmId = filtroFazenda.value;
-                    const farm = App.state.fazendas.find(f => f.id === farmId);
-                    const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                    const filters = {
-                        inicio: filtroInicio.value,
-                        fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : '',
-                        tipoRelatorio: tipoRelatorio.value,
-                        tipos: selectedTypes.join(',')
-                    };
-                    this._fetchAndDownloadReport('brocamento/pdf', filters, 'relatorio_brocamento.pdf');
-                },
-
-                generateBrocamentoCSV() {
-                    const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio, farmTypeFilter } = App.elements.broca;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                    const farmId = filtroFazenda.value;
-                    const farm = App.state.fazendas.find(f => f.id === farmId);
-                    const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                    const filters = {
-                        inicio: filtroInicio.value,
-                        fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : '',
-                        tipoRelatorio: tipoRelatorio.value,
-                        tipos: selectedTypes.join(',')
-                    };
-                    this._fetchAndDownloadReport('brocamento/csv', filters, 'relatorio_brocamento.csv');
-                },
-
-                generatePerdaPDF() {
-                    const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                    const farmId = filtroFazenda.value;
-                    const farm = App.state.fazendas.find(f => f.id === farmId);
-                    const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                    const filters = {
-                        inicio: filtroInicio.value,
-                        fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : '',
-                        talhao: filtroTalhao.value,
-                        matricula: filtroOperador.value,
-                        frenteServico: filtroFrente.value,
-                        tipoRelatorio: tipoRelatorio.value,
-                        tipos: selectedTypes.join(',')
-                    };
-                    this._fetchAndDownloadReport('perda/pdf', filters, 'relatorio_perda.pdf');
-                },
-
-                generatePerdaCSV() {
-                    const { filtroInicio, filtroFim, filtroFazenda, filtroTalhao, filtroOperador, filtroFrente, tipoRelatorio, farmTypeFilter } = App.elements.perda;
-                    if (!filtroInicio.value || !filtroFim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                    const farmId = filtroFazenda.value;
-                    const farm = App.state.fazendas.find(f => f.id === farmId);
-                    const selectedTypes = Array.from(farmTypeFilter).filter(cb => cb.checked).map(cb => cb.value);
-                    const filters = {
-                        inicio: filtroInicio.value,
-                        fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : '',
-                        talhao: filtroTalhao.value,
-                        matricula: filtroOperador.value,
-                        frenteServico: filtroFrente.value,
-                        tipoRelatorio: tipoRelatorio.value,
-                        tipos: selectedTypes.join(',')
-                    };
-                    this._fetchAndDownloadReport('perda/csv', filters, 'relatorio_perda.csv');
-                },
-
-                generateCigarrinhaPDF() {
-                    const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinha;
-                    if (!filtroInicio.value || !filtroFim.value) {
-                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                        return;
-                    }
-                    const farmId = filtroFazenda.value;
-                    const farm = App.state.fazendas.find(f => f.id === farmId);
-                    const filters = {
-                        inicio: filtroInicio.value,
-                        fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : ''
-                    };
-                    this._fetchAndDownloadReport('cigarrinha/pdf', filters, 'relatorio_cigarrinha.pdf');
-                },
-
-                generateCigarrinhaCSV() {
-                    const { filtroInicio, filtroFim, filtroFazenda } = App.elements.cigarrinha;
-                    if (!filtroInicio.value || !filtroFim.value) {
-                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                        return;
-                    }
-                    const farmId = filtroFazenda.value;
-                    const farm = App.state.fazendas.find(f => f.id === farmId);
-                    const filters = {
-                        inicio: filtroInicio.value,
-                        fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : ''
-                    };
-                    this._fetchAndDownloadReport('cigarrinha/csv', filters, 'relatorio_cigarrinha.csv');
-                },
-
-                generateCigarrinhaAmostragemPDF() {
-                    const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.cigarrinhaAmostragem;
-                    if (!filtroInicio.value || !filtroFim.value) {
-                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                        return;
-                    }
-                    const farmId = filtroFazenda.value;
-                    const farm = App.state.fazendas.find(f => f.id === farmId);
-                    const filters = {
-                        inicio: filtroInicio.value,
-                        fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : '',
-                        tipoRelatorio: document.getElementById('tipoRelatorioCigarrinhaAmostragem').value
-                    };
-                    this._fetchAndDownloadReport('cigarrinha-amostragem/pdf', filters, 'relatorio_cigarrinha_amostragem.pdf');
-                },
-
-                generateCigarrinhaAmostragemCSV() {
-                    const { filtroInicio, filtroFim, filtroFazenda, tipoRelatorio } = App.elements.cigarrinhaAmostragem;
-                    if (!filtroInicio.value || !filtroFim.value) {
-                        App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                        return;
-                    }
-                    const farmId = filtroFazenda.value;
-                    const farm = App.state.fazendas.find(f => f.id === farmId);
-                    const filters = {
-                        inicio: filtroInicio.value,
-                        fim: filtroFim.value,
-                        fazendaCodigo: farm ? farm.code : '',
-                        tipoRelatorio: document.getElementById('tipoRelatorioCigarrinhaAmostragem').value
-                    };
-                    this._fetchAndDownloadReport('cigarrinha-amostragem/csv', filters, 'relatorio_cigarrinha_amostragem.csv');
-                },
-
-                generateCustomHarvestReport(format) {
-                const { select, optionsContainer, tipoRelatorioSelect } = App.elements.relatorioColheita;
-                const planId = select.value;
-                const reportType = tipoRelatorioSelect.value;
-                
-                if (!planId) {
-                    App.ui.showAlert("Por favor, selecione um plano de colheita.", "warning");
-                    return;
-                }
-                
-                let endpoint = `colheita/${format}`;
-                const filters = { planId };
-                
-                if (reportType === 'detalhado') {
-                    const selectedColumns = {};
-                    optionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                        selectedColumns[cb.dataset.column] = cb.checked;
-                    });
-                    filters.selectedColumns = JSON.stringify(selectedColumns);
-                } else {
-                    endpoint = `colheita/mensal/${format}`;
-                }
-                
-                this._fetchAndDownloadReport(endpoint, filters, `relatorio_colheita_${reportType}.${format}`);
-            },
-
-            generateArmadilhaPDF() {
-                const { tipoRelatorio, inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const reportType = tipoRelatorio.value;
-
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
-                
-                if (reportType === 'coletadas') {
-                    this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas_coletadas.pdf');
-                } else {
-                    this._fetchAndDownloadReport('armadilhas-ativas/pdf', filters, 'relatorio_armadilhas_instaladas.pdf');
-                }
-            },
-
-            generateArmadilhaCSV() {
-                const { tipoRelatorio, inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-                const reportType = tipoRelatorio.value;
-
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
-                
-                if (reportType === 'coletadas') {
-                    this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas_coletadas.csv');
-                } else {
-                    this._fetchAndDownloadReport('armadilhas-ativas/csv', filters, 'relatorio_armadilhas_instaladas.csv');
-                }
-            },
-
-            generateMonitoramentoPDF() { // Now generates Trap Report
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
-                this._fetchAndDownloadReport('armadilhas/pdf', filters, 'relatorio_armadilhas.pdf');
-            },
-
-            generatePlantioFazendaPDF() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const frenteId = frente.value;
-                const culturaValue = cultura.value;
-                const fazendaId = fazenda ? fazenda.value : '';
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frenteId,
-                    cultura: culturaValue,
-                    fazendaId: fazendaId,
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/fazenda/pdf', filters, 'relatorio_plantio_fazenda.pdf');
-            },
-
-            generatePlantioFazendaExcel() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const frenteId = frente.value;
-                const culturaValue = cultura.value;
-                const fazendaId = fazenda ? fazenda.value : '';
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frenteId,
-                    cultura: culturaValue,
-                    fazendaId: fazendaId,
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/fazenda/csv', filters, 'relatorio_plantio_fazenda.csv');
-            },
-
-            generatePlantioGeralPDF() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frente.value,
-                    cultura: cultura.value,
-                    fazendaId: fazenda ? fazenda.value : '',
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/geral/pdf', filters, 'relatorio_plantio_geral.pdf');
-            },
-
-            generatePlantioGeralExcel() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frente.value,
-                    cultura: cultura.value,
-                    fazendaId: fazenda ? fazenda.value : '',
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/geral/csv', filters, 'relatorio_plantio_geral.csv');
-            },
-
-            generatePlantioTalhaoPDF() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const frenteId = frente.value;
-                const culturaValue = cultura.value;
-                const fazendaId = fazenda ? fazenda.value : '';
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frenteId,
-                    cultura: culturaValue,
-                    fazendaId: fazendaId,
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/talhao/pdf', filters, 'relatorio_plantio_talhao.pdf');
-            },
-
-            generatePlantioTalhaoExcel() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const frenteId = frente.value;
-                const culturaValue = cultura.value;
-                const fazendaId = fazenda ? fazenda.value : '';
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frenteId,
-                    cultura: culturaValue,
-                    fazendaId: fazendaId,
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/talhao/csv', filters, 'relatorio_plantio_talhao.csv');
-            },
-
-            generatePlantioTalhaoLegacyPDF() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frente.value,
-                    cultura: cultura.value,
-                    fazendaId: fazenda ? fazenda.value : '',
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/talhao-legacy/pdf', filters, 'relatorio_plantio_talhao.pdf');
-            },
-
-            generatePlantioTalhaoLegacyExcel() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frente.value,
-                    cultura: cultura.value,
-                    fazendaId: fazenda ? fazenda.value : '',
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/talhao-legacy/csv', filters, 'relatorio_plantio_talhao.csv');
-            },
-
-            generatePlantioResumoPDF() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frente.value,
-                    cultura: cultura.value,
-                    fazendaId: fazenda ? fazenda.value : '',
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/resumo/pdf', filters, 'relatorio_plantio_resumo.pdf');
-            },
-
-            generatePlantioResumoExcel() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frente.value,
-                    cultura: cultura.value,
-                    fazendaId: fazenda ? fazenda.value : '',
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/resumo/csv', filters, 'relatorio_plantio_resumo.csv');
-            },
-
-            generatePlantioInsumosPDF() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frente.value,
-                    cultura: cultura.value,
-                    fazendaId: fazenda ? fazenda.value : '',
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/insumos/pdf', filters, 'relatorio_plantio_insumos.pdf');
-            },
-
-            generatePlantioInsumosExcel() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frente.value,
-                    cultura: cultura.value,
-                    fazendaId: fazenda ? fazenda.value : '',
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/insumos/csv', filters, 'relatorio_plantio_insumos.csv');
-            },
-
-            generatePlantioOperacionalPDF() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frente.value,
-                    cultura: cultura.value,
-                    fazendaId: fazenda ? fazenda.value : '',
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/operacional/pdf', filters, 'relatorio_plantio_operacional.pdf');
-            },
-
-            generatePlantioOperacionalExcel() {
-                const { inicio, fim, frente, cultura, fazenda } = App.elements.relatorioPlantio;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const selectedTypes = Array.from(document.querySelectorAll('#plantioReportFarmTypeFilter input:checked')).map(cb => cb.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    frenteId: frente.value,
-                    cultura: cultura.value,
-                    fazendaId: fazenda ? fazenda.value : '',
-                    tipos: selectedTypes.join(','),
-                };
-                this._fetchAndDownloadReport('plantio/operacional/csv', filters, 'relatorio_plantio_operacional.csv');
-            },
-
-            async generateClimaPDF() {
-                const { inicio, fim, fazenda } = App.elements.relatorioClima;
-                if (!inicio.value || !fim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
-                }
-                const farm = App.state.fazendas.find(f => f.id === fazenda.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaId: farm ? farm.id : '',
-                };
-
-                App.ui.setLoading(true, "A preparar gráficos para o relatório...");
-
-                try {
-                    // 1. Get chart instances from the dashboard
-                    const chartIds = [
-                        'graficoFazendasLancadas',
-                        'graficoAcumuloPluviosidade',
-                        'graficoMediaVentoFazenda',
-                        'graficoIndiceClimatologico'
-                    ];
-
-                    const chartImages = [];
-                    for (const id of chartIds) {
-                        const chartInstance = App.state.charts[id];
-                        if (chartInstance) {
-                            chartImages.push(chartInstance.toBase64Image());
-                        } else {
-                            console.warn(`Chart with id "${id}" not found. It will be skipped in the PDF.`);
-                        }
-                    }
-
-                    filters.charts = JSON.stringify(chartImages);
-
-                    // 2. Call the report generation
-                    this._fetchAndDownloadReport('clima/pdf', filters, 'relatorio_clima.pdf');
-
-                } catch (error) {
-                    console.error("Erro ao capturar imagens dos gráficos:", error);
-                    App.ui.showAlert("Não foi possível adicionar os gráficos ao relatório. Gerando relatório apenas com dados.", "error");
-                    // Still generate the report without charts if there was an error
-                    this._fetchAndDownloadReport('clima/pdf', filters, 'relatorio_clima.pdf');
-                } finally {
-                    // The loading indicator is handled by _fetchAndDownloadReport
-                }
-            },
-
-            generateClimaCSV() {
-                const { inicio, fim, fazenda } = App.elements.relatorioClima;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-                const farm = App.state.fazendas.find(f => f.id === fazenda.value);
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaId: farm ? farm.id : '',
-                };
-                this._fetchAndDownloadReport('clima/csv', filters, 'relatorio_clima.csv');
-            },
-
-            generateMonitoramentoCSV() { // Now generates Trap Report
-                const { inicio, fim, fazendaFiltro } = App.elements.relatorioMonitoramento;
-                if (!inicio.value || !fim.value) { App.ui.showAlert("Selecione Data Início e Fim.", "warning"); return; }
-
-                const farmId = fazendaFiltro.value;
-                const farm = App.state.fazendas.find(f => f.id === farmId);
-
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    fazendaCodigo: farm ? farm.code : ''
-                };
-                this._fetchAndDownloadReport('armadilhas/csv', filters, 'relatorio_armadilhas.csv');
-            },
-
-            generateRiskViewPDF() {
-                const { inicio, fim } = App.elements.relatorioRisco;
-                if (!inicio.value || !fim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
-                }
-                const riskOnlyCheckbox = document.getElementById('riskOnlyCheckbox');
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    riskOnly: riskOnlyCheckbox ? riskOnlyCheckbox.checked : false
-                };
-                this._fetchAndDownloadReport('risk-view/pdf', filters, 'relatorio_de_risco.pdf');
-            },
-
-            generateRiskViewCSV() {
-                const { inicio, fim } = App.elements.relatorioRisco;
-                if (!inicio.value || !fim.value) {
-                    App.ui.showAlert("Selecione Data Início e Fim.", "warning");
-                    return;
-                }
-                const riskOnlyCheckbox = document.getElementById('riskOnlyCheckbox');
-                const filters = {
-                    inicio: inicio.value,
-                    fim: fim.value,
-                    riskOnly: riskOnlyCheckbox ? riskOnlyCheckbox.checked : false
-                };
-                this._fetchAndDownloadReport('risk-view/csv', filters, 'relatorio_de_risco.csv');
-            },
-        },
+       
 
         osEscritorio: {
             currentPage: 1,
             itemsPerPage: 10,
 
             setup() {
-                const btnFilter = document.getElementById('btnFilterOS');
+                const btnFilter = safeGetElementById('btnFilterOS');
                 if (btnFilter) btnFilter.addEventListener('click', () => {
                     this.currentPage = 1;
                     this.renderList();
                 });
 
-                const btnCloseEditModal = document.getElementById('osEditModalClose');
+                const btnCloseEditModal = safeGetElementById('osEditModalClose');
                 if (btnCloseEditModal) btnCloseEditModal.addEventListener('click', () => this.closeEditModal());
 
-                const btnCancelEditOs = document.getElementById('btnCancelEditOs');
+                const btnCancelEditOs = safeGetElementById('btnCancelEditOs');
                 if (btnCancelEditOs) btnCancelEditOs.addEventListener('click', () => this.closeEditModal());
 
-                const btnSaveEditOs = document.getElementById('btnSaveEditOs');
+                const btnSaveEditOs = safeGetElementById('btnSaveEditOs');
                 if (btnSaveEditOs) btnSaveEditOs.addEventListener('click', () => this.saveEditOS());
 
-                const btnProcessImport = document.getElementById('btnProcessImport');
+                const btnProcessImport = safeGetElementById('btnProcessImport');
                 if (btnProcessImport) btnProcessImport.addEventListener('click', () => this.processMachineReport());
 
-                const btnOpenInbox = document.getElementById('btnOpenInbox');
+                const btnOpenInbox = safeGetElementById('btnOpenInbox');
                 if (btnOpenInbox) btnOpenInbox.addEventListener('click', () => this.openReconciliationInbox());
 
-                const btnManageImportTemplates = document.getElementById('btnManageImportTemplates');
+                const btnManageImportTemplates = safeGetElementById('btnManageImportTemplates');
                 if (btnManageImportTemplates) btnManageImportTemplates.addEventListener('click', () => this.openImportTemplateManager());
 
-                const btnSaveTemplate = document.getElementById('btnSaveTemplate');
+                const btnSaveTemplate = safeGetElementById('btnSaveTemplate');
                 if (btnSaveTemplate) btnSaveTemplate.addEventListener('click', () => this.saveImportTemplate());
 
-                const btnDeleteTemplate = document.getElementById('btnDeleteTemplate');
+                const btnDeleteTemplate = safeGetElementById('btnDeleteTemplate');
                 if (btnDeleteTemplate) btnDeleteTemplate.addEventListener('click', () => this.deleteImportTemplate());
 
-                const importTemplateModalCloseBtn = document.getElementById('importTemplateModalCloseBtn');
-                if (importTemplateModalCloseBtn) importTemplateModalCloseBtn.addEventListener('click', () => document.getElementById('importTemplateModal').classList.remove('show'));
+                const importTemplateModalCloseBtn = safeGetElementById('importTemplateModalCloseBtn');
+                if (importTemplateModalCloseBtn) importTemplateModalCloseBtn.addEventListener('click', () => safeGetElementById('importTemplateModal').classList.remove('show'));
 
-                const importTemplateModalCancelBtn = document.getElementById('importTemplateModalCancelBtn');
-                if (importTemplateModalCancelBtn) importTemplateModalCancelBtn.addEventListener('click', () => document.getElementById('importTemplateModal').classList.remove('show'));
+                const importTemplateModalCancelBtn = safeGetElementById('importTemplateModalCancelBtn');
+                if (importTemplateModalCancelBtn) importTemplateModalCancelBtn.addEventListener('click', () => safeGetElementById('importTemplateModal').classList.remove('show'));
 
-                const templateSelector = document.getElementById('templateSelector');
+                const templateSelector = safeGetElementById('templateSelector');
                 if (templateSelector) templateSelector.addEventListener('change', (e) => this.loadImportTemplateFields(e.target.value));
 
                 this.refreshTemplateDropdowns();
 
-                const btnDownloadOsImportTemplate = document.getElementById('btnDownloadOsImportTemplate');
+                const btnDownloadOsImportTemplate = safeGetElementById('btnDownloadOsImportTemplate');
                 if (btnDownloadOsImportTemplate) btnDownloadOsImportTemplate.addEventListener('click', () => {
                     const csvContent = "Data;Propriedade;Operação:;Descrição;Fazenda;Etapa;Produto;Grupo;Talhão;Ha.Aplic;Qtde.Aplic;Dos.Aplic;Dos.Rec;Vlr.Unit;Total R$\n";
                     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -22109,12 +17361,12 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             },
 
             renderList() {
-                const listContainer = document.getElementById('osOfficeList');
+                const listContainer = safeGetElementById('osOfficeList');
                 if (!listContainer) return;
 
-                const start = document.getElementById('osOfficeStart').value;
-                const end = document.getElementById('osOfficeEnd').value;
-                const status = document.getElementById('osOfficeStatus').value;
+                const start = safeGetElementById('osOfficeStart').value;
+                const end = safeGetElementById('osOfficeEnd').value;
+                const status = safeGetElementById('osOfficeStatus').value;
 
                 let data = App.state.ordens_servico || [];
 
@@ -22184,14 +17436,14 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                 const os = App.state.ordens_servico.find(o => o.id === osId);
                 if (!os) return;
 
-                document.getElementById('osEditId').value = os.id;
-                document.getElementById('osEditStatus').value = os.status || 'PLANEJADA';
-                document.getElementById('osEditResponsavelNome').value = os.responsavel_nome || '';
-                document.getElementById('osEditResponsavelMatricula').value = os.responsavel_matricula || '';
-                document.getElementById('osEditObservacoes').value = os.observacoes_escritorio || '';
+                safeGetElementById('osEditId').value = os.id;
+                safeGetElementById('osEditStatus').value = os.status || 'PLANEJADA';
+                safeGetElementById('osEditResponsavelNome').value = os.responsavel_nome || '';
+                safeGetElementById('osEditResponsavelMatricula').value = os.responsavel_matricula || '';
+                safeGetElementById('osEditObservacoes').value = os.observacoes_escritorio || '';
 
-                const divergenceAlert = document.getElementById('osEditDivergenceAlert');
-                const divergenceText = document.getElementById('osEditDivergenceText');
+                const divergenceAlert = safeGetElementById('osEditDivergenceAlert');
+                const divergenceText = safeGetElementById('osEditDivergenceText');
 
                 if (os.status === 'DIVERGENTE' && os.observacoes_execucao) {
                     divergenceText.textContent = os.observacoes_execucao;
@@ -22201,19 +17453,19 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                     divergenceAlert.style.display = 'none';
                 }
 
-                document.getElementById('osEditModal').style.display = 'flex';
+                safeGetElementById('osEditModal').style.display = 'flex';
             },
 
             closeEditModal() {
-                document.getElementById('osEditModal').style.display = 'none';
+                safeGetElementById('osEditModal').style.display = 'none';
             },
 
             async saveEditOS() {
-                const osId = document.getElementById('osEditId').value;
-                const status = document.getElementById('osEditStatus').value;
-                const responsavel_nome = document.getElementById('osEditResponsavelNome').value;
-                const responsavel_matricula = document.getElementById('osEditResponsavelMatricula').value;
-                const observacoes_escritorio = document.getElementById('osEditObservacoes').value;
+                const osId = safeGetElementById('osEditId').value;
+                const status = safeGetElementById('osEditStatus').value;
+                const responsavel_nome = safeGetElementById('osEditResponsavelNome').value;
+                const responsavel_matricula = safeGetElementById('osEditResponsavelMatricula').value;
+                const observacoes_escritorio = safeGetElementById('osEditObservacoes').value;
 
                 if (!osId) return;
 
@@ -22279,7 +17531,7 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                                     const t = farm.talhoes.find(p => String(p.name) === String(plotName));
                                     if(t) {
                                         App.state.osSelectedPlots.add(t.id);
-                                        const checkbox = document.getElementById(`os-plot-${t.id}`);
+                                        const checkbox = safeGetElementById(`os-plot-${t.id}`);
                                         if (checkbox) checkbox.checked = true;
                                     }
                                 });
@@ -22364,12 +17616,12 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
 
             openImportTemplateManager() {
                 this.refreshTemplateDropdowns();
-                document.getElementById('importTemplateModal').classList.add('show');
+                safeGetElementById('importTemplateModal').classList.add('show');
             },
 
             refreshTemplateDropdowns() {
-                const selectModal = document.getElementById('templateSelector');
-                const selectMain = document.getElementById('osImportTemplateSelect');
+                const selectModal = safeGetElementById('templateSelector');
+                const selectMain = safeGetElementById('osImportTemplateSelect');
                 if (!selectModal || !selectMain) return;
 
                 const templates = App.state.globalConfigs?.importTemplates || {};
@@ -22387,17 +17639,17 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             },
 
             loadImportTemplateFields(templateId) {
-                const btnDelete = document.getElementById('btnDeleteTemplate');
+                const btnDelete = safeGetElementById('btnDeleteTemplate');
                 if (templateId === 'novo') {
-                    document.getElementById('tplName').value = '';
-                    document.getElementById('tplData').value = '';
-                    document.getElementById('tplFazenda').value = '';
-                    document.getElementById('tplTalhao').value = '';
-                    document.getElementById('tplProduto').value = '';
-                    document.getElementById('tplOperacao').value = '';
-                    document.getElementById('tplAreaAplic').value = '';
-                    document.getElementById('tplDosagemAplic').value = '';
-                    document.getElementById('tplOperacaoRule').value = '';
+                    safeGetElementById('tplName').value = '';
+                    safeGetElementById('tplData').value = '';
+                    safeGetElementById('tplFazenda').value = '';
+                    safeGetElementById('tplTalhao').value = '';
+                    safeGetElementById('tplProduto').value = '';
+                    safeGetElementById('tplOperacao').value = '';
+                    safeGetElementById('tplAreaAplic').value = '';
+                    safeGetElementById('tplDosagemAplic').value = '';
+                    safeGetElementById('tplOperacaoRule').value = '';
                     if(btnDelete) btnDelete.style.display = 'none';
                     return;
                 }
@@ -22405,22 +17657,22 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                 const templates = App.state.globalConfigs?.importTemplates || {};
                 const tpl = templates[templateId];
                 if (tpl) {
-                    document.getElementById('tplName').value = tpl.name || '';
-                    document.getElementById('tplData').value = tpl.mapping.data || '';
-                    document.getElementById('tplFazenda').value = tpl.mapping.fazenda || '';
-                    document.getElementById('tplTalhao').value = tpl.mapping.talhao || '';
-                    document.getElementById('tplProduto').value = tpl.mapping.produto || '';
-                    document.getElementById('tplOperacao').value = tpl.mapping.operacao || '';
-                    document.getElementById('tplAreaAplic').value = tpl.mapping.areaAplic || '';
-                    document.getElementById('tplDosagemAplic').value = tpl.mapping.dosagemAplic || '';
-                    document.getElementById('tplOperacaoRule').value = tpl.mapping.operacaoRule || '';
+                    safeGetElementById('tplName').value = tpl.name || '';
+                    safeGetElementById('tplData').value = tpl.mapping.data || '';
+                    safeGetElementById('tplFazenda').value = tpl.mapping.fazenda || '';
+                    safeGetElementById('tplTalhao').value = tpl.mapping.talhao || '';
+                    safeGetElementById('tplProduto').value = tpl.mapping.produto || '';
+                    safeGetElementById('tplOperacao').value = tpl.mapping.operacao || '';
+                    safeGetElementById('tplAreaAplic').value = tpl.mapping.areaAplic || '';
+                    safeGetElementById('tplDosagemAplic').value = tpl.mapping.dosagemAplic || '';
+                    safeGetElementById('tplOperacaoRule').value = tpl.mapping.operacaoRule || '';
                     if(btnDelete) btnDelete.style.display = 'block';
                 }
             },
 
             async saveImportTemplate() {
-                const id = document.getElementById('templateSelector').value;
-                const name = document.getElementById('tplName').value.trim();
+                const id = safeGetElementById('templateSelector').value;
+                const name = safeGetElementById('tplName').value.trim();
 
                 if (!name) {
                     App.ui.showAlert('O nome do template é obrigatório.', 'warning');
@@ -22430,14 +17682,14 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                 const newTemplate = {
                     name: name,
                     mapping: {
-                        data: document.getElementById('tplData').value.trim(),
-                        fazenda: document.getElementById('tplFazenda').value.trim(),
-                        talhao: document.getElementById('tplTalhao').value.trim(),
-                        produto: document.getElementById('tplProduto').value.trim(),
-                        operacao: document.getElementById('tplOperacao').value.trim(),
-                        areaAplic: document.getElementById('tplAreaAplic').value.trim(),
-                        dosagemAplic: document.getElementById('tplDosagemAplic').value.trim(),
-                        operacaoRule: document.getElementById('tplOperacaoRule').value.trim()
+                        data: safeGetElementById('tplData').value.trim(),
+                        fazenda: safeGetElementById('tplFazenda').value.trim(),
+                        talhao: safeGetElementById('tplTalhao').value.trim(),
+                        produto: safeGetElementById('tplProduto').value.trim(),
+                        operacao: safeGetElementById('tplOperacao').value.trim(),
+                        areaAplic: safeGetElementById('tplAreaAplic').value.trim(),
+                        dosagemAplic: safeGetElementById('tplDosagemAplic').value.trim(),
+                        operacaoRule: safeGetElementById('tplOperacaoRule').value.trim()
                     }
                 };
 
@@ -22453,7 +17705,7 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                     App.state.globalConfigs = configs;
 
                     this.refreshTemplateDropdowns();
-                    document.getElementById('templateSelector').value = templateId;
+                    safeGetElementById('templateSelector').value = templateId;
 
                     App.ui.showAlert('Template salvo com sucesso!', 'success');
                 } catch (e) {
@@ -22465,7 +17717,7 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             },
 
             async deleteImportTemplate() {
-                const id = document.getElementById('templateSelector').value;
+                const id = safeGetElementById('templateSelector').value;
                 if (id === 'novo') return;
 
                 App.ui.showConfirmationModal(
@@ -22544,9 +17796,9 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             },
 
             async processMachineReport() {
-                const fileInput = document.getElementById('osImportFile');
-                const tolerance = parseFloat(document.getElementById('osImportTolerance').value) || 5;
-                const templateId = document.getElementById('osImportTemplateSelect').value;
+                const fileInput = safeGetElementById('osImportFile');
+                const tolerance = parseFloat(safeGetElementById('osImportTolerance').value) || 5;
+                const templateId = safeGetElementById('osImportTemplateSelect').value;
 
                 if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
                     App.ui.showAlert('Por favor, selecione um arquivo CSV.', 'warning');
@@ -22847,12 +18099,12 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             },
 
             async openReconciliationInbox() {
-                const modal = document.getElementById('reconciliationInboxModal');
-                const list = document.getElementById('reconciliationInboxList');
-                const btnClose = document.getElementById('reconciliationInboxModalCloseBtn');
-                const btnCancel = document.getElementById('reconciliationInboxModalCancelBtn');
-                const btnSelectAll = document.getElementById('btnSelectAllInbox');
-                const btnDismiss = document.getElementById('btnDismissSelectedInbox');
+                const modal = safeGetElementById('reconciliationInboxModal');
+                const list = safeGetElementById('reconciliationInboxList');
+                const btnClose = safeGetElementById('reconciliationInboxModalCloseBtn');
+                const btnCancel = safeGetElementById('reconciliationInboxModalCancelBtn');
+                const btnSelectAll = safeGetElementById('btnSelectAllInbox');
+                const btnDismiss = safeGetElementById('btnDismissSelectedInbox');
 
                 if (!modal || !list) return;
 
@@ -22930,16 +18182,16 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                 const closeHandler = () => modal.classList.remove('show');
                 if (btnClose) {
                     btnClose.replaceWith(btnClose.cloneNode(true));
-                    document.getElementById('reconciliationInboxModalCloseBtn').addEventListener('click', closeHandler);
+                    safeGetElementById('reconciliationInboxModalCloseBtn').addEventListener('click', closeHandler);
                 }
                 if (btnCancel) {
                     btnCancel.replaceWith(btnCancel.cloneNode(true));
-                    document.getElementById('reconciliationInboxModalCancelBtn').addEventListener('click', closeHandler);
+                    safeGetElementById('reconciliationInboxModalCancelBtn').addEventListener('click', closeHandler);
                 }
 
                 if (btnSelectAll) {
                     btnSelectAll.replaceWith(btnSelectAll.cloneNode(true));
-                    const btn = document.getElementById('btnSelectAllInbox');
+                    const btn = safeGetElementById('btnSelectAllInbox');
                     btn.addEventListener('click', () => {
                         const checkboxes = list.querySelectorAll('.inbox-cb');
                         const allChecked = Array.from(checkboxes).every(cb => cb.checked);
@@ -22949,7 +18201,7 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
 
                 if (btnDismiss) {
                     btnDismiss.replaceWith(btnDismiss.cloneNode(true));
-                    const btn = document.getElementById('btnDismissSelectedInbox');
+                    const btn = safeGetElementById('btnDismissSelectedInbox');
                     btn.addEventListener('click', async () => {
                         const checkboxes = list.querySelectorAll('.inbox-cb:checked');
                         if (checkboxes.length === 0) {
@@ -22986,10 +18238,10 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                     });
                 }
 
-                const btnCreate = document.getElementById('btnCreateOsFromInbox');
+                const btnCreate = safeGetElementById('btnCreateOsFromInbox');
                 if (btnCreate) {
                     btnCreate.replaceWith(btnCreate.cloneNode(true));
-                    const btnC = document.getElementById('btnCreateOsFromInbox');
+                    const btnC = safeGetElementById('btnCreateOsFromInbox');
                     btnC.addEventListener('click', async () => {
                         const checkboxes = list.querySelectorAll('.inbox-cb:checked');
                         if (checkboxes.length === 0) {
@@ -23077,18 +18329,18 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                     });
                 }
 
-                const btnLink = document.getElementById('btnLinkOsFromInbox');
-                const linkModal = document.getElementById('linkOsInboxModal');
+                const btnLink = safeGetElementById('btnLinkOsFromInbox');
+                const linkModal = safeGetElementById('linkOsInboxModal');
                 if (btnLink && linkModal) {
                     btnLink.replaceWith(btnLink.cloneNode(true));
-                    document.getElementById('btnLinkOsFromInbox').addEventListener('click', () => {
+                    safeGetElementById('btnLinkOsFromInbox').addEventListener('click', () => {
                         const checkboxes = list.querySelectorAll('.inbox-cb:checked');
                         if (checkboxes.length === 0) {
                             App.ui.showAlert('Selecione pelo menos um item para vincular.', 'warning');
                             return;
                         }
 
-                        const select = document.getElementById('linkOsSelect');
+                        const select = safeGetElementById('linkOsSelect');
                         select.innerHTML = '<option value="">Selecione a O.S...</option>';
 
                         const activeOSs = App.state.ordens_servico.filter(os => os.status === 'PLANEJADA' || os.status === 'EM_EXECUCAO');
@@ -23106,13 +18358,13 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
                         linkModal.style.display = 'flex';
                     });
 
-                    document.getElementById('linkOsInboxModalCloseBtn').addEventListener('click', () => linkModal.classList.remove('show'));
-                    document.getElementById('linkOsInboxModalCancelBtn').addEventListener('click', () => linkModal.classList.remove('show'));
+                    safeGetElementById('linkOsInboxModalCloseBtn').addEventListener('click', () => linkModal.classList.remove('show'));
+                    safeGetElementById('linkOsInboxModalCancelBtn').addEventListener('click', () => linkModal.classList.remove('show'));
 
-                    const btnConfirmLink = document.getElementById('btnConfirmLinkOs');
+                    const btnConfirmLink = safeGetElementById('btnConfirmLinkOs');
                     btnConfirmLink.replaceWith(btnConfirmLink.cloneNode(true));
-                    document.getElementById('btnConfirmLinkOs').addEventListener('click', async () => {
-                        const osId = document.getElementById('linkOsSelect').value;
+                    safeGetElementById('btnConfirmLinkOs').addEventListener('click', async () => {
+                        const osId = safeGetElementById('linkOsSelect').value;
                         if (!osId) {
                             App.ui.showAlert('Selecione uma O.S. para vincular.', 'warning');
                             return;
@@ -23185,395 +18437,7 @@ Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem
             }
         },
 
-        cadastrosAuxiliares: {
-            buildAuxData(payload = {}) {
-                return sanitizeFirestoreData({
-                    ...payload,
-                    ativo: payload.ativo ?? true,
-                    companyId: App.state.currentUser.companyId,
-                    createdAt: payload.createdAt || new Date().toISOString()
-                });
-            },
 
-            async persistAuxRecord(collectionName, data, id = null) {
-                const payload = sanitizeFirestoreData(data);
-                if (id) {
-                    await App.data.updateDocument(collectionName, id, payload);
-                    return id;
-                }
-
-                const offlineId = `offline_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-                if (!App.state.isOnline || App.state.authMode === 'offline') {
-                    await OfflineDB.add('offline-writes', { id: offlineId, collection: collectionName, data: payload });
-                    App.state[collectionName] = App.state[collectionName] || [];
-                    App.state[collectionName].push({ id: offlineId, ...payload });
-                    return offlineId;
-                }
-
-                const docRef = await App.data.addDocument(collectionName, payload);
-                return docRef.id;
-            },
-
-            setup() {
-                const btnSaveTipo = document.getElementById('btnSaveTipoServico');
-                if (btnSaveTipo) btnSaveTipo.addEventListener('click', () => {
-                    App.ui.showConfirmationModal("Tem certeza que deseja salvar ou alterar este Tipo de Serviço?", () => this.saveTipoServico());
-                });
-
-                const btnSaveOp = document.getElementById('btnSaveOperacao');
-                if (btnSaveOp) btnSaveOp.addEventListener('click', () => {
-                    App.ui.showConfirmationModal("Tem certeza que deseja salvar ou alterar esta Operação?", () => this.saveOperacao());
-                });
-
-                const btnSaveProd = document.getElementById('btnSaveProduto');
-                if (btnSaveProd) btnSaveProd.addEventListener('click', () => {
-                    App.ui.showConfirmationModal("Tem certeza que deseja salvar ou alterar este Produto?", () => this.saveProduto());
-                });
-
-                const btnSaveOpProd = document.getElementById('btnSaveOpProd');
-                if (btnSaveOpProd) btnSaveOpProd.addEventListener('click', () => {
-                    App.ui.showConfirmationModal("Tem certeza que deseja salvar ou alterar esta vinculação Operação x Produto?", () => this.saveOpProd());
-                });
-
-                // Populate Dropdowns in Op x Prod
-                this.populateDropdowns();
-            },
-
-            populateDropdowns() {
-                const opSelect = document.getElementById('opProdOperacao');
-                const prodSelect = document.getElementById('opProdProduto');
-
-                if(opSelect) {
-                    opSelect.innerHTML = '<option value="">Selecione...</option>' +
-                        (App.state.operacoes || []).filter(x => x.ativo).map(op => `<option value="${op.id}">${op.nome}</option>`).join('');
-                }
-                if(prodSelect) {
-                    prodSelect.innerHTML = '<option value="">Selecione...</option>' +
-                        (App.state.produtos || []).filter(x => x.ativo).map(p => `<option value="${p.id}">${p.nome} (${p.unidade})</option>`).join('');
-                }
-            },
-
-            async saveTipoServico() {
-                const desc = document.getElementById('tipoServicoDesc').value;
-                const tipoServicoId = document.getElementById('tipoServicoId').value;
-                const ativo = document.getElementById('tipoServicoAtivo').checked;
-
-                if (!desc) return App.ui.showAlert('Preencha a descrição.', 'warning');
-
-                const data = this.buildAuxData({
-                    descricao: desc,
-                    ativo
-                });
-
-                await this.persistAuxRecord('tipos_servico', data, tipoServicoId || null);
-                App.ui.showAlert('Tipo de Serviço salvo!');
-                document.getElementById('tipoServicoDesc').value = '';
-                document.getElementById('tipoServicoId').value = '';
-                this.renderTiposServico();
-            },
-
-            renderTiposServico() {
-                const list = document.getElementById('listaTiposServico');
-                if(!list) return;
-                const items = App.state.tipos_servico || [];
-
-                if (items.length === 0) {
-                    list.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--color-text-light); padding: 20px;">Nenhum tipo de serviço cadastrado.</p>';
-                    return;
-                }
-
-                let html = items.map(item => `
-                    <div class="user-card-redesigned" style="border-left-color: var(--color-info);">
-                        <div class="user-card-header">
-                            <div class="user-card-info">
-                                <div class="user-card-avatar" style="background-color: color-mix(in srgb, var(--color-info) 15%, transparent); color: var(--color-info);">
-                                    <i class="fas fa-tag"></i>
-                                </div>
-                                <div class="user-card-details">
-                                    <h4>${item.descricao}</h4>
-                                    <span class="user-card-status ${item.ativo !== false ? 'active' : 'inactive'}" style="display: inline-flex; margin-top: 5px;">
-                                        <i class="fas fa-circle" style="font-size: 8px;"></i> ${item.ativo !== false ? 'Ativo' : 'Inativo'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="user-card-actions">
-                            <button onclick="App.cadastrosAuxiliares.editTipoServico('${item.id}')" title="Editar">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="toggle-btn ${item.ativo !== false ? 'active' : 'inactive'}" onclick="App.cadastrosAuxiliares.toggleAtivo('tipos_servico', '${item.id}', ${item.ativo !== false})" title="Ativar/Desativar">
-                                <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
-                            </button>
-                            <button onclick="App.data.deleteDocument('tipos_servico', '${item.id}').then(() => App.cadastrosAuxiliares.renderTiposServico())" style="color: var(--color-danger);" title="Excluir">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
-                list.innerHTML = html;
-            },
-
-            async saveOperacao() {
-                const nome = document.getElementById('operacaoNome').value;
-                const operacaoId = document.getElementById('operacaoId').value;
-                const maxApp = document.getElementById('operacaoMaxApp').value;
-                const codigo = document.getElementById('operacaoCodigo').value;
-                const grupo = document.getElementById('operacaoGrupo').value;
-                const ativo = document.getElementById('operacaoAtivo').checked;
-
-                if (!nome) return App.ui.showAlert('Preencha o nome.', 'warning');
-
-                const data = this.buildAuxData({
-                    nome,
-                    max_aplicacoes: parseInt(maxApp) || 1,
-                    codigo_externo: codigo,
-                    grupo: grupo,
-                    ativo
-                });
-
-                await this.persistAuxRecord('operacoes', data, operacaoId || null);
-                App.ui.showAlert('Operação salva!');
-                document.getElementById('operacaoNome').value = '';
-                document.getElementById('operacaoCodigo').value = '';
-                document.getElementById('operacaoGrupo').value = '';
-                document.getElementById('operacaoId').value = '';
-                this.renderOperacoes();
-                this.populateDropdowns();
-            },
-
-            renderOperacoes() {
-                const list = document.getElementById('listaOperacoes');
-                if(!list) return;
-                const items = App.state.operacoes || [];
-
-                if (items.length === 0) {
-                    list.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--color-text-light); padding: 20px;">Nenhuma operação cadastrada.</p>';
-                    return;
-                }
-
-                let html = items.map(item => `
-                    <div class="user-card-redesigned" style="border-left-color: var(--color-warning);">
-                        <div class="user-card-header">
-                            <div class="user-card-info">
-                                <div class="user-card-avatar" style="background-color: color-mix(in srgb, var(--color-warning) 15%, transparent); color: var(--color-warning);">
-                                    <i class="fas fa-cogs"></i>
-                                </div>
-                                <div class="user-card-details">
-                                    <h4>${item.nome}</h4>
-                                    <p style="margin-top: 4px; font-size: 12px;"><i class="fas fa-barcode"></i> Cód (OP): ${item.codigo_externo || 'N/A'}</p>
-                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-layer-group"></i> Grupo: ${item.grupo || 'N/A'}</p>
-                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-shield-alt"></i> Max App: ${item.max_aplicacoes}</p>
-                                    <span class="user-card-status ${item.ativo !== false ? 'active' : 'inactive'}" style="display: inline-flex; margin-top: 8px;">
-                                        <i class="fas fa-circle" style="font-size: 8px;"></i> ${item.ativo !== false ? 'Ativo' : 'Inativo'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="user-card-actions">
-                            <button onclick="App.cadastrosAuxiliares.editOperacao('${item.id}')" title="Editar">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="toggle-btn ${item.ativo !== false ? 'active' : 'inactive'}" onclick="App.cadastrosAuxiliares.toggleAtivo('operacoes', '${item.id}', ${item.ativo !== false})" title="Ativar/Desativar">
-                                <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
-                            </button>
-                            <button onclick="App.data.deleteDocument('operacoes', '${item.id}').then(() => App.cadastrosAuxiliares.renderOperacoes())" style="color: var(--color-danger);" title="Excluir">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
-                list.innerHTML = html;
-            },
-
-            async saveProduto() {
-                const nome = document.getElementById('produtoNome').value;
-                const produtoId = document.getElementById('produtoId')?.value || '';
-                const unidade = document.getElementById('produtoUnidade').value;
-                const codigo = document.getElementById('produtoCodigo').value;
-                const ativo = document.getElementById('produtoAtivo').checked;
-
-                if (!nome) return App.ui.showAlert('Preencha o nome.', 'warning');
-
-                const data = this.buildAuxData({
-                    nome,
-                    unidade,
-                    codigo_externo: codigo,
-                    ativo
-                });
-
-                await this.persistAuxRecord('produtos', data, produtoId || null);
-                App.ui.showAlert('Produto salvo!');
-                document.getElementById('produtoNome').value = '';
-                const produtoIdField = document.getElementById('produtoId');
-                if (produtoIdField) produtoIdField.value = '';
-                this.renderProdutos();
-                this.populateDropdowns();
-            },
-
-            renderProdutos() {
-                const list = document.getElementById('listaProdutos');
-                if(!list) return;
-                const items = App.state.produtos || [];
-
-                if (items.length === 0) {
-                    list.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--color-text-light); padding: 20px;">Nenhum produto cadastrado.</p>';
-                    return;
-                }
-
-                let html = items.map(item => `
-                    <div class="user-card-redesigned" style="border-left-color: var(--color-success);">
-                        <div class="user-card-header">
-                            <div class="user-card-info">
-                                <div class="user-card-avatar" style="background-color: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success);">
-                                    <i class="fas fa-flask"></i>
-                                </div>
-                                <div class="user-card-details">
-                                    <h4>${item.nome}</h4>
-                                    <p style="margin-top: 4px; font-size: 12px;"><i class="fas fa-barcode"></i> Cód: ${item.codigo_externo || 'N/A'}</p>
-                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-weight-hanging"></i> Unidade: ${item.unidade}</p>
-                                    <span class="user-card-status ${item.ativo !== false ? 'active' : 'inactive'}" style="display: inline-flex; margin-top: 8px;">
-                                        <i class="fas fa-circle" style="font-size: 8px;"></i> ${item.ativo !== false ? 'Ativo' : 'Inativo'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="user-card-actions">
-                            <button onclick="App.cadastrosAuxiliares.editProduto('${item.id}')" title="Editar">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="toggle-btn ${item.ativo !== false ? 'active' : 'inactive'}" onclick="App.cadastrosAuxiliares.toggleAtivo('produtos', '${item.id}', ${item.ativo !== false})" title="Ativar/Desativar">
-                                <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
-                            </button>
-                            <button onclick="App.data.deleteDocument('produtos', '${item.id}').then(() => App.cadastrosAuxiliares.renderProdutos())" style="color: var(--color-danger);" title="Excluir">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
-                list.innerHTML = html;
-            },
-
-            async saveOpProd() {
-                const opProdId = document.getElementById('opProdId').value;
-                const operacaoId = document.getElementById('opProdOperacao').value;
-                const produtoId = document.getElementById('opProdProduto').value;
-                const dosagem = document.getElementById('opProdDosagem').value;
-                const obrigatorio = document.getElementById('opProdObrigatorio').checked;
-
-                if (!operacaoId || !produtoId || !dosagem) return App.ui.showAlert('Preencha todos os campos.', 'warning');
-
-                const data = this.buildAuxData({
-                    operacao_id: operacaoId,
-                    produto_id: produtoId,
-                    dosagem_por_ha: parseFloat(dosagem),
-                    obrigatorio,
-                    ativo: true
-                });
-
-                await this.persistAuxRecord('operacao_produtos', data, opProdId || null);
-                App.ui.showAlert('Vínculo criado!');
-                document.getElementById('opProdId').value = '';
-                this.renderOpProd();
-            },
-
-            renderOpProd() {
-                const list = document.getElementById('listaOpProd');
-                if(!list) return;
-                const items = App.state.operacao_produtos || [];
-
-                if (items.length === 0) {
-                    list.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--color-text-light); padding: 20px;">Nenhum vínculo cadastrado.</p>';
-                    return;
-                }
-
-                let html = items.map(item => {
-                    const op = (App.state.operacoes || []).find(o => o.id === item.operacao_id)?.nome || 'N/A';
-                    const prod = (App.state.produtos || []).find(p => p.id === item.produto_id);
-                    const prodName = prod ? `${prod.nome} (${prod.unidade})` : 'N/A';
-
-                    return `
-                    <div class="user-card-redesigned" style="border-left-color: var(--color-purple);">
-                        <div class="user-card-header">
-                            <div class="user-card-info">
-                                <div class="user-card-avatar" style="background-color: color-mix(in srgb, var(--color-purple) 15%, transparent); color: var(--color-purple);">
-                                    <i class="fas fa-link"></i>
-                                </div>
-                                <div class="user-card-details">
-                                    <h4 style="color: var(--color-text);">${op}</h4>
-                                    <p style="margin-top: 4px; font-weight: 500; font-size: 13px; color: var(--color-primary-dark);"><i class="fas fa-flask"></i> ${prodName}</p>
-                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-vial"></i> Dosagem: ${item.dosagem_por_ha}/HA</p>
-                                    <p style="margin-top: 2px; font-size: 12px;"><i class="fas fa-exclamation-circle"></i> Obrigatório: ${item.obrigatorio ? 'Sim' : 'Não'}</p>
-                                    <span class="user-card-status ${item.ativo !== false ? 'active' : 'inactive'}" style="display: inline-flex; margin-top: 8px;">
-                                        <i class="fas fa-circle" style="font-size: 8px;"></i> ${item.ativo !== false ? 'Ativo' : 'Inativo'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="user-card-actions">
-                            <button onclick="App.cadastrosAuxiliares.editOpProd('${item.id}')" title="Editar">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="toggle-btn ${item.ativo !== false ? 'active' : 'inactive'}" onclick="App.cadastrosAuxiliares.toggleAtivo('operacao_produtos', '${item.id}', ${item.ativo !== false})" title="Ativar/Desativar">
-                                <i class="fas ${item.ativo !== false ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
-                            </button>
-                            <button onclick="App.data.deleteDocument('operacao_produtos', '${item.id}').then(() => App.cadastrosAuxiliares.renderOpProd())" style="color: var(--color-danger);" title="Excluir">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                `}).join('');
-                list.innerHTML = html;
-            },
-
-            editTipoServico(id) {
-                const item = (App.state.tipos_servico || []).find(x => x.id === id);
-                if (!item) return;
-                document.getElementById('tipoServicoId').value = item.id;
-                document.getElementById('tipoServicoDesc').value = item.descricao || '';
-                document.getElementById('tipoServicoAtivo').checked = item.ativo !== false;
-            },
-
-            editOperacao(id) {
-                const item = (App.state.operacoes || []).find(x => x.id === id);
-                if (!item) return;
-                document.getElementById('operacaoId').value = item.id;
-                document.getElementById('operacaoNome').value = item.nome || '';
-                document.getElementById('operacaoMaxApp').value = item.max_aplicacoes || 1;
-                document.getElementById('operacaoCodigo').value = item.codigo_externo || '';
-                document.getElementById('operacaoGrupo').value = item.grupo || '';
-                document.getElementById('operacaoAtivo').checked = item.ativo !== false;
-            },
-
-            editProduto(id) {
-                const item = (App.state.produtos || []).find(x => x.id === id);
-                if (!item) return;
-                const idField = document.getElementById('produtoId');
-                if (idField) idField.value = item.id;
-                document.getElementById('produtoNome').value = item.nome || '';
-                document.getElementById('produtoUnidade').value = item.unidade || '';
-                document.getElementById('produtoCodigo').value = item.codigo_externo || '';
-                document.getElementById('produtoAtivo').checked = item.ativo !== false;
-            },
-
-            editOpProd(id) {
-                const item = (App.state.operacao_produtos || []).find(x => x.id === id);
-                if (!item) return;
-                document.getElementById('opProdId').value = item.id;
-                document.getElementById('opProdOperacao').value = item.operacao_id || '';
-                document.getElementById('opProdProduto').value = item.produto_id || '';
-                document.getElementById('opProdDosagem').value = Number.isFinite(item.dosagem_por_ha) ? item.dosagem_por_ha : 0;
-                document.getElementById('opProdObrigatorio').checked = item.obrigatorio !== false;
-            },
-
-            async toggleAtivo(collectionName, id, currentState) {
-                try {
-                    await App.data.updateDocument(collectionName, id, { ativo: !currentState });
-                } catch (error) {
-                    console.error(error);
-                    App.ui.showAlert('Erro ao alterar status.', 'error');
-                }
-            }
-        },
 
         pwa: {
             registerServiceWorker() {
