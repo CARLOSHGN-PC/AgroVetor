@@ -1,0 +1,791 @@
+                if (App.state.estimativaSafraMap) {
+                    setTimeout(() => App.state.estimativaSafraMap.resize(), 0);
+                    return App.state.estimativaSafraMap;
+                }
+                if (typeof mapboxgl === 'undefined') {
+                    App.ui.showAlert('Mapbox GL não está carregado no app.', 'error');
+                    return null;
+                }
+                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+                const map = new mapboxgl.Map({
+                    container: App.elements.estimativaSafra.mapContainer,
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [-47.5, -22.5],
+                    zoom: 8,
+                    attributionControl: false
+                });
+                map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+                await new Promise((resolve, reject) => {
+                    map.once('load', resolve);
+                    map.once('error', (error) => reject(error?.error || error));
+                });
+                App.state.estimativaSafraMap = map;
+                App.state.estimativaSafraMapLoaded = true;
+                return map;
+            },
+            normalizeFarmCode(value) {
+                const raw = String(value || '').trim();
+                if (!raw) return '';
+                return /^\d+$/.test(raw) ? String(Number(raw)) : raw.toUpperCase();
+            },
+            getFarmCodeByFeature(feature) {
+                return this.normalizeFarmCode(feature?.properties?.AGV_FUNDO || '');
+            },
+            getTalhaoNameByFeature(feature) {
+                return String(feature?.properties?.AGV_TALHAO || '').trim().toUpperCase();
+            },
+            getFeatureKey(featureOrFarmCode, talhaoName) {
+                if (typeof featureOrFarmCode === 'object') {
+                    return `${this.getFarmCodeByFeature(featureOrFarmCode)}::${this.getTalhaoNameByFeature(featureOrFarmCode)}`;
+                }
+                return `${this.normalizeFarmCode(featureOrFarmCode || '')}::${String(talhaoName || '').trim().toUpperCase()}`;
+            },
+            getFarmByCode(code) {
+                const normalized = this.normalizeFarmCode(code);
+                return (App.state.fazendas || []).find((farm) => this.normalizeFarmCode(farm.code) === normalized);
+            },
+
+            getFarmDisplayName(item) {
+                const code = this.normalizeFarmCode(item?.farmCode || item?.farm?.code || item?.farmId || '');
+                const name = String(item?.farmName || item?.farm?.name || '').trim();
+                return code && name ? `${code} - ${name}` : (name || code || 'Não identificada');
+            },
+            summarizeSelection(values, emptyText = '-') {
+                const unique = [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))];
+                if (!unique.length) return emptyText;
+                if (unique.length <= 2) return unique.join(' · ');
+                return `${unique[0]} · ${unique[1]} +${unique.length - 2}`;
+            },
+            sortFarmOptions(items) {
+                return [...items].sort((a, b) => {
+                    const codeA = this.normalizeFarmCode(a.farmCode || a.farm?.code || a.farmId || '');
+                    const codeB = this.normalizeFarmCode(b.farmCode || b.farm?.code || b.farmId || '');
+                    const numA = Number.parseInt(codeA, 10);
+                    const numB = Number.parseInt(codeB, 10);
+                    if (Number.isFinite(numA) && Number.isFinite(numB) && numA !== numB) return numA - numB;
+                    if (Number.isFinite(numA) && !Number.isFinite(numB)) return -1;
+                    if (!Number.isFinite(numA) && Number.isFinite(numB)) return 1;
+                    return this.getFarmDisplayName(a).localeCompare(this.getFarmDisplayName(b), undefined, { numeric: true, sensitivity: 'base' });
+                });
+            },
+            getTalhaoRecord(feature) {
+                const farm = this.getFarmByCode(this.getFarmCodeByFeature(feature));
+                const talhaoName = this.getTalhaoNameByFeature(feature);
+                const talhao = (farm?.talhoes || []).find((item) => String(item.name || '').trim().toUpperCase() === talhaoName);
+                return { farm, talhao };
+            },
+            getStageLabel(corte) {
+                const n = Number.parseInt(corte, 10);
+                if (Number.isFinite(n) && n > 0) return `${n}º corte`;
+                return 'Sem estágio';
+            },
+            getStageOrder(stage) {
+                const match = String(stage || '').match(/^(\d+)/);
+                return match ? Number.parseInt(match[1], 10) : 999;
+            },
+            getStageColor(stage) {
+                if (stage === 'Sem estágio') return '#a1a1aa';
+                const order = this.getStageOrder(stage);
+                const idx = Number.isFinite(order) && order > 0 ? (order - 1) % this.stagePalette.length : 0;
+                return this.stagePalette[idx];
+            },
+            getArea(feature, talhao) {
+                const raw = talhao?.area ?? feature?.properties?.AREA_HA ?? feature?.properties?.AREA ?? 0;
+                const value = Number.parseFloat(String(raw).replace(',', '.'));
+                return Number.isFinite(value) ? value : 0;
+            },
+            buildDataset() {
+                const features = App.state.geoJsonData?.features || [];
+                const estimates = App.state.estimativasSafra || [];
+                this.currentFeatureMap = new Map();
+                return features.map((feature) => {
+                    const { farm, talhao } = this.getTalhaoRecord(feature);
+                    const featureKey = this.getFeatureKey(feature);
+                    const farmName = farm?.name || this.getFarmCodeByFeature(feature) || 'Não identificada';
+                    const talhaoName = talhao?.name || this.getTalhaoNameByFeature(feature) || 'Não identificado';
+                    const stage = this.getStageLabel(talhao?.corte);
+                    const history = estimates.filter((item) => String(item.featureKey || '') === featureKey)
+                        .sort((a, b) => new Date(b.createdAtLocal || b.dataEstimativa || 0) - new Date(a.createdAtLocal || a.dataEstimativa || 0));
+                    const latest = history[0] || null;
+                    const item = {
+                        feature,
+                        featureKey,
+                        farmId: farm?.id || null,
+                        farmCode: farm?.code || this.getFarmCodeByFeature(feature),
+                        farmName,
+                        talhaoId: talhao?.id || null,
+                        talhaoName,
+                        variedade: talhao?.variedade || 'Sem variedade',
+                        corte: talhao?.corte || null,
+                        stage,
+                        area: this.getArea(feature, talhao),
+                        latestEstimate: latest,
+                        estimateHistory: history,
+                        status: latest ? (history.length > 1 ? 'Reestimado' : 'Estimado') : 'Pendente'
+                    };
+                    this.currentFeatureMap.set(featureKey, item);
+                    return item;
+                });
+            },
+
+            openFiltersModal() {
+                App.elements.estimativaSafra?.filtersModal?.classList.add('show');
+            },
+            closeFiltersModal() {
+                App.elements.estimativaSafra?.filtersModal?.classList.remove('show');
+            },
+            toggleToolbar() {
+                const card = App.elements.estimativaSafra?.toolbarCard;
+                if (!card) return;
+                card.classList.toggle('collapsed');
+                const icon = App.elements.estimativaSafra?.toggleToolbarBtn?.querySelector('i');
+                if (icon) {
+                    icon.className = card.classList.contains('collapsed') ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
+                }
+            },
+            updateActiveFilterSummary() {
+                const els = App.elements.estimativaSafra;
+                if (!els?.activeFilters) return;
+                const parts = [];
+                if (els.farmFilter?.value) parts.push(`Fundo: ${els.farmFilter.options[els.farmFilter.selectedIndex]?.text || els.farmFilter.value}`);
+                if (els.varietyFilter?.value) parts.push(`Variedade: ${els.varietyFilter.value}`);
+                if (els.stageFilter?.value) parts.push(`Corte: ${els.stageFilter.value}`);
+                if (String(els.searchInput?.value || '').trim()) parts.push(`Talhão: ${String(els.searchInput.value).trim()}`);
+                els.activeFilters.textContent = parts.length ? parts.join(' · ') : 'Sem filtros';
+            },
+            populateFilters(dataset) {
+                const els = App.elements.estimativaSafra;
+                const currentFarm = els.farmFilter.value;
+                const currentVariety = els.varietyFilter.value;
+                const currentStage = els.stageFilter.value;
+                const farmOptions = this.sortFarmOptions([...new Map(dataset.map((item) => [String(item.farmId || item.farmCode), item])).values()]);
+                els.farmFilter.innerHTML = '<option value="">Todas</option>' + farmOptions.map((item) => `<option value="${item.farmId || item.farmCode}">${this.getFarmDisplayName(item)}</option>`).join('');
+                if (farmOptions.some((item) => String(item.farmId || item.farmCode) === String(currentFarm))) els.farmFilter.value = currentFarm;
+                const afterFarm = dataset.filter((item) => !els.farmFilter.value || String(item.farmId || item.farmCode) === String(els.farmFilter.value));
+                const varieties = [...new Set(afterFarm.map((item) => item.variedade).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
+                els.varietyFilter.innerHTML = '<option value="">Todas</option>' + varieties.map((value) => `<option value="${value}">${value}</option>`).join('');
+                if (varieties.includes(currentVariety)) els.varietyFilter.value = currentVariety;
+                const afterVariety = afterFarm.filter((item) => !els.varietyFilter.value || item.variedade === els.varietyFilter.value);
+                const stages = [...new Set(afterVariety.map((item) => item.stage))].sort((a,b) => this.getStageOrder(a) - this.getStageOrder(b));
+                els.stageFilter.innerHTML = '<option value="">Todos</option>' + stages.map((value) => `<option value="${value}">${value}</option>`).join('');
+                if (stages.includes(currentStage)) els.stageFilter.value = currentStage;
+                this.updateActiveFilterSummary();
+            },
+            filterDataset(dataset) {
+                const els = App.elements.estimativaSafra;
+                const farmValue = els.farmFilter.value;
+                const varietyValue = els.varietyFilter.value;
+                const stageValue = els.stageFilter.value;
+                const searchValue = String(els.searchInput.value || '').trim().toUpperCase();
+                return dataset.filter((item) => {
+                    if (farmValue && String(item.farmId || item.farmCode) !== String(farmValue)) return false;
+                    if (varietyValue && item.variedade !== varietyValue) return false;
+                    if (stageValue && item.stage !== stageValue) return false;
+                    if (searchValue && !(`${item.talhaoName} ${item.farmName}`.toUpperCase().includes(searchValue))) return false;
+                    return true;
+                });
+            },
+            refresh() {
+                if (!App.state.geoJsonData?.features?.length || !App.state.estimativaSafraMap) return;
+                const dataset = this.buildDataset();
+                this.populateFilters(dataset);
+                const filtered = this.filterDataset(dataset);
+                this.currentData = filtered;
+                this.renderMapData(filtered);
+                this.renderSummary(filtered);
+                this.renderLegend();
+                const visibleKeys = new Set(filtered.map((item) => item.featureKey));
+                this.currentSelectedKeys = new Set([...this.currentSelectedKeys].filter((key) => visibleKeys.has(key)));
+                if (!this.currentSelectedKeys.size && this.currentSelectedKey && visibleKeys.has(this.currentSelectedKey)) {
+                    this.currentSelectedKeys.add(this.currentSelectedKey);
+                }
+                if (!this.currentSelectedKeys.size) {
+                    this.currentSelectedKey = null;
+                    this.hideInfoBox();
+                } else {
+                    this.currentSelectedKey = [...this.currentSelectedKeys][0] || null;
+                    this.showInfo();
+                }
+            },
+            renderLegend() {
+                const legend = App.elements.estimativaSafra.legend;
+                if (!legend) return;
+                const dataset = this.currentData?.length ? this.currentData : this.buildDataset();
+                const stages = [...new Set(dataset.map((item) => item.stage))].sort((a,b) => this.getStageOrder(a) - this.getStageOrder(b));
+                const bodyStyle = this.legendExpanded ? '' : 'style="display:none;"';
+                legend.innerHTML = `
+                    <div class="estimativa-legend-header">
+                        <h3><i class="fas fa-palette"></i> Estágios de corte</h3>
+                        <div class="estimativa-legend-actions">
+                            <button type="button" class="estimativa-mini-btn" data-action="toggle-labels">${this.labelsVisible ? 'Ocultar talhão' : 'Exibir talhão'}</button>
+                            <button type="button" class="estimativa-mini-btn" data-action="toggle-legend">${this.legendExpanded ? 'Ocultar' : 'Exibir'}</button>
+                        </div>
+                    </div>
+                    <div class="estimativa-legend-body" ${bodyStyle}>
+                        ${stages.map((label) => `<div class="estimativa-legend-item"><span class="estimativa-legend-color" style="background:${this.getStageColor(label)}"></span><span>${label}</span></div>`).join('')}
+                    </div>`;
+                legend.querySelector('[data-action="toggle-legend"]')?.addEventListener('click', () => this.toggleLegend());
+                legend.querySelector('[data-action="toggle-labels"]')?.addEventListener('click', () => this.toggleLabels());
+            },
+            toggleLegend() {
+                this.legendExpanded = !this.legendExpanded;
+                this.renderLegend();
+            },
+            toggleLabels() {
+                const map = App.state.estimativaSafraMap;
+                if (!map || !map.getLayer('estimativa-safra-label')) return;
+                this.labelsVisible = !this.labelsVisible;
+                map.setLayoutProperty('estimativa-safra-label', 'visibility', this.labelsVisible ? 'visible' : 'none');
+                this.renderLegend();
+            },
+            renderSummary(dataset) {
+                const summary = App.elements.estimativaSafra.summary;
+                if (!summary) return;
+                const totalArea = dataset.reduce((sum, item) => sum + (item.area || 0), 0);
+                const estimated = dataset.filter((item) => item.latestEstimate).length;
+                const pending = dataset.length - estimated;
+                const tons = dataset.reduce((sum, item) => sum + (Number(item.latestEstimate?.toneladasEstimadas) || 0), 0);
+                summary.innerHTML = `
+                    <div class="estimativa-summary-item"><span class="label">Talhões</span><span class="value">${dataset.length}</span></div>
+                    <div class="estimativa-summary-item"><span class="label">Área filtrada</span><span class="value">${totalArea.toFixed(1).replace('.', ',')} ha</span></div>
+                    <div class="estimativa-summary-item"><span class="label">Estimados</span><span class="value">${estimated}</span></div>
+                    <div class="estimativa-summary-item"><span class="label">Toneladas</span><span class="value">${tons.toFixed(0).replace('.', ',')}</span></div>
+                `;
+            },
+            renderMapData(dataset) {
+                const map = App.state.estimativaSafraMap;
+                if (!map) return;
+                const sourceId = 'estimativa-safra-source';
+                const fillLayerId = 'estimativa-safra-fill';
+                const lineLayerId = 'estimativa-safra-line';
+                const labelLayerId = 'estimativa-safra-label';
+                const geojson = {
+                    type: 'FeatureCollection',
+                    features: dataset.map((item) => ({
+                        ...item.feature,
+                        id: item.feature.id,
+                        properties: {
+                            ...(item.feature.properties || {}),
+                            featureKey: item.featureKey,
+                            farmName: item.farmName,
+                            talhaoName: item.talhaoName,
+                            variedade: item.variedade,
+                            stage: item.stage,
+                            stageColor: this.getStageColor(item.stage),
+                            areaValue: item.area,
+                            status: item.status
+                        }
+                    }))
+                };
+                if (map.getSource(sourceId)) {
+                    map.getSource(sourceId).setData(geojson);
+                } else {
+                    map.addSource(sourceId, { type: 'geojson', data: geojson, generateId: false });
+                }
+                if (!map.getLayer(fillLayerId)) {
+                    map.addLayer({
+                        id: fillLayerId,
+                        type: 'fill',
+                        source: sourceId,
+                        paint: {
+                            'fill-color': ['coalesce', ['get', 'stageColor'], '#94a3b8'],
+                            'fill-opacity': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 0.92,
+                                ['boolean', ['feature-state', 'hover'], false], 0.82,
+                                0.62
+                            ]
+                        }
+                    });
+                }
+                if (!map.getLayer(lineLayerId)) {
+                    map.addLayer({
+                        id: lineLayerId,
+                        type: 'line',
+                        source: sourceId,
+                        paint: {
+                            'line-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], '#ffffff',
+                                '#0f172a'
+                            ],
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 3.5,
+                                ['boolean', ['feature-state', 'hover'], false], 2.5,
+                                1.4
+                            ],
+                            'line-opacity': 0.95
+                        }
+                    });
+                }
+                if (!map.getLayer(labelLayerId)) {
+                    map.addLayer({
+                        id: labelLayerId,
+                        type: 'symbol',
+                        source: sourceId,
+                        minzoom: 11,
+                        layout: {
+                            'text-field': ['get', 'talhaoName'],
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 12,
+                            'text-allow-overlap': true,
+                            'visibility': this.labelsVisible ? 'visible' : 'none'
+                        },
+                        paint: {
+                            'text-color': '#ffffff',
+                            'text-halo-color': 'rgba(0,0,0,0.85)',
+                            'text-halo-width': 1.6
+                        }
+                    });
+                }
+                this.bindMapInteractions();
+                const bounds = App.mapModule._getGeoJsonBounds(geojson);
+                if (bounds && dataset.length) {
+                    map.fitBounds(bounds, { padding: 70, duration: 800, maxZoom: 15 });
+                }
+            },
+            bindMapInteractions() {
+                const map = App.state.estimativaSafraMap;
+                if (!map) return;
+                const layerId = 'estimativa-safra-fill';
+                const sourceId = 'estimativa-safra-source';
+                if (this._handlersBound) return;
+                let hoveredId = null;
+                map.on('mousemove', layerId, (event) => {
+                    map.getCanvas().style.cursor = 'pointer';
+                    const feature = event.features?.[0];
+                    if (!feature) return;
+                    if (hoveredId !== null && hoveredId !== feature.id) {
+                        map.setFeatureState({ source: sourceId, id: hoveredId }, { hover: false });
+                    }
+                    hoveredId = feature.id;
+                    map.setFeatureState({ source: sourceId, id: hoveredId }, { hover: true });
+                });
+                map.on('mouseleave', layerId, () => {
+                    map.getCanvas().style.cursor = '';
+                    if (hoveredId !== null) map.setFeatureState({ source: sourceId, id: hoveredId }, { hover: false });
+                    hoveredId = null;
+                });
+                map.on('click', layerId, (event) => {
+                    const feature = event.features?.[0];
+                    if (!feature) return;
+                    this.selectFeature(feature.properties?.featureKey, feature.id);
+                });
+                this._handlersBound = true;
+            },
+            selectFeature(featureKey, featureId = null) {
+                const map = App.state.estimativaSafraMap;
+                const sourceId = 'estimativa-safra-source';
+                const item = this.currentFeatureMap.get(featureKey);
+                if (!item) return;
+                const resolvedId = featureId ?? item.feature.id;
+                if (this.currentSelectedKeys.has(featureKey)) {
+                    this.currentSelectedKeys.delete(featureKey);
+                    this.currentSelectedFeatureIds.delete(resolvedId);
+                    map.setFeatureState({ source: sourceId, id: resolvedId }, { selected: false });
+                } else {
+                    this.currentSelectedKeys.add(featureKey);
+                    this.currentSelectedFeatureIds.add(resolvedId);
+                    map.setFeatureState({ source: sourceId, id: resolvedId }, { selected: true });
+                }
+                this.currentSelectedKey = [...this.currentSelectedKeys][0] || null;
+                if (this.currentSelectedKeys.size) this.showInfo();
+                else this.hideInfoBox();
+            },
+            showInfo() {
+                const els = App.elements.estimativaSafra;
+                if (!els?.infoBox || !els?.infoContent || !this.currentSelectedKeys.size) return;
+                const selectedItems = [...this.currentSelectedKeys].map((key) => this.currentFeatureMap.get(key)).filter(Boolean);
+                if (!selectedItems.length) return;
+                const isMulti = selectedItems.length > 1;
+                const first = selectedItems[0];
+                const totalArea = selectedItems.reduce((sum, item) => sum + Number(item.area || 0), 0);
+                const latest = first.latestEstimate;
+                const historyHtml = !isMulti && first.estimateHistory.length
+                    ? first.estimateHistory.slice(0, 8).map((entry) => `
+                        <div class="estimativa-history-item">
+                            <strong>${entry.safra || 'Sem safra'}</strong> · v${entry.versao || 1}<br>
+                            ${this.formatDate(entry.dataEstimativa)} · TCH ${this.formatNumber(entry.tchEstimado)} · Ton ${this.formatNumber(entry.toneladasEstimadas)}<br>
+                            <span style="color: rgba(255,255,255,0.72);">${entry.observacao || 'Sem observação'}</span>
+                        </div>
+                    `).join('')
+                    : '<div class="estimativa-history-item">Histórico disponível apenas para seleção individual.</div>';
+                els.infoContent.innerHTML = isMulti ? `
+                    <h3><i class="fas fa-layer-group"></i> ${selectedItems.length} talhões selecionados</h3>
+                    <div class="estimativa-info-grid">
+                        <div class="estimativa-info-cell"><span class="label">Fazendas</span><span class="value">${[...new Set(selectedItems.map((item) => item.farmName))].length}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Área total</span><span class="value">${this.formatNumber(totalArea)} ha</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Variedades</span><span class="value">${[...new Set(selectedItems.map((item) => item.variedade))].length}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Status</span><span class="value">Seleção múltipla</span></div>
+                    </div>
+                    <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+                        <button class="estimativa-action-btn primary" data-action="estimate"><i class="fas fa-pen"></i> Estimar selecionados</button>
+                        <button class="estimativa-action-btn secondary" data-action="clear-selection"><i class="fas fa-xmark"></i> Limpar seleção</button>
+                    </div>` : `
+                    <h3><i class="fas fa-map-pin"></i> ${first.talhaoName}</h3>
+                    <div class="estimativa-info-grid">
+                        <div class="estimativa-info-cell"><span class="label">Fazenda</span><span class="value">${first.farmName}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Variedade</span><span class="value">${first.variedade}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Estágio</span><span class="value">${first.stage}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Área</span><span class="value">${this.formatNumber(first.area)} ha</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Status</span><span class="value">${first.status}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Última estimativa</span><span class="value">${latest ? `${this.formatNumber(latest.toneladasEstimadas)} t` : 'Não estimado'}</span></div>
+                    </div>
+                    <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+                        <button class="estimativa-action-btn primary" data-action="estimate"><i class="fas fa-pen"></i>${latest ? 'Reestimar' : 'Estimar'}</button>
+                        <button class="estimativa-action-btn secondary" data-action="history"><i class="fas fa-clock-rotate-left"></i> Histórico</button>
+                        <button class="estimativa-action-btn secondary" data-action="clear-selection"><i class="fas fa-xmark"></i> Limpar seleção</button>
+                    </div>
+                    <div id="estimativaSafraHistoryWrap" class="estimativa-history-list" style="display:none;">${historyHtml}</div>`;
+                els.infoBox.classList.add('visible');
+                els.infoContent.querySelector('[data-action="estimate"]')?.addEventListener('click', () => this.openModal());
+                els.infoContent.querySelector('[data-action="history"]')?.addEventListener('click', () => {
+                    const wrap = document.getElementById('estimativaSafraHistoryWrap');
+                    if (wrap) wrap.style.display = wrap.style.display === 'none' ? 'grid' : 'none';
+                });
+                els.infoContent.querySelector('[data-action="clear-selection"]')?.addEventListener('click', () => this.clearSelection());
+            },
+            clearSelection() {
+                const map = App.state.estimativaSafraMap;
+                const sourceId = 'estimativa-safra-source';
+                if (map) {
+                    [...this.currentSelectedFeatureIds].forEach((id) => map.setFeatureState({ source: sourceId, id }, { selected: false }));
+                }
+                this.currentSelectedKeys = new Set();
+                this.currentSelectedFeatureIds = new Set();
+                this.currentSelectedKey = null;
+                this.hideInfoBox();
+            },
+            hideInfoBox() {
+                const els = App.elements.estimativaSafra;
+                els?.infoBox?.classList.remove('visible');
+            },
+            clearFilters() {
+                const els = App.elements.estimativaSafra;
+                els.farmFilter.value = '';
+                els.varietyFilter.value = '';
+                els.stageFilter.value = '';
+                els.searchInput.value = '';
+                this.updateActiveFilterSummary();
+                this.refresh();
+            },
+            centerMap() {
+                const map = App.state.estimativaSafraMap;
+                if (!map || !this.currentData.length) return;
+                const geojson = { type: 'FeatureCollection', features: this.currentData.map((item) => item.feature) };
+                const bounds = App.mapModule._getGeoJsonBounds(geojson);
+                if (bounds) map.fitBounds(bounds, { padding: 70, duration: 700, maxZoom: 15 });
+            },
+            openModal(featureKey = null) {
+                const els = App.elements.estimativaSafra;
+                const selectedKeys = featureKey ? [featureKey] : [...this.currentSelectedKeys];
+                const targets = selectedKeys.map((key) => this.currentFeatureMap.get(key)).filter(Boolean);
+                if (!targets.length) return;
+                const first = targets[0];
+                const isMulti = targets.length > 1;
+                const latestSameSafra = !isMulti ? (first.estimateHistory[0] || null) : null;
+                const totalArea = targets.reduce((sum, item) => sum + Number(item.area || 0), 0);
+                const farms = this.sortFarmOptions([...new Map(targets.map((item) => [String(item.farmId || item.farmCode), item])).values()]);
+                const talhoes = [...new Set(targets.map((item) => item.talhaoName))].sort((a,b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
+                const variedades = [...new Set(targets.map((item) => item.variedade))].sort((a,b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
+                const estagios = [...new Set(targets.map((item) => item.stage))].sort((a,b) => this.getStageOrder(a) - this.getStageOrder(b));
+                els.modalTitle.textContent = isMulti ? 'Estimativa de múltiplos talhões' : (latestSameSafra ? 'Reestimativa de safra' : 'Nova estimativa de safra');
+                if (els.modalSubtitle) {
+                    els.modalSubtitle.textContent = isMulti
+                        ? `${targets.length} talhões selecionados no mapa. Revise o escopo antes de salvar.`
+                        : 'Preencha os dados da estimativa e confirme o escopo de aplicação.';
+                }
+                els.modalFeatureKey.value = first.featureKey;
+                els.modalFarm.textContent = isMulti ? this.summarizeSelection(farms.map((item) => this.getFarmDisplayName(item)), `${targets.length} talhões`) : this.getFarmDisplayName(first);
+                els.modalTalhao.textContent = isMulti ? this.summarizeSelection(talhoes, `${targets.length} talhões`) : first.talhaoName;
+                els.modalVariedade.textContent = isMulti ? this.summarizeSelection(variedades, `${variedades.length} variedade(s)`) : first.variedade;
+                els.modalEstagio.textContent = isMulti ? this.summarizeSelection(estagios, `${estagios.length} estágio(s)`) : first.stage;
+                els.modalArea.value = this.toInputNumber(totalArea);
+                els.modalSafra.value = latestSameSafra?.safra || this.getDefaultSafra();
+                els.modalData.value = latestSameSafra?.dataEstimativa || new Date().toISOString().slice(0, 10);
+                els.modalTch.value = latestSameSafra?.tchEstimado ?? '';
+                els.modalToneladas.value = latestSameSafra?.toneladasEstimadas ?? '';
+                els.modalResponsavel.value = latestSameSafra?.responsavel || App.state.currentUser?.name || App.state.currentUser?.username || '';
+                els.modalObs.value = latestSameSafra?.observacao || '';
+                if (els.modalEstimateWholeFarm) els.modalEstimateWholeFarm.checked = false;
+                if (els.modalEstimateSelected) els.modalEstimateSelected.checked = isMulti;
+                if (els.modalEstimateFiltered) els.modalEstimateFiltered.checked = false;
+                [['estimativaSafraScopeWholeFarmCard', els.modalEstimateWholeFarm], ['estimativaSafraScopeSelectedCard', els.modalEstimateSelected], ['estimativaSafraScopeFilteredCard', els.modalEstimateFiltered]].forEach(([id, input]) => {
+                    const card = document.getElementById(id);
+                    if (card) card.classList.toggle('active', Boolean(input?.checked));
+                });
+                els.modal.classList.add('show');
+            },
+            closeModal() {
+                App.elements.estimativaSafra?.modal?.classList.remove('show');
+            },
+            getDefaultSafra() {
+                const now = new Date();
+                const year = now.getFullYear();
+                const next = year + 1;
+                return `${year}/${next}`;
+            },
+            syncDerivedFields(origin) {
+                const els = App.elements.estimativaSafra;
+                const area = Number.parseFloat(els.modalArea.value || '0');
+                const tch = Number.parseFloat(els.modalTch.value || '0');
+                const tons = Number.parseFloat(els.modalToneladas.value || '0');
+                if (!Number.isFinite(area) || area <= 0) return;
+                if (origin === 'tch' && Number.isFinite(tch) && tch > 0) {
+                    els.modalToneladas.value = this.toInputNumber(area * tch);
+                }
+                if (origin === 'toneladas' && Number.isFinite(tons) && tons > 0) {
+                    els.modalTch.value = this.toInputNumber(tons / area);
+                }
+            },
+            async saveEstimate() {
+                const els = App.elements.estimativaSafra;
+                const featureKey = els.modalFeatureKey.value;
+                const item = this.currentFeatureMap.get(featureKey);
+                if (!item) {
+                    App.ui.showAlert('Talhão da estimativa não encontrado.', 'error');
+                    return;
+                }
+                const safra = String(els.modalSafra.value || '').trim();
+                const dataEstimativa = els.modalData.value;
+                const tchEstimado = Number.parseFloat(els.modalTch.value || '0');
+                const toneladasEstimadas = Number.parseFloat(els.modalToneladas.value || '0');
+                if (!safra || !dataEstimativa || !Number.isFinite(tchEstimado) || tchEstimado <= 0 || !Number.isFinite(toneladasEstimadas) || toneladasEstimadas <= 0) {
+                    App.ui.showAlert('Preencha safra, data, TCH e toneladas para salvar a estimativa.', 'warning');
+                    return;
+                }
+                const estimateWholeFarm = Boolean(els.modalEstimateWholeFarm?.checked);
+                const estimateSelected = Boolean(els.modalEstimateSelected?.checked);
+                const estimateFiltered = Boolean(els.modalEstimateFiltered?.checked);
+                let targets = [item];
+                if (estimateWholeFarm) {
+                    targets = this.currentData.filter((entry) => String(entry.farmId || entry.farmCode) === String(item.farmId || item.farmCode));
+                } else if (estimateSelected && this.currentSelectedKeys.size) {
+                    targets = [...this.currentSelectedKeys].map((key) => this.currentFeatureMap.get(key)).filter(Boolean);
+                } else if (estimateFiltered && this.currentData.length) {
+                    targets = [...this.currentData];
+                }
+                const totalArea = targets.reduce((sum, entry) => sum + Number(entry.area || 0), 0);
+                const targetMode = estimateWholeFarm ? 'fazenda inteira' : (estimateFiltered ? 'filtro atual' : (estimateSelected ? 'talhões selecionados' : 'talhão'));
+                if (targets.length > 1) {
+                    const details = estimateFiltered ? `
+Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem filtros'}` : '';
+                    const confirmed = window.confirm(`Deseja realmente salvar a estimativa para ${targets.length} talhão(ões) no modo ${targetMode}? O histórico será preservado.${details}`);
+                    if (!confirmed) return;
+                }
+                try {
+                    for (const target of targets) {
+                        const targetTons = estimateWholeFarm && totalArea > 0
+                            ? (toneladasEstimadas * Number(target.area || 0)) / totalArea
+                            : toneladasEstimadas;
+                        const sameSafraHistory = (App.state.estimativasSafra || []).filter((entry) => entry.featureKey === target.featureKey && entry.safra === safra);
+                        const payload = {
+                            companyId: App.state.currentUser.companyId,
+                            featureKey: target.featureKey,
+                            farmId: target.farmId,
+                            farmCode: target.farmCode,
+                            farmName: target.farmName,
+                            talhaoId: target.talhaoId,
+                            talhaoName: target.talhaoName,
+                            variedade: target.variedade,
+                            estagio: target.stage,
+                            areaHa: target.area,
+                            safra,
+                            dataEstimativa,
+                            tchEstimado,
+                            toneladasEstimadas: targetTons,
+                            observacao: String(els.modalObs.value || '').trim(),
+                            responsavel: String(els.modalResponsavel.value || '').trim(),
+                            versao: sameSafraHistory.length + 1,
+                            reestimativa: sameSafraHistory.length > 0,
+                            createdAtLocal: new Date().toISOString(),
+                            origemLancamento: estimateWholeFarm ? 'fazenda_inteira' : (estimateFiltered ? 'filtro' : (estimateSelected ? 'multiplos_talhoes' : 'talhao'))
+                        };
+                        await App.data.addDocument('estimativasSafra', payload);
+                    }
+                    this.closeModal();
+                    App.ui.showAlert(targets.length > 1 ? `Estimativa salva para ${targets.length} talhões com histórico preservado.` : (estimateWholeFarm ? 'Estimativa da fazenda salva com histórico preservado.' : 'Estimativa salva com sucesso.'), 'success');
+                } catch (error) {
+                    console.error('[EstimativaSafra] Falha ao salvar estimativa', error);
+                    App.ui.showAlert('Erro ao salvar estimativa da safra.', 'error');
+                }
+            },
+            formatNumber(value) {
+                const number = Number(value || 0);
+                return number.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+            },
+            toInputNumber(value) {
+                const number = Number(value || 0);
+                return Number.isFinite(number) ? number.toFixed(2) : '';
+            },
+            formatDate(value) {
+                if (!value) return '-';
+                const date = new Date(`${value}T12:00:00`);
+                if (Number.isNaN(date.getTime())) return value;
+                return date.toLocaleDateString('pt-BR');
+            }
+        },
+
+        osPlanning: {
+            initialized: false,
+            async init() {
+                if (!this.initialized) {
+                    this.setupEventListeners();
+                    this.initialized = true;
+                }
+                this.populateStaticFields();
+                this.populateFarmSelect();
+                this.populateSubgroups();
+                this.populateServiceTypes();
+                await this.loadSavedPlans();
+                this.mountActionLayers();
+                this.initMap();
+                this.handleFarmChange();
+                this.switchSecondaryTab(App.state.osPlanningActiveTab || 'novo');
+                this.renderOperationsGrid();
+                this.renderAuxPanels();
+            },
+
+            mountActionLayers() {
+                ['savedModal', 'historyModal', 'readyModal', 'generateModal', 'fullscreenMapModal', 'operationModal', 'actionToast'].forEach(key => {
+                    const node = App.elements.osPlanning[key];
+                    if (node && node.parentElement !== document.body) document.body.appendChild(node);
+                });
+                this.ensureSecondaryPanelsModal();
+            },
+
+            ensureSecondaryPanelsModal() {
+                if (App.elements.osPlanning.secondaryPanelsModal) return;
+                const overlay = document.createElement('div');
+                overlay.id = 'osPlanningSecondaryPanelsModal';
+                overlay.className = 'pos-action-overlay';
+                overlay.dataset.modalKind = 'saved';
+                overlay.innerHTML = `
+                    <div class="pos-action-modal saved-modal" style="width:min(1260px,96vw);">
+                        <div class="pos-action-header">
+                            <div>
+                                <h3 id="osPlanningSecondaryModalTitle">Painel</h3>
+                                <p id="osPlanningSecondaryModalSubtitle" class="pos-action-subtitle">Visualização</p>
+                            </div>
+                            <button id="osPlanningSecondaryModalCloseBtn" type="button" class="pos-action-close">Fechar ✕</button>
+                        </div>
+                        <div id="osPlanningSecondaryModalBody"></div>
+                    </div>`;
+                document.body.appendChild(overlay);
+                App.elements.osPlanning.secondaryPanelsModal = overlay;
+                App.elements.osPlanning.secondaryPanelsModalBody = overlay.querySelector('#osPlanningSecondaryModalBody');
+                App.elements.osPlanning.secondaryPanelsModalTitle = overlay.querySelector('#osPlanningSecondaryModalTitle');
+                App.elements.osPlanning.secondaryPanelsModalSubtitle = overlay.querySelector('#osPlanningSecondaryModalSubtitle');
+                App.elements.osPlanning.secondaryPanelsModalCloseBtn = overlay.querySelector('#osPlanningSecondaryModalCloseBtn');
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeSecondaryPanelModal(); });
+                App.elements.osPlanning.secondaryPanelsModalCloseBtn?.addEventListener('click', () => this.closeSecondaryPanelModal());
+            },
+
+            openSecondaryPanelModal(tab) {
+                if (tab === 'novo') {
+                    this.closeSecondaryPanelModal();
+                    this.switchSecondaryTab('novo');
+                    return;
+                }
+                this.ensureSecondaryPanelsModal();
+                const els = App.elements.osPlanning;
+                const map = {
+                    salvos: {
+                        panel: els.panelSalvos,
+                        title: 'Planejamentos Salvos',
+                        subtitle: 'Consulte, filtre, abra, clone ou gere O.S. a partir dos planejamentos já salvos.',
+                        kind: 'saved',
+                        width: 'min(1260px,96vw)'
+                    },
+                    alertas: {
+                        panel: els.panelAlertas,
+                        title: 'Alertas',
+                        subtitle: 'Itens vencendo, próximos do prazo, atrasados ou prontos para virar O.S.',
+                        kind: 'history',
+                        width: 'min(1180px,96vw)'
+                    },
+                    pendencias: {
+                        panel: els.panelPendencias,
+                        title: 'Pendências',
+                        subtitle: 'Casos que exigem revisão manual antes de liberar o planejamento.',
+                        kind: 'ready',
+                        width: 'min(1180px,96vw)'
+                    },
+                    historico: {
+                        panel: els.panelHistorico,
+                        title: 'Histórico',
+                        subtitle: 'Timeline por fazenda, talhão e programa para rastrear apontamentos, planejamentos e O.S.',
+                        kind: 'generate',
+                        width: 'min(1180px,96vw)'
+                    }
+                };
+                const config = map[tab];
+                if (!config || !config.panel || !els.secondaryPanelsModalBody) return;
+                if (tab === 'salvos') this.renderSavedPlansPanel();
+                if (tab === 'alertas') this.renderAlertsPanel();
+                if (tab === 'pendencias') this.renderPendenciasPanel();
+                if (tab === 'historico') this.renderHistoryPanel();
+                this.closeSecondaryPanelModal();
+                if (!config.panel.__originalParent) {
+                    config.panel.__originalParent = config.panel.parentElement;
+                    config.panel.__originalNextSibling = config.panel.nextElementSibling;
+                }
+                els.secondaryTabs?.forEach(btn => btn.classList.toggle('active', btn.dataset.osPlanningTab === tab));
+                [els.panelSalvos, els.panelAlertas, els.panelPendencias, els.panelHistorico].forEach(panel => panel?.classList.remove('active'));
+                els.secondaryPanelsModal.dataset.modalKind = config.kind;
+                const modalCard = els.secondaryPanelsModal.querySelector('.pos-action-modal');
+                if (modalCard) modalCard.style.width = config.width;
+                if (els.secondaryPanelsModalTitle) els.secondaryPanelsModalTitle.textContent = config.title;
+                if (els.secondaryPanelsModalSubtitle) els.secondaryPanelsModalSubtitle.textContent = config.subtitle;
+                config.panel.classList.add('active');
+                els.secondaryPanelsModalBody.innerHTML = '';
+                els.secondaryPanelsModalBody.appendChild(config.panel);
+                els.secondaryPanelsModal.classList.add('show');
+                document.body.classList.add('modal-open');
+                App.state.osPlanningActiveTab = tab;
+            },
+
+            closeSecondaryPanelModal() {
+                const els = App.elements.osPlanning;
+                const overlay = els.secondaryPanelsModal;
+                const body = els.secondaryPanelsModalBody;
+                if (!overlay || !body) return;
+                const activePanel = body.querySelector('.pos-secondary-panel');
+                if (activePanel && activePanel.__originalParent) {
+                    activePanel.classList.remove('active');
+                    if (activePanel.__originalNextSibling && activePanel.__originalNextSibling.parentElement === activePanel.__originalParent) {
+                        activePanel.__originalParent.insertBefore(activePanel, activePanel.__originalNextSibling);
+                    } else {
+                        activePanel.__originalParent.appendChild(activePanel);
+                    }
+                }
+                overlay.classList.remove('show');
+                els.secondaryTabs?.forEach(btn => btn.classList.toggle('active', btn.dataset.osPlanningTab === 'novo'));
+                App.state.osPlanningActiveTab = 'novo';
+                document.body.classList.remove('modal-open');
+            },
+
+            populateStaticFields() {
+                const els = App.elements.osPlanning;
+                if (els.companyName) {
+                    const company = App.state.companies?.find(c => c.id === App.state.currentUser?.companyId);
+                    els.companyName.value = company?.name || App.state.currentUser?.companyName || 'Empresa Atual';
+                }
+                if (els.dateInput && !els.dateInput.value) {
+                    els.dateInput.value = new Date().toISOString().split('T')[0];
+                }
+            },
+
+            resetOperationDraft() {
+                App.state.osPlanningEditingOperationId = null;
+                App.state.osPlanningOperationDraftProducts = [];
+                const els = App.elements.osPlanning;
+                if (els.operationModalTitle) els.operationModalTitle.textContent = 'Adicionar Operação';
+                if (els.operationModalSubgroup) els.operationModalSubgroup.value = '';
+                if (els.operationModalOperation) els.operationModalOperation.value = '';
+                if (els.operationModalServiceType) els.operationModalServiceType.value = '';
+                if (els.operationModalResponsibleMatricula) els.operationModalResponsibleMatricula.value = '';
+                if (els.operationModalResponsibleName) els.operationModalResponsibleName.value = '';
+                if (els.operationModalObservation) els.operationModalObservation.value = '';
+                this.renderOperationProductsDraft();

@@ -785,11 +785,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 { label: 'Dashboard', icon: 'fas fa-tachometer-alt', target: 'dashboard', permission: 'dashboard' },
                 { label: 'Dashboard Climatológico', icon: 'fas fa-cloud-sun-rain', target: 'dashboardClima', permission: 'dashboardClima' },
                 { label: 'Monitoramento Aéreo', icon: 'fas fa-satellite-dish', target: 'monitoramentoAereo', permission: 'monitoramentoAereo' },
+                { label: 'Estimativa Safra', icon: 'fas fa-seedling', target: 'estimativaSafra', permission: 'estimativaSafra' },
                 { label: 'Plan. Inspeção', icon: 'fas fa-calendar-alt', target: 'planejamento', permission: 'planejamento' },
                 {
                     label: 'Ordem de Serviço', icon: 'fas fa-file-contract',
                     submenu: [
                         { label: 'Criar O.S. Manual', icon: 'fas fa-edit', target: 'ordemServicoManual', permission: 'ordemServico' },
+                        { label: 'Planejamento O.S.', icon: 'fas fa-calendar-check', target: 'planejamentoOS', permission: 'ordemServico' },
                         { label: 'O.S. Escritório', icon: 'fas fa-list', target: 'ordemServicoEscritorio', permission: 'ordemServico' },
                     ]
                 },
@@ -862,10 +864,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             roles: {
-                admin: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
-                supervisor: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
-                tecnico: { dashboard: true, monitoramentoAereo: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true },
-                colaborador: { dashboard: true, monitoramentoAereo: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, controleKM: true },
+                admin: { dashboard: true, monitoramentoAereo: true, estimativaSafra: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, excluir: true, gerenciarUsuarios: true, configuracoes: true, cadastrarPessoas: true, syncHistory: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
+                supervisor: { dashboard: true, monitoramentoAereo: true, estimativaSafra: true, relatorioMonitoramento: true, relatorioRisco: true, planejamentoColheita: true, planejamento: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, configuracoes: true, cadastrarPessoas: true, gerenciarUsuarios: true, frenteDePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, gerenciarLancamentos: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true, gestaoFrota: true },
+                tecnico: { dashboard: true, monitoramentoAereo: true, estimativaSafra: true, relatorioMonitoramento: true, relatorioRisco: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoCigarrinha: true, relatorioBroca: true, relatorioPerda: true, relatorioCigarrinha: true, lancamentoCigarrinhaPonto: true, relatorioCigarrinhaPonto: true, lancamentoCigarrinhaAmostragem: true, relatorioCigarrinhaAmostragem: true, qualidadePlantio: true, qualidadeConsumoMuda: true, qualidadeBroca: true, relatorioQualidadePlantio: true, apontamentoPlantio: true, relatorioPlantio: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, ordemServico: true, registroAplicacao: true, controleKM: true },
+                colaborador: { dashboard: true, monitoramentoAereo: true, estimativaSafra: true, lancamentoBroca: true, lancamentoPerda: true, lancamentoClima: true, dashboardClima: true, relatorioClima: true, controleKM: true },
                 user: { dashboard: true }
             }
         },
@@ -927,7 +929,10 @@ document.addEventListener('DOMContentLoaded', () => {
             mapboxUserMarker: null,
             mapboxTrapMarkers: {},
             armadilhas: [],
+            estimativasSafra: [],
             geoJsonData: null,
+            estimativaSafraMap: null,
+            estimativaSafraMapLoaded: false,
             contourStorageAdapter: null,
             activeContourCacheKey: null,
             selectedMapFeature: null, // NOVO: Armazena a feature do talhão selecionado no mapa
@@ -967,6 +972,17 @@ document.addEventListener('DOMContentLoaded', () => {
             plantioLegacyMudaArea: null,
             qualidadePlantioContext: null,
             qualidadePlantioDraft: null,
+            osPlanningMap: null,
+            osPlanningMapOriginalParent: null,
+            osPlanningMapOriginalNextSibling: null,
+            osPlanningSelectedPlots: new Set(),
+            osPlanningCurrentItems: [],
+            osPlanningOperations: [],
+            osPlanningEditingOperationId: null,
+            osPlanningOperationDraftProducts: [],
+            osPlanningLoadedPlans: [],
+            osPlanningImportedHistoryCache: {},
+            osPlanningActiveTab: 'novo',
         },
         
         fleet: FleetModule,
@@ -1007,6 +1023,118 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnGenerate: document.getElementById('btnGenerateOS'),
                 mapContainer: document.getElementById('os-map'),
                 btnCenterMap: document.getElementById('btnCenterOSMap'),
+            },
+            osPlanning: {
+                companyName: document.getElementById('osPlanningCompanyName'),
+                farmSelect: document.getElementById('osPlanningFarmSelect'),
+                subgroupSelect: document.getElementById('osPlanningSubgroupSelect'),
+                operationSelect: document.getElementById('osPlanningOperationSelect'),
+                serviceTypeSelect: document.getElementById('osPlanningServiceTypeSelect'),
+                programInput: document.getElementById('osPlanningProgramInput'),
+                dateInput: document.getElementById('osPlanningDateInput'),
+                responsibleMatricula: document.getElementById('osPlanningResponsibleMatricula'),
+                responsibleName: document.getElementById('osPlanningResponsibleName'),
+                modeSelect: document.getElementById('osPlanningModeSelect'),
+                notes: document.getElementById('osPlanningNotes'),
+                talhaoSearch: document.getElementById('osPlanningTalhaoSearch'),
+                plotsList: document.getElementById('osPlanningTalhaoList'),
+                selectedCount: document.getElementById('osPlanningSelectedCount'),
+                selectedArea: document.getElementById('osPlanningSelectedArea'),
+                historyStatus: document.getElementById('osPlanningHistoryStatus'),
+                gridBody: document.getElementById('osPlanningGridBody'),
+                operationsBody: document.getElementById('osPlanningOperationsBody'),
+                addOperationBtn: document.getElementById('osPlanningAddOperationBtn'),
+                operationModal: document.getElementById('osPlanningOperationModal'),
+                operationModalTitle: document.getElementById('osPlanningOperationModalTitle'),
+                operationModalCloseBtn: document.getElementById('osPlanningOperationModalCloseBtn'),
+                operationModalCancelBtn: document.getElementById('osPlanningOperationModalCancelBtn'),
+                operationModalSaveBtn: document.getElementById('osPlanningOperationModalSaveBtn'),
+                operationModalSubgroup: document.getElementById('osPlanningOperationModalSubgroup'),
+                operationModalOperation: document.getElementById('osPlanningOperationModalOperation'),
+                operationModalServiceType: document.getElementById('osPlanningOperationModalServiceType'),
+                operationModalResponsibleMatricula: document.getElementById('osPlanningOperationModalResponsibleMatricula'),
+                operationModalResponsibleName: document.getElementById('osPlanningOperationModalResponsibleName'),
+                operationModalObservation: document.getElementById('osPlanningOperationModalObservation'),
+                operationAddProductBtn: document.getElementById('osPlanningOperationAddProductBtn'),
+                operationProductsBody: document.getElementById('osPlanningOperationProductsBody'),
+                summarySelected: document.getElementById('osPlanningSummarySelected'),
+                summaryArea: document.getElementById('osPlanningSummaryArea'),
+                summaryReady: document.getElementById('osPlanningSummaryReady'),
+                summaryTrusted: document.getElementById('osPlanningSummaryTrusted'),
+                mapContainer: document.getElementById('planejamentoOSMap'),
+                btnCenterMap: document.getElementById('osPlanningCenterMapBtn'),
+                btnSyncMap: document.getElementById('osPlanningSyncMapBtn'),
+                btnExpandMap: document.getElementById('osPlanningExpandMapBtn'),
+                btnSelectAll: document.getElementById('osPlanningSelectAllBtn'),
+                btnRefresh: document.getElementById('osPlanningRefreshBtn'),
+                btnLoadSaved: document.getElementById('osPlanningLoadSavedBtn'),
+                btnSaveDraft: document.getElementById('osPlanningSaveDraftBtn'),
+                btnSave: document.getElementById('osPlanningSaveBtn'),
+                btnSaveReady: document.getElementById('osPlanningSaveReadyBtn'),
+                btnGenerateOS: document.getElementById('osPlanningGenerateOSBtn'),
+                savedModal: document.getElementById('osPlanningSavedModal'),
+                savedModalCloseBtn: document.getElementById('osPlanningSavedModalCloseBtn'),
+                savedModalBody: document.getElementById('osPlanningSavedModalBody'),
+                savedSearch: document.getElementById('osPlanningSavedSearch'),
+                savedFarmFilter: document.getElementById('osPlanningSavedFarmFilter'),
+                savedStatusFilter: document.getElementById('osPlanningSavedStatusFilter'),
+                savedDateFilter: document.getElementById('osPlanningSavedDateFilter'),
+                savedRefreshBtn: document.getElementById('osPlanningSavedRefreshBtn'),
+                historyModal: document.getElementById('osPlanningHistoryModal'),
+                historyModalCloseBtn: document.getElementById('osPlanningHistoryModalCloseBtn'),
+                historyCancelBtn: document.getElementById('osPlanningHistoryCancelBtn'),
+                historyConfirmBtn: document.getElementById('osPlanningHistoryConfirmBtn'),
+                historyFarmText: document.getElementById('osPlanningHistoryFarmText'),
+                historySelectedText: document.getElementById('osPlanningHistorySelectedText'),
+                historyReviewText: document.getElementById('osPlanningHistoryReviewText'),
+                readyModal: document.getElementById('osPlanningReadyModal'),
+                readyModalCloseBtn: document.getElementById('osPlanningReadyModalCloseBtn'),
+                readyBackBtn: document.getElementById('osPlanningReadyBackBtn'),
+                readyConfirmBtn: document.getElementById('osPlanningReadyConfirmBtn'),
+                generateModal: document.getElementById('osPlanningGenerateModal'),
+                generateModalCloseBtn: document.getElementById('osPlanningGenerateModalCloseBtn'),
+                generateBackBtn: document.getElementById('osPlanningGenerateBackBtn'),
+                generateConfirmBtn: document.getElementById('osPlanningGenerateConfirmBtn'),
+                actionToast: document.getElementById('osPlanningActionToast'),
+                secondaryTabs: document.querySelectorAll('#planejamentoOS [data-os-planning-tab]'),
+                panelSalvos: document.getElementById('osPlanningPanelSalvos'),
+                panelAlertas: document.getElementById('osPlanningPanelAlertas'),
+                panelPendencias: document.getElementById('osPlanningPanelPendencias'),
+                panelHistorico: document.getElementById('osPlanningPanelHistorico'),
+                savedPanelBody: document.getElementById('osPlanningSavedPanelBody'),
+                savedPanelSearch: document.getElementById('osPlanningSavedPanelSearch'),
+                savedPanelFarmFilter: document.getElementById('osPlanningSavedPanelFarmFilter'),
+                savedPanelStatusFilter: document.getElementById('osPlanningSavedPanelStatusFilter'),
+                savedPanelDateFilter: document.getElementById('osPlanningSavedPanelDateFilter'),
+                savedPanelFilterBtn: document.getElementById('osPlanningSavedPanelFilterBtn'),
+                savedCountTotal: document.getElementById('osPlanningSavedCountTotal'),
+                savedCountDraft: document.getElementById('osPlanningSavedCountDraft'),
+                savedCountPlanned: document.getElementById('osPlanningSavedCountPlanned'),
+                savedCountReady: document.getElementById('osPlanningSavedCountReady'),
+                alertToday: document.getElementById('osPlanningAlertToday'),
+                alertSoon: document.getElementById('osPlanningAlertSoon'),
+                alertLate: document.getElementById('osPlanningAlertLate'),
+                alertReady: document.getElementById('osPlanningAlertReady'),
+                alertsList: document.getElementById('osPlanningAlertsList'),
+                pendenciasList: document.getElementById('osPlanningPendenciasList'),
+                pendingNoHistory: document.getElementById('osPlanningPendingNoHistory'),
+                pendingAmbiguous: document.getElementById('osPlanningPendingAmbiguous'),
+                pendingDivergent: document.getElementById('osPlanningPendingDivergent'),
+                pendingBlocked: document.getElementById('osPlanningPendingBlocked'),
+                historyFarmFilter: document.getElementById('osPlanningHistoryFarmFilter'),
+                historyTalhaoFilter: document.getElementById('osPlanningHistoryTalhaoFilter'),
+                historyProgramFilter: document.getElementById('osPlanningHistoryProgramFilter'),
+                historyRangeFilter: document.getElementById('osPlanningHistoryRangeFilter'),
+                historyQueryBtn: document.getElementById('osPlanningHistoryQueryBtn'),
+                historyTimeline: document.getElementById('osPlanningHistoryTimeline'),
+                fullscreenMapModal: document.getElementById('osPlanningMapFullscreenModal'),
+                fullscreenMapContainer: document.getElementById('planejamentoOSMapFullscreen'),
+                fullscreenMapCloseBtn: document.getElementById('osPlanningMapFullscreenCloseBtn'),
+                fullscreenMapCancelBtn: document.getElementById('osPlanningMapFullscreenCancelBtn'),
+                fullscreenMapConfirmBtn: document.getElementById('osPlanningMapFullscreenConfirmBtn'),
+                fullscreenMapCenterBtn: document.getElementById('osPlanningMapFullscreenCenterBtn'),
+                fullscreenMapSelectAllBtn: document.getElementById('osPlanningMapFullscreenSelectAllBtn'),
+                fullscreenMapSyncBtn: document.getElementById('osPlanningMapFullscreenSyncBtn'),
             },
             welcomeModal: {
                 overlay: document.getElementById('welcomeModal'),
@@ -1546,6 +1674,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapInfoBoxCloseBtn: document.getElementById('close-trap-info-box'),
                     mapFarmSearchInput: document.getElementById('map-farm-search-input'),
                     mapFarmSearchBtn: document.getElementById('map-farm-search-btn'),
+            },
+            estimativaSafra: {
+                container: document.getElementById('estimativaSafra'),
+                mapContainer: document.getElementById('estimativaSafraMap'),
+                farmFilter: document.getElementById('estimativaSafraFarmFilter'),
+                varietyFilter: document.getElementById('estimativaSafraVarietyFilter'),
+                stageFilter: document.getElementById('estimativaSafraStageFilter'),
+                searchInput: document.getElementById('estimativaSafraSearch'),
+                openFiltersBtn: document.getElementById('estimativaSafraOpenFilters'),
+                toggleToolbarBtn: document.getElementById('estimativaSafraToggleToolbar'),
+                toolbarCard: document.getElementById('estimativaSafraToolbarCard'),
+                activeFilters: document.getElementById('estimativaSafraActiveFilters'),
+                filtersModal: document.getElementById('estimativaSafraFiltersModal'),
+                filtersModalClose: document.getElementById('estimativaSafraFiltersModalClose'),
+                applyFiltersBtn: document.getElementById('estimativaSafraApplyFilters'),
+                clearFiltersBtn: document.getElementById('estimativaSafraClearFilters'),
+                centerMapBtn: document.getElementById('estimativaSafraCenterMap'),
+                infoBox: document.getElementById('estimativaSafraInfoBox'),
+                infoContent: document.getElementById('estimativaSafraInfoContent'),
+                closeInfoBtn: document.getElementById('estimativaSafraCloseInfo'),
+                legend: document.getElementById('estimativaSafraLegend'),
+                summary: document.getElementById('estimativaSafraSummary'),
+                modal: document.getElementById('estimativaSafraModal'),
+                modalTitle: document.getElementById('estimativaSafraModalTitle'),
+                modalSubtitle: document.getElementById('estimativaSafraModalSubtitle'),
+                modalClose: document.getElementById('estimativaSafraModalClose'),
+                modalCancel: document.getElementById('estimativaSafraModalCancel'),
+                modalSave: document.getElementById('estimativaSafraModalSave'),
+                modalFeatureKey: document.getElementById('estimativaSafraModalFeatureKey'),
+                modalFarm: document.getElementById('estimativaSafraModalFarm'),
+                modalTalhao: document.getElementById('estimativaSafraModalTalhao'),
+                modalVariedade: document.getElementById('estimativaSafraModalVariedade'),
+                modalEstagio: document.getElementById('estimativaSafraModalEstagio'),
+                modalSafra: document.getElementById('estimativaSafraModalSafra'),
+                modalData: document.getElementById('estimativaSafraModalData'),
+                modalArea: document.getElementById('estimativaSafraModalArea'),
+                modalTch: document.getElementById('estimativaSafraModalTch'),
+                modalToneladas: document.getElementById('estimativaSafraModalToneladas'),
+                modalResponsavel: document.getElementById('estimativaSafraModalResponsavel'),
+                modalObs: document.getElementById('estimativaSafraModalObs'),
+                modalEstimateWholeFarm: document.getElementById('estimativaSafraModalEstimateWholeFarm'),
+                modalEstimateSelected: document.getElementById('estimativaSafraModalEstimateSelected'),
+                modalEstimateFiltered: document.getElementById('estimativaSafraModalEstimateFiltered'),
             },
             relatorioPlantio: {
                 frente: document.getElementById('plantioRelatorioFrente'),
@@ -2896,7 +3067,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Core Collections - prioritize essential data, defer secondary collections
                 const criticalCollections = ['users', 'fazendas', 'personnel'];
-                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'frota', 'armadilhas'];
+                const deferredCollections = ['frentesDePlantio', 'tipos_servico', 'operacoes', 'produtos', 'operacao_produtos', 'ordens_servico', 'frota', 'armadilhas', 'estimativasSafra'];
                 // Load critical data immediately for fast UI render
                 criticalCollections.forEach(col => this.subscribeTo(col));
                 // Defer secondary data to next idle period for better perceived performance
@@ -3239,6 +3410,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.populateHarvestPlanSelect();
                         if (activeTab === 'planejamentoColheita') {
                             this.showHarvestPlanList();
+                        }
+                        break;
+                    case 'estimativasSafra':
+                        if (activeTab === 'estimativaSafra' && App.estimativaSafra?.refresh) {
+                            App.estimativaSafra.refresh();
                         }
                         break;
                     case 'qualidadePlantio':
@@ -3696,6 +3872,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tabDataRequirements = {
                     'dashboard': ['registros', 'perdas', 'apontamentosPlantio', 'cigarrinha', 'armadilhas'],
                     'monitoramentoAereo': ['armadilhas'],
+                    'estimativaSafra': ['estimativasSafra'],
                     'planejamento': ['planos'],
                     'planejamentoColheita': ['harvestPlans'],
                     'lancamentoBroca': ['registros'],
@@ -3844,6 +4021,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
                     }
+
+                    if (currentActiveTab.id === 'planejamentoOS' && id !== 'planejamentoOS' && App.osPlanning?.resetPlanningForm) {
+                        App.osPlanning.resetPlanningForm();
+                    }
                 }
 
                 const mapContainer = App.elements.monitoramentoAereo.container;
@@ -3870,6 +4051,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     App.ui.setMapTransparencyMode(false);
                     if (App.state.useNativeAerialMap && App.state.aerialMapProvider && typeof App.state.aerialMapProvider.closeMap === 'function') {
                         App.state.aerialMapProvider.closeMap();
+                    }
+                }
+
+                const estimativaContainer = App.elements.estimativaSafra?.container;
+                if (id === 'estimativaSafra') {
+                    if (estimativaContainer) estimativaContainer.classList.add('active');
+                    setTimeout(() => {
+                        if (App.estimativaSafra?.init) App.estimativaSafra.init();
+                    }, 50);
+                } else if (estimativaContainer) {
+                    estimativaContainer.classList.remove('active');
+                    App.estimativaSafra?.hideInfoBox?.();
+                    if (App.state.estimativaSafraMap) {
+                        setTimeout(() => App.state.estimativaSafraMap.resize(), 0);
                     }
                 }
 
@@ -3948,6 +4143,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (id === 'planejamento') this.renderPlanejamento();
                 if (id === 'ordemServicoManual') {
                     App.osManual.init();
+                }
+                if (id === 'planejamentoOS') {
+                    App.osPlanning.init();
                 }
                 if (id === 'registroAplicacao') {
                     App.regApp.init();
@@ -7701,6 +7899,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (monitoramentoAereoEls.btnCenterMap) monitoramentoAereoEls.btnCenterMap.addEventListener('click', () => App.mapModule.centerMapOnUser());
                 if (monitoramentoAereoEls.btnHistory) monitoramentoAereoEls.btnHistory.addEventListener('click', () => this.showHistoryFilterModal());
                 if (monitoramentoAereoEls.btnToggleRiskView) monitoramentoAereoEls.btnToggleRiskView.addEventListener('click', () => App.mapModule.toggleRiskView());
+
+                if (App.estimativaSafra?.bindEvents) {
+                    App.estimativaSafra.bindEvents();
+                }
 
                 const trapModal = App.elements.trapPlacementModal;
                 if (trapModal.closeBtn) trapModal.closeBtn.addEventListener('click', () => App.mapModule.hideTrapPlacementModal());
@@ -15907,6 +16109,2478 @@ document.addEventListener('DOMContentLoaded', () => {
 
         },
 
+
+        estimativaSafra: {
+            initialized: false,
+            eventsBound: false,
+            currentData: [],
+            currentFeatureMap: new Map(),
+            currentSelectedKey: null,
+            currentSelectedKeys: new Set(),
+            currentSelectedFeatureIds: new Set(),
+            legendExpanded: true,
+            summaryExpanded: true,
+            infoExpanded: true,
+            labelsVisible: true,
+            stagePalette: ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4', '#469990', '#dcbeff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9'],
+            bindEvents() {
+                if (this.eventsBound) return;
+                const els = App.elements.estimativaSafra;
+                if (!els) return;
+                [els.farmFilter, els.varietyFilter, els.stageFilter].forEach((el) => {
+                    if (el) el.addEventListener('change', () => this.refresh());
+                });
+                if (els.searchInput) els.searchInput.addEventListener('input', () => this.refresh());
+                if (els.openFiltersBtn) els.openFiltersBtn.addEventListener('click', () => this.openFiltersModal());
+                if (els.toggleToolbarBtn) els.toggleToolbarBtn.addEventListener('click', () => this.toggleToolbar());
+                if (els.filtersModalClose) els.filtersModalClose.addEventListener('click', () => this.closeFiltersModal());
+                if (els.applyFiltersBtn) els.applyFiltersBtn.addEventListener('click', () => { this.closeFiltersModal(); this.refresh(); });
+                if (els.clearFiltersBtn) els.clearFiltersBtn.addEventListener('click', () => this.clearFilters());
+                if (els.centerMapBtn) els.centerMapBtn.addEventListener('click', () => this.centerMap());
+                if (els.closeInfoBtn) els.closeInfoBtn.addEventListener('click', () => this.hideInfoBox());
+                if (els.modalClose) els.modalClose.addEventListener('click', () => this.closeModal());
+                if (els.modalCancel) els.modalCancel.addEventListener('click', () => this.closeModal());
+                if (els.modalSave) els.modalSave.addEventListener('click', () => this.saveEstimate());
+                if (els.modalTch) els.modalTch.addEventListener('input', () => this.syncDerivedFields('tch'));
+                if (els.modalToneladas) els.modalToneladas.addEventListener('input', () => this.syncDerivedFields('toneladas'));
+                if (els.modal) els.modal.addEventListener('click', (event) => {
+                    if (event.target === els.modal) this.closeModal();
+                });
+                if (els.filtersModal) els.filtersModal.addEventListener('click', (event) => {
+                    if (event.target === els.filtersModal) this.closeFiltersModal();
+                });
+
+                const exclusiveChecks = [els.modalEstimateWholeFarm, els.modalEstimateSelected, els.modalEstimateFiltered].filter(Boolean);
+                const syncScopeCards = () => {
+                    [['estimativaSafraScopeWholeFarmCard', els.modalEstimateWholeFarm], ['estimativaSafraScopeSelectedCard', els.modalEstimateSelected], ['estimativaSafraScopeFilteredCard', els.modalEstimateFiltered]].forEach(([id, input]) => {
+                        const card = document.getElementById(id);
+                        if (card) card.classList.toggle('active', Boolean(input?.checked));
+                    });
+                    this.refreshEstimateModalScope();
+                };
+                exclusiveChecks.forEach((check) => check.addEventListener('change', () => {
+                    if (check.checked) exclusiveChecks.forEach((other) => { if (other !== check) other.checked = false; });
+                    syncScopeCards();
+                }));
+                syncScopeCards();
+                this.eventsBound = true;
+            },
+            async init() {
+                this.bindEvents();
+                if (this.isMobileViewport()) {
+                    this.legendExpanded = false;
+                    this.summaryExpanded = false;
+                    this.infoExpanded = false;
+                    App.elements.estimativaSafra?.toolbarCard?.classList.add('collapsed');
+                }
+                await this.ensureShapesReady();
+                await this.ensureMap();
+                this.renderLegend();
+                this.refresh();
+                this.initialized = true;
+            },
+            isMobileViewport() {
+                return window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+            },
+            async ensureShapesReady() {
+                if (App.state.geoJsonData?.features?.length) return true;
+                const shapefileURL = App.state.companyConfig?.shapefileURL;
+                if (!shapefileURL) {
+                    App.ui.showAlert('Configure o SHP da empresa para usar o módulo Estimativa Safra.', 'warning');
+                    return false;
+                }
+                try {
+                    await App.mapModule.loadAndCacheShapes(shapefileURL);
+                    return Boolean(App.state.geoJsonData?.features?.length);
+                } catch (error) {
+                    console.error('[EstimativaSafra] Falha ao carregar SHP', error);
+                    App.ui.showAlert('Não foi possível carregar o SHP do módulo Estimativa Safra.', 'error');
+                    return false;
+                }
+            },
+            async ensureMap() {
+                if (App.state.estimativaSafraMap) {
+                    setTimeout(() => App.state.estimativaSafraMap.resize(), 0);
+                    return App.state.estimativaSafraMap;
+                }
+                if (typeof mapboxgl === 'undefined') {
+                    App.ui.showAlert('Mapbox GL não está carregado no app.', 'error');
+                    return null;
+                }
+                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+                const map = new mapboxgl.Map({
+                    container: App.elements.estimativaSafra.mapContainer,
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [-47.5, -22.5],
+                    zoom: 8,
+                    attributionControl: false
+                });
+                map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+                await new Promise((resolve, reject) => {
+                    map.once('load', resolve);
+                    map.once('error', (error) => reject(error?.error || error));
+                });
+                App.state.estimativaSafraMap = map;
+                App.state.estimativaSafraMapLoaded = true;
+                return map;
+            },
+            normalizeFarmCode(value) {
+                const raw = String(value || '').trim();
+                if (!raw) return '';
+                return /^\d+$/.test(raw) ? String(Number(raw)) : raw.toUpperCase();
+            },
+            getFarmCodeByFeature(feature) {
+                return this.normalizeFarmCode(feature?.properties?.AGV_FUNDO || '');
+            },
+            getTalhaoNameByFeature(feature) {
+                return String(feature?.properties?.AGV_TALHAO || '').trim().toUpperCase();
+            },
+            getFeatureKey(featureOrFarmCode, talhaoName) {
+                if (typeof featureOrFarmCode === 'object') {
+                    return `${this.getFarmCodeByFeature(featureOrFarmCode)}::${this.getTalhaoNameByFeature(featureOrFarmCode)}`;
+                }
+                return `${this.normalizeFarmCode(featureOrFarmCode || '')}::${String(talhaoName || '').trim().toUpperCase()}`;
+            },
+            getFarmByCode(code) {
+                const normalized = this.normalizeFarmCode(code);
+                return (App.state.fazendas || []).find((farm) => this.normalizeFarmCode(farm.code) === normalized);
+            },
+
+            getFarmDisplayName(item) {
+                const code = this.normalizeFarmCode(item?.farmCode || item?.farm?.code || item?.farmId || '');
+                const name = String(item?.farmName || item?.farm?.name || '').trim();
+                return code && name ? `${code} - ${name}` : (name || code || 'Não identificada');
+            },
+            summarizeSelection(values, emptyText = '-') {
+                const unique = [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))];
+                if (!unique.length) return emptyText;
+                if (unique.length <= 2) return unique.join(' · ');
+                return `${unique[0]} · ${unique[1]} +${unique.length - 2}`;
+            },
+            sortFarmOptions(items) {
+                return [...items].sort((a, b) => {
+                    const codeA = this.normalizeFarmCode(a.farmCode || a.farm?.code || a.farmId || '');
+                    const codeB = this.normalizeFarmCode(b.farmCode || b.farm?.code || b.farmId || '');
+                    const numA = Number.parseInt(codeA, 10);
+                    const numB = Number.parseInt(codeB, 10);
+                    if (Number.isFinite(numA) && Number.isFinite(numB) && numA !== numB) return numA - numB;
+                    if (Number.isFinite(numA) && !Number.isFinite(numB)) return -1;
+                    if (!Number.isFinite(numA) && Number.isFinite(numB)) return 1;
+                    return this.getFarmDisplayName(a).localeCompare(this.getFarmDisplayName(b), undefined, { numeric: true, sensitivity: 'base' });
+                });
+            },
+            getTalhaoRecord(feature) {
+                const farm = this.getFarmByCode(this.getFarmCodeByFeature(feature));
+                const talhaoName = this.getTalhaoNameByFeature(feature);
+                const talhao = (farm?.talhoes || []).find((item) => String(item.name || '').trim().toUpperCase() === talhaoName);
+                return { farm, talhao };
+            },
+            getStageLabel(corte) {
+                const n = Number.parseInt(corte, 10);
+                if (Number.isFinite(n) && n > 0) return `${n}º corte`;
+                return 'Sem estágio';
+            },
+            getStageOrder(stage) {
+                const match = String(stage || '').match(/^(\d+)/);
+                return match ? Number.parseInt(match[1], 10) : 999;
+            },
+            getStageColor(stage) {
+                if (stage === 'Sem estágio') return '#a1a1aa';
+                const order = this.getStageOrder(stage);
+                const idx = Number.isFinite(order) && order > 0 ? (order - 1) % this.stagePalette.length : 0;
+                return this.stagePalette[idx];
+            },
+            getArea(feature, talhao) {
+                const raw = talhao?.area ?? feature?.properties?.AREA_HA ?? feature?.properties?.AREA ?? 0;
+                const value = Number.parseFloat(String(raw).replace(',', '.'));
+                return Number.isFinite(value) ? value : 0;
+            },
+            buildDataset() {
+                const features = App.state.geoJsonData?.features || [];
+                const estimates = App.state.estimativasSafra || [];
+                this.currentFeatureMap = new Map();
+                return features.map((feature) => {
+                    const { farm, talhao } = this.getTalhaoRecord(feature);
+                    const featureKey = this.getFeatureKey(feature);
+                    const farmName = farm?.name || this.getFarmCodeByFeature(feature) || 'Não identificada';
+                    const talhaoName = talhao?.name || this.getTalhaoNameByFeature(feature) || 'Não identificado';
+                    const stage = this.getStageLabel(talhao?.corte);
+                    const history = estimates.filter((item) => String(item.featureKey || '') === featureKey)
+                        .sort((a, b) => new Date(b.createdAtLocal || b.dataEstimativa || 0) - new Date(a.createdAtLocal || a.dataEstimativa || 0));
+                    const latest = history[0] || null;
+                    const item = {
+                        feature,
+                        featureKey,
+                        farmId: farm?.id || null,
+                        farmCode: farm?.code || this.getFarmCodeByFeature(feature),
+                        farmName,
+                        talhaoId: talhao?.id || null,
+                        talhaoName,
+                        variedade: talhao?.variedade || 'Sem variedade',
+                        corte: talhao?.corte || null,
+                        stage,
+                        area: this.getArea(feature, talhao),
+                        latestEstimate: latest,
+                        estimateHistory: history,
+                        status: latest ? (history.length > 1 ? 'Reestimado' : 'Estimado') : 'Pendente'
+                    };
+                    this.currentFeatureMap.set(featureKey, item);
+                    return item;
+                });
+            },
+
+            openFiltersModal() {
+                App.elements.estimativaSafra?.filtersModal?.classList.add('show');
+            },
+            closeFiltersModal() {
+                App.elements.estimativaSafra?.filtersModal?.classList.remove('show');
+            },
+            toggleToolbar() {
+                const card = App.elements.estimativaSafra?.toolbarCard;
+                if (!card) return;
+                card.classList.toggle('collapsed');
+                const icon = App.elements.estimativaSafra?.toggleToolbarBtn?.querySelector('i');
+                if (icon) {
+                    icon.className = card.classList.contains('collapsed') ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
+                }
+            },
+            updateActiveFilterSummary() {
+                const els = App.elements.estimativaSafra;
+                if (!els?.activeFilters) return;
+                const parts = [];
+                if (els.farmFilter?.value) parts.push(`Fundo: ${els.farmFilter.options[els.farmFilter.selectedIndex]?.text || els.farmFilter.value}`);
+                if (els.varietyFilter?.value) parts.push(`Variedade: ${els.varietyFilter.value}`);
+                if (els.stageFilter?.value) parts.push(`Corte: ${els.stageFilter.value}`);
+                if (String(els.searchInput?.value || '').trim()) parts.push(`Talhão: ${String(els.searchInput.value).trim()}`);
+                els.activeFilters.textContent = parts.length ? parts.join(' · ') : 'Sem filtros';
+            },
+            populateFilters(dataset) {
+                const els = App.elements.estimativaSafra;
+                const currentFarm = els.farmFilter.value;
+                const currentVariety = els.varietyFilter.value;
+                const currentStage = els.stageFilter.value;
+                const farmOptions = this.sortFarmOptions([...new Map(dataset.map((item) => [String(item.farmId || item.farmCode), item])).values()]);
+                els.farmFilter.innerHTML = '<option value="">Todas</option>' + farmOptions.map((item) => `<option value="${item.farmId || item.farmCode}">${this.getFarmDisplayName(item)}</option>`).join('');
+                if (farmOptions.some((item) => String(item.farmId || item.farmCode) === String(currentFarm))) els.farmFilter.value = currentFarm;
+                const afterFarm = dataset.filter((item) => !els.farmFilter.value || String(item.farmId || item.farmCode) === String(els.farmFilter.value));
+                const varieties = [...new Set(afterFarm.map((item) => item.variedade).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
+                els.varietyFilter.innerHTML = '<option value="">Todas</option>' + varieties.map((value) => `<option value="${value}">${value}</option>`).join('');
+                if (varieties.includes(currentVariety)) els.varietyFilter.value = currentVariety;
+                const afterVariety = afterFarm.filter((item) => !els.varietyFilter.value || item.variedade === els.varietyFilter.value);
+                const stages = [...new Set(afterVariety.map((item) => item.stage))].sort((a,b) => this.getStageOrder(a) - this.getStageOrder(b));
+                els.stageFilter.innerHTML = '<option value="">Todos</option>' + stages.map((value) => `<option value="${value}">${value}</option>`).join('');
+                if (stages.includes(currentStage)) els.stageFilter.value = currentStage;
+                this.updateActiveFilterSummary();
+            },
+            filterDataset(dataset) {
+                const els = App.elements.estimativaSafra;
+                const farmValue = els.farmFilter.value;
+                const varietyValue = els.varietyFilter.value;
+                const stageValue = els.stageFilter.value;
+                const searchValue = String(els.searchInput.value || '').trim().toUpperCase();
+                return dataset.filter((item) => {
+                    if (farmValue && String(item.farmId || item.farmCode) !== String(farmValue)) return false;
+                    if (varietyValue && item.variedade !== varietyValue) return false;
+                    if (stageValue && item.stage !== stageValue) return false;
+                    if (searchValue && !(`${item.talhaoName} ${item.farmName}`.toUpperCase().includes(searchValue))) return false;
+                    return true;
+                });
+            },
+            refresh() {
+                if (!App.state.geoJsonData?.features?.length || !App.state.estimativaSafraMap) return;
+                const dataset = this.buildDataset();
+                this.populateFilters(dataset);
+                const filtered = this.filterDataset(dataset);
+                this.currentData = filtered;
+                this.renderMapData(filtered);
+                this.renderSummary(filtered);
+                this.renderLegend();
+                const visibleKeys = new Set(filtered.map((item) => item.featureKey));
+                this.currentSelectedKeys = new Set([...this.currentSelectedKeys].filter((key) => visibleKeys.has(key)));
+                if (!this.currentSelectedKeys.size && this.currentSelectedKey && visibleKeys.has(this.currentSelectedKey)) {
+                    this.currentSelectedKeys.add(this.currentSelectedKey);
+                }
+                if (!this.currentSelectedKeys.size) {
+                    this.currentSelectedKey = null;
+                    this.hideInfoBox();
+                } else {
+                    this.currentSelectedKey = [...this.currentSelectedKeys][0] || null;
+                    this.showInfo();
+                }
+            },
+            renderLegend() {
+                const legend = App.elements.estimativaSafra.legend;
+                if (!legend) return;
+                const dataset = this.currentData?.length ? this.currentData : this.buildDataset();
+                const stages = [...new Set(dataset.map((item) => item.stage))].sort((a,b) => this.getStageOrder(a) - this.getStageOrder(b));
+                const isMobile = this.isMobileViewport();
+
+                if (!this.legendExpanded) {
+                    legend.className = 'estimativa-legend is-collapsed is-fab';
+                    legend.innerHTML = `
+                        <button type="button" class="estimativa-legend-fab-btn" data-action="toggle-legend" aria-label="Expandir legenda" title="Expandir legenda">
+                            <i class="fas fa-palette"></i>
+                        </button>`;
+                    legend.querySelector('[data-action="toggle-legend"]')?.addEventListener('click', () => this.toggleLegend());
+                    return;
+                }
+
+                const title = isMobile ? `<i class="fas fa-palette"></i><span>Legenda</span>` : `<i class="fas fa-palette"></i><span>Estágios de corte</span>`;
+                const labelsBtnText = isMobile
+                    ? (this.labelsVisible ? 'Nomes' : 'Mostrar')
+                    : (this.labelsVisible ? 'Ocultar nomes' : 'Exibir nomes');
+                const labelsBtn = `<button type="button" class="estimativa-mini-btn" data-action="toggle-labels">${labelsBtnText}</button>`;
+                legend.className = 'estimativa-legend';
+                legend.innerHTML = `
+                    <div class="estimativa-legend-header ${isMobile ? 'mobile' : ''}">
+                        <div class="estimativa-legend-title-wrap">
+                            <h3>${title}</h3>
+                        </div>
+                        <div class="estimativa-legend-actions">
+                            ${labelsBtn}
+                            <button type="button" class="estimativa-mini-btn" data-action="toggle-legend">Recolher</button>
+                        </div>
+                    </div>
+                    <div class="estimativa-legend-body">
+                        ${stages.map((label) => `<div class="estimativa-legend-item"><span class="estimativa-legend-color" style="background:${this.getStageColor(label)}"></span><span>${label}</span></div>`).join('')}
+                    </div>`;
+                legend.querySelector('[data-action="toggle-legend"]')?.addEventListener('click', () => this.toggleLegend());
+                legend.querySelector('[data-action="toggle-labels"]')?.addEventListener('click', () => this.toggleLabels());
+            },
+            toggleLegend() {
+                this.legendExpanded = !this.legendExpanded;
+                this.renderLegend();
+            },
+            toggleSummary() {
+                this.summaryExpanded = !this.summaryExpanded;
+                this.renderSummary(this.currentData?.length ? this.currentData : this.buildDataset());
+            },
+            toggleInfo() {
+                this.infoExpanded = !this.infoExpanded;
+                if (this.currentSelectedKeys.size) this.showInfo();
+            },
+            toggleLabels() {
+                const map = App.state.estimativaSafraMap;
+                if (!map || !map.getLayer('estimativa-safra-label')) return;
+                this.labelsVisible = !this.labelsVisible;
+                map.setLayoutProperty('estimativa-safra-label', 'visibility', this.labelsVisible ? 'visible' : 'none');
+                this.renderLegend();
+            },
+            renderSummary(dataset) {
+                const summary = App.elements.estimativaSafra.summary;
+                if (!summary) return;
+                const totalArea = dataset.reduce((sum, item) => sum + (item.area || 0), 0);
+                const estimated = dataset.filter((item) => item.latestEstimate).length;
+                const pending = dataset.length - estimated;
+                const tons = dataset.reduce((sum, item) => sum + (Number(item.latestEstimate?.toneladasEstimadas) || 0), 0);
+                const isMobile = this.isMobileViewport();
+                const compactLine = `${dataset.length} talhões · ${totalArea.toFixed(1).replace('.', ',')} ha`;
+
+                if (isMobile && !this.summaryExpanded) {
+                    summary.className = 'estimativa-summary is-collapsed is-fab';
+                    summary.innerHTML = `
+                        <button type="button" class="estimativa-summary-fab-btn" data-action="toggle-summary" aria-label="Expandir resumo" title="Expandir resumo">
+                            <i class="fas fa-chart-pie"></i>
+                        </button>`;
+                    summary.querySelector('[data-action="toggle-summary"]')?.addEventListener('click', () => this.toggleSummary());
+                    return;
+                }
+
+                summary.className = 'estimativa-summary';
+                const bodyStyle = this.summaryExpanded ? '' : 'style="display:none;"';
+                summary.innerHTML = `
+                    <div class="estimativa-panel-header ${isMobile ? 'mobile' : ''}">
+                        <div>
+                            <span class="estimativa-panel-kicker">Resumo</span>
+                            <strong class="estimativa-panel-title">${compactLine}</strong>
+                        </div>
+                        <button type="button" class="estimativa-mini-btn" data-action="toggle-summary">${this.summaryExpanded ? 'Recolher' : 'Abrir'}</button>
+                    </div>
+                    <div class="estimativa-panel-body" ${bodyStyle}>
+                        <div class="estimativa-summary-item"><span class="label">Talhões</span><span class="value">${dataset.length}</span></div>
+                        <div class="estimativa-summary-item"><span class="label">Área filtrada</span><span class="value">${totalArea.toFixed(1).replace('.', ',')} ha</span></div>
+                        <div class="estimativa-summary-item"><span class="label">Estimados</span><span class="value">${estimated}</span></div>
+                        <div class="estimativa-summary-item"><span class="label">Pendentes</span><span class="value">${pending}</span></div>
+                        <div class="estimativa-summary-item"><span class="label">Toneladas</span><span class="value">${tons.toFixed(0).replace('.', ',')}</span></div>
+                    </div>
+                `;
+                summary.querySelector('[data-action="toggle-summary"]')?.addEventListener('click', () => this.toggleSummary());
+            },
+            renderMapData(dataset) {
+                const map = App.state.estimativaSafraMap;
+                if (!map) return;
+                const sourceId = 'estimativa-safra-source';
+                const fillLayerId = 'estimativa-safra-fill';
+                const lineLayerId = 'estimativa-safra-line';
+                const labelLayerId = 'estimativa-safra-label';
+                const geojson = {
+                    type: 'FeatureCollection',
+                    features: dataset.map((item) => ({
+                        ...item.feature,
+                        id: item.feature.id,
+                        properties: {
+                            ...(item.feature.properties || {}),
+                            featureKey: item.featureKey,
+                            farmName: item.farmName,
+                            talhaoName: item.talhaoName,
+                            variedade: item.variedade,
+                            stage: item.stage,
+                            stageColor: this.getStageColor(item.stage),
+                            areaValue: item.area,
+                            status: item.status
+                        }
+                    }))
+                };
+                if (map.getSource(sourceId)) {
+                    map.getSource(sourceId).setData(geojson);
+                } else {
+                    map.addSource(sourceId, { type: 'geojson', data: geojson, generateId: false });
+                }
+                if (!map.getLayer(fillLayerId)) {
+                    map.addLayer({
+                        id: fillLayerId,
+                        type: 'fill',
+                        source: sourceId,
+                        paint: {
+                            'fill-color': ['coalesce', ['get', 'stageColor'], '#94a3b8'],
+                            'fill-opacity': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 0.92,
+                                ['boolean', ['feature-state', 'hover'], false], 0.82,
+                                0.62
+                            ]
+                        }
+                    });
+                }
+                if (!map.getLayer(lineLayerId)) {
+                    map.addLayer({
+                        id: lineLayerId,
+                        type: 'line',
+                        source: sourceId,
+                        paint: {
+                            'line-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], '#ffffff',
+                                '#0f172a'
+                            ],
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 3.5,
+                                ['boolean', ['feature-state', 'hover'], false], 2.5,
+                                1.4
+                            ],
+                            'line-opacity': 0.95
+                        }
+                    });
+                }
+                if (!map.getLayer(labelLayerId)) {
+                    map.addLayer({
+                        id: labelLayerId,
+                        type: 'symbol',
+                        source: sourceId,
+                        minzoom: 11,
+                        layout: {
+                            'text-field': ['get', 'talhaoName'],
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 12,
+                            'text-allow-overlap': true,
+                            'visibility': this.labelsVisible ? 'visible' : 'none'
+                        },
+                        paint: {
+                            'text-color': '#ffffff',
+                            'text-halo-color': 'rgba(0,0,0,0.85)',
+                            'text-halo-width': 1.6
+                        }
+                    });
+                }
+                this.bindMapInteractions();
+                const bounds = App.mapModule._getGeoJsonBounds(geojson);
+                if (bounds && dataset.length) {
+                    map.fitBounds(bounds, { padding: 70, duration: 800, maxZoom: 15 });
+                }
+            },
+            bindMapInteractions() {
+                const map = App.state.estimativaSafraMap;
+                if (!map) return;
+                const layerId = 'estimativa-safra-fill';
+                const sourceId = 'estimativa-safra-source';
+                if (this._handlersBound) return;
+                let hoveredId = null;
+                map.on('mousemove', layerId, (event) => {
+                    map.getCanvas().style.cursor = 'pointer';
+                    const feature = event.features?.[0];
+                    if (!feature) return;
+                    if (hoveredId !== null && hoveredId !== feature.id) {
+                        map.setFeatureState({ source: sourceId, id: hoveredId }, { hover: false });
+                    }
+                    hoveredId = feature.id;
+                    map.setFeatureState({ source: sourceId, id: hoveredId }, { hover: true });
+                });
+                map.on('mouseleave', layerId, () => {
+                    map.getCanvas().style.cursor = '';
+                    if (hoveredId !== null) map.setFeatureState({ source: sourceId, id: hoveredId }, { hover: false });
+                    hoveredId = null;
+                });
+                map.on('click', layerId, (event) => {
+                    const feature = event.features?.[0];
+                    if (!feature) return;
+                    this.selectFeature(feature.properties?.featureKey, feature.id);
+                });
+                this._handlersBound = true;
+            },
+            selectFeature(featureKey, featureId = null) {
+                const map = App.state.estimativaSafraMap;
+                const sourceId = 'estimativa-safra-source';
+                const item = this.currentFeatureMap.get(featureKey);
+                if (!item) return;
+                const resolvedId = featureId ?? item.feature.id;
+                if (this.currentSelectedKeys.has(featureKey)) {
+                    this.currentSelectedKeys.delete(featureKey);
+                    this.currentSelectedFeatureIds.delete(resolvedId);
+                    map.setFeatureState({ source: sourceId, id: resolvedId }, { selected: false });
+                } else {
+                    this.currentSelectedKeys.add(featureKey);
+                    this.currentSelectedFeatureIds.add(resolvedId);
+                    map.setFeatureState({ source: sourceId, id: resolvedId }, { selected: true });
+                }
+                this.currentSelectedKey = [...this.currentSelectedKeys][0] || null;
+                if (this.currentSelectedKeys.size) this.showInfo();
+                else this.hideInfoBox();
+            },
+            showInfo() {
+                const els = App.elements.estimativaSafra;
+                if (!els?.infoBox || !els?.infoContent || !this.currentSelectedKeys.size) return;
+                const selectedItems = [...this.currentSelectedKeys].map((key) => this.currentFeatureMap.get(key)).filter(Boolean);
+                if (!selectedItems.length) return;
+                const isMulti = selectedItems.length > 1;
+                const isMobile = this.isMobileViewport();
+                const first = selectedItems[0];
+                const totalArea = selectedItems.reduce((sum, item) => sum + Number(item.area || 0), 0);
+                const farms = [...new Set(selectedItems.map((item) => item.farmName))];
+                const variedades = [...new Set(selectedItems.map((item) => item.variedade))];
+                const latest = first.latestEstimate;
+                const historyHtml = !isMulti && first.estimateHistory.length
+                    ? first.estimateHistory.slice(0, 8).map((entry) => `
+                        <div class="estimativa-history-item">
+                            <strong>${entry.safra || 'Sem safra'}</strong> · v${entry.versao || 1}<br>
+                            ${this.formatDate(entry.dataEstimativa)} · TCH ${this.formatNumber(entry.tchEstimado)} · Ton ${this.formatNumber(entry.toneladasEstimadas)}<br>
+                            <span style="color: rgba(255,255,255,0.72);">${entry.observacao || 'Sem observação'}</span>
+                        </div>
+                    `).join('')
+                    : '<div class="estimativa-history-item">Histórico disponível apenas para seleção individual.</div>';
+                const headerTitle = isMulti ? `${selectedItems.length} talhões selecionados` : `Talhão ${first.talhaoName}`;
+                const quickMeta = isMulti
+                    ? `${farms.length} fazenda(s) · ${this.formatNumber(totalArea)} ha · ${variedades.length} variedade(s)`
+                    : `${first.farmName} · ${first.stage} · ${this.formatNumber(first.area)} ha`;
+                const bodyStyle = this.infoExpanded ? '' : 'style="display:none;"';
+                const mobilePrimaryAction = `<button class="estimativa-mini-btn estimativa-mobile-primary" data-action="estimate">${isMulti ? 'Estimar' : (latest ? 'Reestimar' : 'Estimar')}</button>`;
+                const desktopActions = isMulti
+                    ? `<div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+                        <button class="estimativa-action-btn primary" data-action="estimate"><i class="fas fa-pen"></i> Estimar selecionados</button>
+                        <button class="estimativa-action-btn secondary" data-action="clear-selection"><i class="fas fa-xmark"></i> Limpar seleção</button>
+                    </div>`
+                    : `<div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+                        <button class="estimativa-action-btn primary" data-action="estimate"><i class="fas fa-pen"></i>${latest ? 'Reestimar' : 'Estimar'}</button>
+                        <button class="estimativa-action-btn secondary" data-action="history"><i class="fas fa-clock-rotate-left"></i> Histórico</button>
+                        <button class="estimativa-action-btn secondary" data-action="clear-selection"><i class="fas fa-xmark"></i> Limpar seleção</button>
+                    </div>`;
+                const mobileBody = isMulti
+                    ? `
+                    <div class="estimativa-info-grid mobile">
+                        <div class="estimativa-info-cell"><span class="label">Fazendas</span><span class="value">${farms.length}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Área total</span><span class="value">${this.formatNumber(totalArea)} ha</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Variedades</span><span class="value">${variedades.length}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Talhões</span><span class="value">${selectedItems.map((item) => item.talhaoName).slice(0, 6).join(' · ')}</span></div>
+                    </div>
+                    <div class="estimativa-mobile-sheet-actions">
+                        <button class="estimativa-action-btn primary" data-action="estimate"><i class="fas fa-pen"></i> Estimar selecionados</button>
+                        <button class="estimativa-action-btn secondary" data-action="clear-selection"><i class="fas fa-xmark"></i> Limpar</button>
+                    </div>`
+                    : `
+                    <div class="estimativa-info-grid mobile">
+                        <div class="estimativa-info-cell"><span class="label">Variedade</span><span class="value">${first.variedade}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Status</span><span class="value">${first.status}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Última</span><span class="value">${latest ? `${this.formatNumber(latest.toneladasEstimadas)} t` : 'Não estimado'}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Safra</span><span class="value">${latest?.safra || '-'}</span></div>
+                    </div>
+                    <div class="estimativa-mobile-sheet-actions">
+                        <button class="estimativa-action-btn primary" data-action="estimate"><i class="fas fa-pen"></i>${latest ? 'Reestimar' : 'Estimar'}</button>
+                        <button class="estimativa-action-btn secondary" data-action="history"><i class="fas fa-clock-rotate-left"></i> Histórico</button>
+                        <button class="estimativa-action-btn secondary" data-action="clear-selection"><i class="fas fa-xmark"></i> Limpar</button>
+                    </div>
+                    <div id="estimativaSafraHistoryWrap" class="estimativa-history-list" style="display:none;">${historyHtml}</div>`;
+                const desktopBody = isMulti ? `
+                    <div class="estimativa-info-grid">
+                        <div class="estimativa-info-cell"><span class="label">Fazendas</span><span class="value">${farms.length}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Área total</span><span class="value">${this.formatNumber(totalArea)} ha</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Variedades</span><span class="value">${variedades.length}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Status</span><span class="value">Seleção múltipla</span></div>
+                    </div>
+                    ${desktopActions}` : `
+                    <div class="estimativa-info-grid">
+                        <div class="estimativa-info-cell"><span class="label">Fazenda</span><span class="value">${first.farmName}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Variedade</span><span class="value">${first.variedade}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Estágio</span><span class="value">${first.stage}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Área</span><span class="value">${this.formatNumber(first.area)} ha</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Status</span><span class="value">${first.status}</span></div>
+                        <div class="estimativa-info-cell"><span class="label">Última estimativa</span><span class="value">${latest ? `${this.formatNumber(latest.toneladasEstimadas)} t` : 'Não estimado'}</span></div>
+                    </div>
+                    ${desktopActions}
+                    <div id="estimativaSafraHistoryWrap" class="estimativa-history-list" style="display:none;">${historyHtml}</div>`;
+                els.infoContent.innerHTML = `
+                    <div class="estimativa-panel-header ${isMobile ? 'mobile-sheet' : ''}">
+                        <div>
+                            <span class="estimativa-panel-kicker">${isMulti ? 'Seleção no mapa' : 'Talhão'}</span>
+                            <h3 style="margin:4px 0 0;">${headerTitle}</h3>
+                            ${isMobile ? `<div class="estimativa-mobile-sheet-meta">${quickMeta}</div>` : ''}
+                        </div>
+                        <div class="estimativa-mobile-top-actions">${isMobile ? mobilePrimaryAction : ''}<button type="button" class="estimativa-mini-btn" data-action="toggle-info">${this.infoExpanded ? 'Recolher' : 'Abrir'}</button></div>
+                    </div>
+                    <div class="estimativa-panel-body" ${bodyStyle}>${isMobile ? mobileBody : desktopBody}</div>`;
+                els.infoBox.classList.add('visible');
+                els.infoContent.querySelector('[data-action="toggle-info"]')?.addEventListener('click', () => this.toggleInfo());
+                els.infoContent.querySelectorAll('[data-action="estimate"]').forEach((btn) => btn.addEventListener('click', () => this.openModal()));
+                els.infoContent.querySelector('[data-action="history"]')?.addEventListener('click', () => {
+                    const wrap = document.getElementById('estimativaSafraHistoryWrap');
+                    if (wrap) wrap.style.display = wrap.style.display === 'none' ? 'grid' : 'none';
+                });
+                els.infoContent.querySelectorAll('[data-action="clear-selection"]').forEach((btn) => btn.addEventListener('click', () => this.clearSelection()));
+            },
+            clearSelection() {
+                const map = App.state.estimativaSafraMap;
+                const sourceId = 'estimativa-safra-source';
+                if (map) {
+                    [...this.currentSelectedFeatureIds].forEach((id) => map.setFeatureState({ source: sourceId, id }, { selected: false }));
+                }
+                this.currentSelectedKeys = new Set();
+                this.currentSelectedFeatureIds = new Set();
+                this.currentSelectedKey = null;
+                this.hideInfoBox();
+            },
+            hideInfoBox() {
+                const els = App.elements.estimativaSafra;
+                els?.infoBox?.classList.remove('visible');
+            },
+            clearFilters() {
+                const els = App.elements.estimativaSafra;
+                els.farmFilter.value = '';
+                els.varietyFilter.value = '';
+                els.stageFilter.value = '';
+                els.searchInput.value = '';
+                this.updateActiveFilterSummary();
+                this.refresh();
+            },
+            centerMap() {
+                const map = App.state.estimativaSafraMap;
+                if (!map || !this.currentData.length) return;
+                const geojson = { type: 'FeatureCollection', features: this.currentData.map((item) => item.feature) };
+                const bounds = App.mapModule._getGeoJsonBounds(geojson);
+                if (bounds) map.fitBounds(bounds, { padding: 70, duration: 700, maxZoom: 15 });
+            },
+            openModal(featureKey = null) {
+                const els = App.elements.estimativaSafra;
+                const selectedKeys = featureKey ? [featureKey] : [...this.currentSelectedKeys];
+                const targets = selectedKeys.map((key) => this.currentFeatureMap.get(key)).filter(Boolean);
+                if (!targets.length) return;
+                const first = targets[0];
+                const isMulti = targets.length > 1;
+                const latestSameSafra = !isMulti ? (first.estimateHistory[0] || null) : null;
+                this.currentModalBaseKeys = selectedKeys;
+                els.modalTitle.textContent = isMulti ? 'Estimativa de múltiplos talhões' : (latestSameSafra ? 'Reestimativa de safra' : 'Nova estimativa de safra');
+                els.modalFeatureKey.value = first.featureKey;
+                els.modalSafra.value = latestSameSafra?.safra || this.getDefaultSafra();
+                els.modalData.value = latestSameSafra?.dataEstimativa || new Date().toISOString().slice(0, 10);
+                els.modalTch.value = latestSameSafra?.tchEstimado ?? '';
+                els.modalToneladas.value = latestSameSafra?.toneladasEstimadas ?? '';
+                els.modalResponsavel.value = latestSameSafra?.responsavel || App.state.currentUser?.name || App.state.currentUser?.username || '';
+                els.modalObs.value = latestSameSafra?.observacao || '';
+                if (els.modalEstimateWholeFarm) els.modalEstimateWholeFarm.checked = false;
+                if (els.modalEstimateSelected) els.modalEstimateSelected.checked = isMulti;
+                if (els.modalEstimateFiltered) els.modalEstimateFiltered.checked = false;
+                [['estimativaSafraScopeWholeFarmCard', els.modalEstimateWholeFarm], ['estimativaSafraScopeSelectedCard', els.modalEstimateSelected], ['estimativaSafraScopeFilteredCard', els.modalEstimateFiltered]].forEach(([id, input]) => {
+                    const card = document.getElementById(id);
+                    if (card) card.classList.toggle('active', Boolean(input?.checked));
+                });
+                els.modal.classList.add('show');
+                this.refreshEstimateModalScope();
+            },
+            closeModal() {
+                App.elements.estimativaSafra?.modal?.classList.remove('show');
+            },
+            getDefaultSafra() {
+                const now = new Date();
+                const year = now.getFullYear();
+                const next = year + 1;
+                return `${year}/${next}`;
+            },
+            getTargetsForCurrentScope() {
+                const els = App.elements.estimativaSafra;
+                const baseKeys = [...(this.currentModalBaseKeys || [])];
+                const baseTargets = baseKeys.map((key) => this.currentFeatureMap.get(key)).filter(Boolean);
+                if (!baseTargets.length) return [];
+                const first = baseTargets[0];
+                if (els?.modalEstimateWholeFarm?.checked) {
+                    return this.currentData.filter((entry) => String(entry.farmId || entry.farmCode) === String(first.farmId || first.farmCode));
+                }
+                if (els?.modalEstimateFiltered?.checked) {
+                    return [...this.currentData];
+                }
+                if (els?.modalEstimateSelected?.checked) {
+                    return baseTargets;
+                }
+                return [first];
+            },
+            refreshEstimateModalScope() {
+                const els = App.elements.estimativaSafra;
+                if (!els?.modal?.classList.contains('show')) return;
+                const targets = this.getTargetsForCurrentScope();
+                if (!targets.length) return;
+                const isMulti = targets.length > 1;
+                const totalArea = targets.reduce((sum, item) => sum + Number(item.area || 0), 0);
+                const farms = this.sortFarmOptions([...new Map(targets.map((item) => [String(item.farmId || item.farmCode), item])).values()]);
+                const talhoes = [...new Set(targets.map((item) => item.talhaoName))].sort((a,b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
+                const variedades = [...new Set(targets.map((item) => item.variedade))].sort((a,b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
+                const estagios = [...new Set(targets.map((item) => item.stage))].sort((a,b) => this.getStageOrder(a) - this.getStageOrder(b));
+                els.modalFarm.textContent = farms.length === 1 ? this.getFarmDisplayName(farms[0]) : this.summarizeSelection(farms.map((item) => this.getFarmDisplayName(item)), `${farms.length} fazenda(s)`);
+                els.modalTalhao.textContent = isMulti ? this.summarizeSelection(talhoes, `${targets.length} talhões`) : (talhoes[0] || '-');
+                els.modalVariedade.textContent = variedades.length === 1 ? variedades[0] : this.summarizeSelection(variedades, `${variedades.length} variedade(s)`);
+                els.modalEstagio.textContent = estagios.length === 1 ? estagios[0] : this.summarizeSelection(estagios, `${estagios.length} corte(s)`);
+                els.modalArea.value = this.toInputNumber(totalArea);
+                if (els.modalSubtitle) {
+                    if (els.modalEstimateWholeFarm?.checked) {
+                        const farmLabel = farms.length === 1 ? this.getFarmDisplayName(farms[0]) : `${farms.length} fazenda(s)`;
+                        els.modalSubtitle.textContent = `Aplicando a estimativa para ${targets.length} talhão(ões) da fazenda ${farmLabel}.`;
+                    } else if (els.modalEstimateFiltered?.checked) {
+                        els.modalSubtitle.textContent = `Aplicando a estimativa para ${targets.length} talhão(ões) do filtro atual.`;
+                    } else if (els.modalEstimateSelected?.checked && isMulti) {
+                        els.modalSubtitle.textContent = `${targets.length} talhões selecionados no mapa. Revise o escopo antes de salvar.`;
+                    } else {
+                        els.modalSubtitle.textContent = 'Preencha os dados da estimativa e confirme o escopo de aplicação.';
+                    }
+                }
+                const tch = Number.parseFloat(els.modalTch?.value || '0');
+                const tons = Number.parseFloat(els.modalToneladas?.value || '0');
+                if (Number.isFinite(tch) && tch > 0) {
+                    els.modalToneladas.value = this.toInputNumber(totalArea * tch);
+                } else if (Number.isFinite(tons) && tons > 0 && totalArea > 0) {
+                    els.modalTch.value = this.toInputNumber(tons / totalArea);
+                }
+            },
+            syncDerivedFields(origin) {
+                const els = App.elements.estimativaSafra;
+                const area = Number.parseFloat(els.modalArea.value || '0');
+                const tch = Number.parseFloat(els.modalTch.value || '0');
+                const tons = Number.parseFloat(els.modalToneladas.value || '0');
+                if (!Number.isFinite(area) || area <= 0) return;
+                if (origin === 'tch' && Number.isFinite(tch) && tch > 0) {
+                    els.modalToneladas.value = this.toInputNumber(area * tch);
+                }
+                if (origin === 'toneladas' && Number.isFinite(tons) && tons > 0) {
+                    els.modalTch.value = this.toInputNumber(tons / area);
+                }
+            },
+            async saveEstimate() {
+                const els = App.elements.estimativaSafra;
+                const featureKey = els.modalFeatureKey.value;
+                const item = this.currentFeatureMap.get(featureKey);
+                if (!item) {
+                    App.ui.showAlert('Talhão da estimativa não encontrado.', 'error');
+                    return;
+                }
+                const safra = String(els.modalSafra.value || '').trim();
+                const dataEstimativa = els.modalData.value;
+                const tchEstimado = Number.parseFloat(els.modalTch.value || '0');
+                const toneladasEstimadas = Number.parseFloat(els.modalToneladas.value || '0');
+                if (!safra || !dataEstimativa || !Number.isFinite(tchEstimado) || tchEstimado <= 0 || !Number.isFinite(toneladasEstimadas) || toneladasEstimadas <= 0) {
+                    App.ui.showAlert('Preencha safra, data, TCH e toneladas para salvar a estimativa.', 'warning');
+                    return;
+                }
+                const estimateWholeFarm = Boolean(els.modalEstimateWholeFarm?.checked);
+                const estimateSelected = Boolean(els.modalEstimateSelected?.checked);
+                const estimateFiltered = Boolean(els.modalEstimateFiltered?.checked);
+                let targets = [item];
+                if (estimateWholeFarm) {
+                    targets = this.currentData.filter((entry) => String(entry.farmId || entry.farmCode) === String(item.farmId || item.farmCode));
+                } else if (estimateSelected && this.currentSelectedKeys.size) {
+                    targets = [...this.currentSelectedKeys].map((key) => this.currentFeatureMap.get(key)).filter(Boolean);
+                } else if (estimateFiltered && this.currentData.length) {
+                    targets = [...this.currentData];
+                }
+                const totalArea = targets.reduce((sum, entry) => sum + Number(entry.area || 0), 0);
+                const targetMode = estimateWholeFarm ? 'fazenda inteira' : (estimateFiltered ? 'filtro atual' : (estimateSelected ? 'talhões selecionados' : 'talhão'));
+                if (targets.length > 1) {
+                    const details = estimateFiltered ? `
+Filtro atual: ${App.elements.estimativaSafra?.activeFilters?.textContent || 'sem filtros'}` : '';
+                    const confirmed = window.confirm(`Deseja realmente salvar a estimativa para ${targets.length} talhão(ões) no modo ${targetMode}? O histórico será preservado.${details}`);
+                    if (!confirmed) return;
+                }
+                try {
+                    for (const target of targets) {
+                        const targetTons = estimateWholeFarm && totalArea > 0
+                            ? (toneladasEstimadas * Number(target.area || 0)) / totalArea
+                            : toneladasEstimadas;
+                        const sameSafraHistory = (App.state.estimativasSafra || []).filter((entry) => entry.featureKey === target.featureKey && entry.safra === safra);
+                        const payload = {
+                            companyId: App.state.currentUser.companyId,
+                            featureKey: target.featureKey,
+                            farmId: target.farmId,
+                            farmCode: target.farmCode,
+                            farmName: target.farmName,
+                            talhaoId: target.talhaoId,
+                            talhaoName: target.talhaoName,
+                            variedade: target.variedade,
+                            estagio: target.stage,
+                            areaHa: target.area,
+                            safra,
+                            dataEstimativa,
+                            tchEstimado,
+                            toneladasEstimadas: targetTons,
+                            observacao: String(els.modalObs.value || '').trim(),
+                            responsavel: String(els.modalResponsavel.value || '').trim(),
+                            versao: sameSafraHistory.length + 1,
+                            reestimativa: sameSafraHistory.length > 0,
+                            createdAtLocal: new Date().toISOString(),
+                            origemLancamento: estimateWholeFarm ? 'fazenda_inteira' : (estimateFiltered ? 'filtro' : (estimateSelected ? 'multiplos_talhoes' : 'talhao'))
+                        };
+                        await App.data.addDocument('estimativasSafra', payload);
+                    }
+                    this.closeModal();
+                    App.ui.showAlert(targets.length > 1 ? `Estimativa salva para ${targets.length} talhões com histórico preservado.` : (estimateWholeFarm ? 'Estimativa da fazenda salva com histórico preservado.' : 'Estimativa salva com sucesso.'), 'success');
+                } catch (error) {
+                    console.error('[EstimativaSafra] Falha ao salvar estimativa', error);
+                    App.ui.showAlert('Erro ao salvar estimativa da safra.', 'error');
+                }
+            },
+            formatNumber(value) {
+                const number = Number(value || 0);
+                return number.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+            },
+            toInputNumber(value) {
+                const number = Number(value || 0);
+                return Number.isFinite(number) ? number.toFixed(2) : '';
+            },
+            formatDate(value) {
+                if (!value) return '-';
+                const date = new Date(`${value}T12:00:00`);
+                if (Number.isNaN(date.getTime())) return value;
+                return date.toLocaleDateString('pt-BR');
+            }
+        },
+
+        osPlanning: {
+            initialized: false,
+            async init() {
+                if (!this.initialized) {
+                    this.setupEventListeners();
+                    this.initialized = true;
+                }
+                this.populateStaticFields();
+                this.populateFarmSelect();
+                this.populateSubgroups();
+                this.populateServiceTypes();
+                await this.loadSavedPlans();
+                this.mountActionLayers();
+                this.initMap();
+                this.handleFarmChange();
+                this.switchSecondaryTab(App.state.osPlanningActiveTab || 'novo');
+                this.renderOperationsGrid();
+                this.renderAuxPanels();
+            },
+
+            mountActionLayers() {
+                ['savedModal', 'historyModal', 'readyModal', 'generateModal', 'fullscreenMapModal', 'operationModal', 'actionToast'].forEach(key => {
+                    const node = App.elements.osPlanning[key];
+                    if (node && node.parentElement !== document.body) document.body.appendChild(node);
+                });
+                this.ensureSecondaryPanelsModal();
+            },
+
+            ensureSecondaryPanelsModal() {
+                if (App.elements.osPlanning.secondaryPanelsModal) return;
+                const overlay = document.createElement('div');
+                overlay.id = 'osPlanningSecondaryPanelsModal';
+                overlay.className = 'pos-action-overlay';
+                overlay.dataset.modalKind = 'saved';
+                overlay.innerHTML = `
+                    <div class="pos-action-modal saved-modal" style="width:min(1260px,96vw);">
+                        <div class="pos-action-header">
+                            <div>
+                                <h3 id="osPlanningSecondaryModalTitle">Painel</h3>
+                                <p id="osPlanningSecondaryModalSubtitle" class="pos-action-subtitle">Visualização</p>
+                            </div>
+                            <button id="osPlanningSecondaryModalCloseBtn" type="button" class="pos-action-close">Fechar ✕</button>
+                        </div>
+                        <div id="osPlanningSecondaryModalBody"></div>
+                    </div>`;
+                document.body.appendChild(overlay);
+                App.elements.osPlanning.secondaryPanelsModal = overlay;
+                App.elements.osPlanning.secondaryPanelsModalBody = overlay.querySelector('#osPlanningSecondaryModalBody');
+                App.elements.osPlanning.secondaryPanelsModalTitle = overlay.querySelector('#osPlanningSecondaryModalTitle');
+                App.elements.osPlanning.secondaryPanelsModalSubtitle = overlay.querySelector('#osPlanningSecondaryModalSubtitle');
+                App.elements.osPlanning.secondaryPanelsModalCloseBtn = overlay.querySelector('#osPlanningSecondaryModalCloseBtn');
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeSecondaryPanelModal(); });
+                App.elements.osPlanning.secondaryPanelsModalCloseBtn?.addEventListener('click', () => this.closeSecondaryPanelModal());
+            },
+
+            openSecondaryPanelModal(tab) {
+                if (tab === 'novo') {
+                    this.closeSecondaryPanelModal();
+                    this.switchSecondaryTab('novo');
+                    return;
+                }
+                this.ensureSecondaryPanelsModal();
+                const els = App.elements.osPlanning;
+                const map = {
+                    salvos: {
+                        panel: els.panelSalvos,
+                        title: 'Planejamentos Salvos',
+                        subtitle: 'Consulte, filtre, abra, clone ou gere O.S. a partir dos planejamentos já salvos.',
+                        kind: 'saved',
+                        width: 'min(1260px,96vw)'
+                    },
+                    alertas: {
+                        panel: els.panelAlertas,
+                        title: 'Alertas',
+                        subtitle: 'Itens vencendo, próximos do prazo, atrasados ou prontos para virar O.S.',
+                        kind: 'history',
+                        width: 'min(1180px,96vw)'
+                    },
+                    pendencias: {
+                        panel: els.panelPendencias,
+                        title: 'Pendências',
+                        subtitle: 'Casos que exigem revisão manual antes de liberar o planejamento.',
+                        kind: 'ready',
+                        width: 'min(1180px,96vw)'
+                    },
+                    historico: {
+                        panel: els.panelHistorico,
+                        title: 'Histórico',
+                        subtitle: 'Timeline por fazenda, talhão e programa para rastrear apontamentos, planejamentos e O.S.',
+                        kind: 'generate',
+                        width: 'min(1180px,96vw)'
+                    }
+                };
+                const config = map[tab];
+                if (!config || !config.panel || !els.secondaryPanelsModalBody) return;
+                if (tab === 'salvos') this.renderSavedPlansPanel();
+                if (tab === 'alertas') this.renderAlertsPanel();
+                if (tab === 'pendencias') this.renderPendenciasPanel();
+                if (tab === 'historico') this.renderHistoryPanel();
+                this.closeSecondaryPanelModal();
+                if (!config.panel.__originalParent) {
+                    config.panel.__originalParent = config.panel.parentElement;
+                    config.panel.__originalNextSibling = config.panel.nextElementSibling;
+                }
+                els.secondaryTabs?.forEach(btn => btn.classList.toggle('active', btn.dataset.osPlanningTab === tab));
+                [els.panelSalvos, els.panelAlertas, els.panelPendencias, els.panelHistorico].forEach(panel => panel?.classList.remove('active'));
+                els.secondaryPanelsModal.dataset.modalKind = config.kind;
+                const modalCard = els.secondaryPanelsModal.querySelector('.pos-action-modal');
+                if (modalCard) modalCard.style.width = config.width;
+                if (els.secondaryPanelsModalTitle) els.secondaryPanelsModalTitle.textContent = config.title;
+                if (els.secondaryPanelsModalSubtitle) els.secondaryPanelsModalSubtitle.textContent = config.subtitle;
+                config.panel.classList.add('active');
+                els.secondaryPanelsModalBody.innerHTML = '';
+                els.secondaryPanelsModalBody.appendChild(config.panel);
+                els.secondaryPanelsModal.classList.add('show');
+                document.body.classList.add('modal-open');
+                App.state.osPlanningActiveTab = tab;
+            },
+
+            closeSecondaryPanelModal() {
+                const els = App.elements.osPlanning;
+                const overlay = els.secondaryPanelsModal;
+                const body = els.secondaryPanelsModalBody;
+                if (!overlay || !body) return;
+                const activePanel = body.querySelector('.pos-secondary-panel');
+                if (activePanel && activePanel.__originalParent) {
+                    activePanel.classList.remove('active');
+                    if (activePanel.__originalNextSibling && activePanel.__originalNextSibling.parentElement === activePanel.__originalParent) {
+                        activePanel.__originalParent.insertBefore(activePanel, activePanel.__originalNextSibling);
+                    } else {
+                        activePanel.__originalParent.appendChild(activePanel);
+                    }
+                }
+                overlay.classList.remove('show');
+                els.secondaryTabs?.forEach(btn => btn.classList.toggle('active', btn.dataset.osPlanningTab === 'novo'));
+                App.state.osPlanningActiveTab = 'novo';
+                document.body.classList.remove('modal-open');
+            },
+
+            populateStaticFields() {
+                const els = App.elements.osPlanning;
+                if (els.companyName) {
+                    const company = App.state.companies?.find(c => c.id === App.state.currentUser?.companyId);
+                    els.companyName.value = company?.name || App.state.currentUser?.companyName || 'Empresa Atual';
+                }
+                if (els.dateInput && !els.dateInput.value) {
+                    els.dateInput.value = new Date().toISOString().split('T')[0];
+                }
+            },
+
+            resetOperationDraft() {
+                App.state.osPlanningEditingOperationId = null;
+                App.state.osPlanningOperationDraftProducts = [];
+                const els = App.elements.osPlanning;
+                if (els.operationModalTitle) els.operationModalTitle.textContent = 'Adicionar Operação';
+                if (els.operationModalSubgroup) els.operationModalSubgroup.value = '';
+                if (els.operationModalOperation) els.operationModalOperation.value = '';
+                if (els.operationModalServiceType) els.operationModalServiceType.value = '';
+                if (els.operationModalResponsibleMatricula) els.operationModalResponsibleMatricula.value = '';
+                if (els.operationModalResponsibleName) els.operationModalResponsibleName.value = '';
+                if (els.operationModalObservation) els.operationModalObservation.value = '';
+                this.renderOperationProductsDraft();
+            },
+
+            resetPlanningForm() {
+                const els = App.elements.osPlanning;
+                App.state.osPlanningEditingId = null;
+                App.state.osPlanningSelectedPlots = new Set();
+                App.state.osPlanningCurrentItems = [];
+                App.state.osPlanningOperations = [];
+                App.state.osPlanningImportedHistoryCache = {};
+                this.resetOperationDraft();
+                if (els.farmSelect) els.farmSelect.value = '';
+                if (els.subgroupSelect) els.subgroupSelect.value = '';
+                if (els.operationSelect) els.operationSelect.value = '';
+                if (els.serviceTypeSelect) els.serviceTypeSelect.value = '';
+                if (els.programInput) els.programInput.value = '';
+                if (els.dateInput) els.dateInput.value = new Date().toISOString().split('T')[0];
+                if (els.responsibleMatricula) els.responsibleMatricula.value = '';
+                if (els.responsibleName) els.responsibleName.value = '';
+                if (els.modeSelect) els.modeSelect.value = 'RASCUNHO';
+                if (els.notes) els.notes.value = '';
+                if (els.talhaoSearch) els.talhaoSearch.value = '';
+                if (els.historyStatus) els.historyStatus.textContent = 'Selecione uma fazenda e os talhões para consultar o histórico.';
+                if (els.selectedCount) els.selectedCount.textContent = '0 talhões';
+                if (els.selectedArea) els.selectedArea.textContent = '0,00 ha';
+                if (els.summarySelected) els.summarySelected.textContent = '0';
+                if (els.summaryArea) els.summaryArea.textContent = '0,00 ha';
+                if (els.summaryReady) els.summaryReady.textContent = '0';
+                if (els.summaryTrusted) els.summaryTrusted.textContent = '0';
+                if (els.gridBody) els.gridBody.innerHTML = '<tr><td colspan="10" style="padding:18px; text-align:center; color:var(--color-text-light);">Selecione uma fazenda e talhões para montar o planejamento.</td></tr>';
+                if (els.operationsBody) els.operationsBody.innerHTML = '<tr><td colspan="7" style="padding:18px; text-align:center; color:var(--color-text-light);">Nenhuma operação adicionada.</td></tr>';
+                if (els.plotsList) els.plotsList.innerHTML = '<p style="text-align:center; padding: 20px; color: var(--color-text-light);">Selecione uma fazenda para ver os talhões.</p>';
+                this.populateSubgroups();
+                this.populateServiceTypes();
+                this.renderPlotsList();
+                this.renderOperationsGrid();
+                this.refreshPlanningGrid();
+                if (App.state.osPlanningMap && App.state.osPlanningMap.getSource('os-planning-talhoes')) {
+                    App.state.osPlanningMap.getSource('os-planning-talhoes').setData({ type: 'FeatureCollection', features: [] });
+                }
+                if (App.state.osPlanningMap && App.state.osPlanningMap.getSource('os-planning-selected-talhoes')) {
+                    App.state.osPlanningMap.getSource('os-planning-selected-talhoes').setData({ type: 'FeatureCollection', features: [] });
+                }
+            },
+
+            setupEventListeners() {
+                const els = App.elements.osPlanning;
+                if (!els.farmSelect) return;
+                els.farmSelect.addEventListener('change', () => this.handleFarmChange());
+                els.subgroupSelect.addEventListener('change', () => this.handleSubgroupChange());
+                els.operationSelect.addEventListener('change', () => this.refreshPlanningGrid());
+                els.serviceTypeSelect.addEventListener('change', () => this.refreshPlanningGrid());
+                els.talhaoSearch.addEventListener('input', () => this.renderPlotsList());
+                els.addOperationBtn?.addEventListener('click', () => this.openOperationModal());
+                document.addEventListener('click', (e) => {
+                    const btn = e.target.closest && e.target.closest('#osPlanningAddOperationBtn');
+                    if (btn) this.openOperationModal();
+                });
+                els.operationModal?.addEventListener('click', (e) => { if (e.target === els.operationModal) this.closeOperationModal(); });
+                els.operationModalCloseBtn?.addEventListener('click', () => this.closeOperationModal());
+                els.operationModalCancelBtn?.addEventListener('click', () => this.closeOperationModal());
+                els.operationModalSaveBtn?.addEventListener('click', () => this.saveOperationDraft());
+                els.operationModalSubgroup?.addEventListener('change', () => this.populateOperationModalOperations());
+                els.operationModalResponsibleMatricula?.addEventListener('input', App.debounce((e) => this.lookupOperationResponsible(e.target.value), 300));
+                els.operationAddProductBtn?.addEventListener('click', () => this.addProductDraftRow());
+                els.btnCenterMap?.addEventListener('click', () => this.centerMapToFarm());
+                els.btnExpandMap?.addEventListener('click', () => this.openFullscreenMapModal());
+                els.btnSyncMap?.addEventListener('click', () => this.updateMapHighlight());
+                els.btnSelectAll?.addEventListener('click', () => this.toggleSelectAll());
+                els.fullscreenMapModal?.addEventListener('click', (e) => { if (e.target === els.fullscreenMapModal) this.closeFullscreenMapModal(); });
+                els.fullscreenMapCloseBtn?.addEventListener('click', () => this.closeFullscreenMapModal());
+                els.fullscreenMapCancelBtn?.addEventListener('click', () => this.closeFullscreenMapModal());
+                els.fullscreenMapConfirmBtn?.addEventListener('click', () => this.closeFullscreenMapModal());
+                els.fullscreenMapCenterBtn?.addEventListener('click', () => this.centerMapToFarm());
+                els.fullscreenMapSelectAllBtn?.addEventListener('click', () => this.toggleSelectAll());
+                els.fullscreenMapSyncBtn?.addEventListener('click', () => { this.updateMapHighlight(); this.centerMapToFarm(); });
+                els.btnRefresh?.addEventListener('click', async () => await this.confirmRefreshHistory());
+                els.btnLoadSaved?.addEventListener('click', async () => await this.openSavedPlansModal());
+                els.btnSaveDraft?.addEventListener('click', async () => await this.savePlanning('RASCUNHO'));
+                els.btnSave?.addEventListener('click', async () => await this.savePlanning('PLANEJADO'));
+                els.btnSaveReady?.addEventListener('click', async () => await this.confirmSaveReady());
+                els.btnGenerateOS?.addEventListener('click', async () => await this.confirmGenerateOSNow());
+                els.responsibleMatricula?.addEventListener('input', App.debounce((e) => this.lookupResponsible(e.target.value), 400));
+                els.secondaryTabs?.forEach(tab => tab.addEventListener('click', () => {
+                    const targetTab = tab.dataset.osPlanningTab || 'novo';
+                    if (targetTab === 'novo') this.switchSecondaryTab('novo');
+                    else this.openSecondaryPanelModal(targetTab);
+                }));
+                els.savedPanelFilterBtn?.addEventListener('click', () => this.renderSavedPlansPanel());
+                els.savedPanelSearch?.addEventListener('input', App.debounce(() => this.renderSavedPlansPanel(), 200));
+                els.savedPanelFarmFilter?.addEventListener('change', () => this.renderSavedPlansPanel());
+                els.savedPanelStatusFilter?.addEventListener('change', () => this.renderSavedPlansPanel());
+                els.savedPanelDateFilter?.addEventListener('change', () => this.renderSavedPlansPanel());
+                els.savedPanelBody?.addEventListener('click', async (e) => { const btn = e.target.closest('[data-plan-action]'); if (!btn) return; const planId = btn.dataset.planId; const action = btn.dataset.planAction; if (action === 'open') await this.openSavedPlanById(planId); else if (action === 'clone') await this.cloneSavedPlan(planId); else if (action === 'generate') await this.generateOSFromSavedPlan(planId); });
+                els.historyFarmFilter?.addEventListener('change', () => this.populateHistoryTalhaoFilter());
+                els.historyQueryBtn?.addEventListener('click', async () => await this.renderHistoryPanel());
+                els.savedModalCloseBtn?.addEventListener('click', () => this.closeActionModal('savedModal'));
+                els.savedRefreshBtn?.addEventListener('click', () => this.renderSavedPlansModal());
+                els.savedSearch?.addEventListener('input', App.debounce(() => this.renderSavedPlansModal(), 200));
+                els.savedFarmFilter?.addEventListener('change', () => this.renderSavedPlansModal());
+                els.savedStatusFilter?.addEventListener('change', () => this.renderSavedPlansModal());
+                els.savedDateFilter?.addEventListener('change', () => this.renderSavedPlansModal());
+                els.savedModal?.addEventListener('click', (e) => { if (e.target === els.savedModal) this.closeActionModal('savedModal'); });
+                els.historyModal?.addEventListener('click', (e) => { if (e.target === els.historyModal) this.closeActionModal('historyModal'); });
+                els.readyModal?.addEventListener('click', (e) => { if (e.target === els.readyModal) this.closeActionModal('readyModal'); });
+                els.generateModal?.addEventListener('click', (e) => { if (e.target === els.generateModal) this.closeActionModal('generateModal'); });
+                els.historyModalCloseBtn?.addEventListener('click', () => this.closeActionModal('historyModal'));
+                els.historyCancelBtn?.addEventListener('click', () => this.closeActionModal('historyModal'));
+                els.historyConfirmBtn?.addEventListener('click', async () => await this.executeRefreshHistory());
+                els.readyModalCloseBtn?.addEventListener('click', () => this.closeActionModal('readyModal'));
+                els.readyBackBtn?.addEventListener('click', () => this.closeActionModal('readyModal'));
+                els.readyConfirmBtn?.addEventListener('click', async () => await this.executeSaveReady());
+                els.generateModalCloseBtn?.addEventListener('click', () => this.closeActionModal('generateModal'));
+                els.generateBackBtn?.addEventListener('click', () => this.closeActionModal('generateModal'));
+                els.generateConfirmBtn?.addEventListener('click', async () => await this.executeGenerateOSNow());
+                els.savedModalBody?.addEventListener('click', async (e) => {
+                    const actionBtn = e.target.closest('[data-plan-action]');
+                    if (!actionBtn) return;
+                    const planId = actionBtn.dataset.planId;
+                    const action = actionBtn.dataset.planAction;
+                    if (action === 'open') {
+                        await this.openSavedPlanById(planId);
+                    } else if (action === 'clone') {
+                        await this.cloneSavedPlan(planId);
+                    }
+                });
+            },
+
+            populateFarmSelect() {
+                const select = App.elements.osPlanning.farmSelect;
+                if (!select) return;
+                const current = select.value;
+                select.innerHTML = '<option value="">Selecione...</option>';
+                (App.state.fazendas || []).slice().sort((a,b) => String(a.code).localeCompare(String(b.code), undefined, {numeric:true})).forEach(farm => {
+                    select.innerHTML += `<option value="${farm.id}">${farm.code} - ${farm.name}</option>`;
+                });
+                select.value = current;
+            },
+
+            populateSubgroups() {
+                const select = App.elements.osPlanning.subgroupSelect;
+                if (!select) return;
+                const current = select.value;
+                const groups = [...new Set((App.state.operacoes || []).filter(x => x.ativo !== false).map(o => (o.grupo || '').trim()).filter(Boolean))].sort();
+                select.innerHTML = '<option value="">Selecione...</option>' + groups.map(g => `<option value="${g}">${g}</option>`).join('');
+                select.value = current;
+                this.handleSubgroupChange();
+            },
+
+            populateServiceTypes() {
+                const select = App.elements.osPlanning.serviceTypeSelect;
+                if (!select) return;
+                const current = select.value;
+                select.innerHTML = '<option value="">Selecione...</option>' + ((App.state.tipos_servico || []).filter(x => x.ativo !== false).map(t => `<option value="${t.id}">${t.descricao}</option>`).join(''));
+                select.value = current;
+            },
+
+            handleSubgroupChange() {
+                const group = App.elements.osPlanning.subgroupSelect.value;
+                const select = App.elements.osPlanning.operationSelect;
+                const current = select.value;
+                let ops = (App.state.operacoes || []).filter(x => x.ativo !== false);
+                if (group) ops = ops.filter(o => (o.grupo || '').trim() === group);
+                select.innerHTML = '<option value="">Selecione...</option>' + ops.map(o => `<option value="${o.id}">${o.codigo_externo ? o.codigo_externo + ' - ' : ''}${o.nome}</option>`).join('');
+                if ([...select.options].some(op => op.value === current)) select.value = current;
+                this.refreshPlanningGrid();
+            },
+
+            lookupResponsible(matricula) {
+                const nameInput = App.elements.osPlanning.responsibleName;
+                if (!nameInput) return;
+                if (!matricula) {
+                    nameInput.value = '';
+                    return;
+                }
+                const person = (App.state.personnel || []).find(p => String(p.matricula) === String(matricula));
+                nameInput.value = person ? person.name : 'Não encontrado';
+            },
+
+            syncHiddenDefaultsFromOperations() {
+                const els = App.elements.osPlanning;
+                const firstOperation = (App.state.osPlanningOperations || [])[0] || null;
+                if (!firstOperation) {
+                    if (els.subgroupSelect) els.subgroupSelect.value = '';
+                    if (els.operationSelect) els.operationSelect.value = '';
+                    if (els.serviceTypeSelect) els.serviceTypeSelect.value = '';
+                    if (els.responsibleMatricula) els.responsibleMatricula.value = '';
+                    if (els.responsibleName) els.responsibleName.value = '';
+                    return;
+                }
+                if (els.subgroupSelect) els.subgroupSelect.value = firstOperation.subgrupo_nome || '';
+                if (els.operationSelect) {
+                    this.handleSubgroupChange();
+                    els.operationSelect.value = firstOperation.operacao_id || '';
+                }
+                if (els.serviceTypeSelect) els.serviceTypeSelect.value = firstOperation.tipo_servico_id || '';
+                if (els.responsibleMatricula) els.responsibleMatricula.value = firstOperation.responsavel_matricula || '';
+                if (els.responsibleName) els.responsibleName.value = firstOperation.responsavel_nome || '';
+            },
+
+            populateSavedFarmFilter() {
+                const select = App.elements.osPlanning.savedFarmFilter;
+                if (!select) return;
+                const current = select.value;
+                const farms = [...new Set((App.state.osPlanningLoadedPlans || []).map(plan => plan.fazenda_nome).filter(Boolean))].sort();
+                select.innerHTML = '<option value="">Todas</option>' + farms.map(name => `<option value="${name}">${name}</option>`).join('');
+                if ([...select.options].some(opt => opt.value === current)) select.value = current;
+            },
+
+            openActionModal(key) {
+                const modal = App.elements.osPlanning[key];
+                if (!modal) return;
+                document.body.classList.add('pos-modal-open');
+                modal.classList.add('show');
+                const dialog = modal.querySelector('.pos-action-modal');
+                if (dialog) dialog.scrollTop = 0;
+            },
+
+            closeActionModal(key) {
+                const modal = App.elements.osPlanning[key];
+                if (modal) modal.classList.remove('show');
+                const anyOpen = document.querySelector('.pos-action-overlay.show');
+                if (!anyOpen) document.body.classList.remove('pos-modal-open');
+            },
+
+            showActionToast(message) {
+                const toast = App.elements.osPlanning.actionToast;
+                if (!toast) {
+                    App.ui.showAlert(message, 'success');
+                    return;
+                }
+                toast.textContent = message;
+                toast.classList.add('show');
+                clearTimeout(this._toastTimer);
+                this._toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+            },
+
+            switchSecondaryTab(tab) {
+                const els = App.elements.osPlanning;
+                if (tab !== 'novo') {
+                    this.openSecondaryPanelModal(tab);
+                    return;
+                }
+                this.closeSecondaryPanelModal();
+                App.state.osPlanningActiveTab = 'novo';
+                els.secondaryTabs?.forEach(btn => btn.classList.toggle('active', btn.dataset.osPlanningTab === 'novo'));
+                [els.panelSalvos, els.panelAlertas, els.panelPendencias, els.panelHistorico].forEach(panel => panel?.classList.remove('active'));
+            },
+
+            getSavedPanelFilters() {
+                const els = App.elements.osPlanning;
+                return {
+                    term: String(els.savedPanelSearch?.value || '').trim().toLowerCase(),
+                    farm: String(els.savedPanelFarmFilter?.value || ''),
+                    status: String(els.savedPanelStatusFilter?.value || ''),
+                    date: String(els.savedPanelDateFilter?.value || ''),
+                };
+            },
+
+            populateSavedPanelFarmFilter() {
+                const select = App.elements.osPlanning.savedPanelFarmFilter;
+                if (!select) return;
+                const current = select.value;
+                const farms = [...new Set((App.state.osPlanningLoadedPlans || []).map(plan => plan.fazenda_nome).filter(Boolean))].sort();
+                select.innerHTML = '<option value="">Todas as fazendas</option>' + farms.map(name => `<option value="${name}">${name}</option>`).join('');
+                if ([...select.options].some(opt => opt.value === current)) select.value = current;
+            },
+
+            getFilteredSavedPlansForPanel() {
+                const { term, farm, status, date } = this.getSavedPanelFilters();
+                return (App.state.osPlanningLoadedPlans || []).filter(plan => {
+                    const matchesTerm = !term || [plan.fazenda_nome, plan.operacao_nome, plan.responsavel_nome, plan.programa_nome, plan.subgrupo_nome]
+                        .filter(Boolean).some(value => String(value).toLowerCase().includes(term));
+                    const matchesFarm = !farm || String(plan.fazenda_nome || '') === farm;
+                    const matchesStatus = !status || String(plan.status || '') === status;
+                    const matchesDate = !date || String(plan.data_planejada || '') >= date;
+                    return matchesTerm && matchesFarm && matchesStatus && matchesDate;
+                });
+            },
+
+            renderSavedPlansPanel() {
+                const els = App.elements.osPlanning;
+                const body = els.savedPanelBody;
+                if (!body) return;
+                this.populateSavedPanelFarmFilter();
+                const plans = this.getFilteredSavedPlansForPanel();
+                const allPlans = App.state.osPlanningLoadedPlans || [];
+                if (els.savedCountTotal) els.savedCountTotal.textContent = String(allPlans.length);
+                if (els.savedCountDraft) els.savedCountDraft.textContent = String(allPlans.filter(p => String(p.status) === 'RASCUNHO').length);
+                if (els.savedCountPlanned) els.savedCountPlanned.textContent = String(allPlans.filter(p => String(p.status) === 'PLANEJADO').length);
+                if (els.savedCountReady) els.savedCountReady.textContent = String(allPlans.filter(p => String(p.status) === 'PRONTO_PARA_OS').length);
+                if (!plans.length) {
+                    body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--color-text-light); padding:24px;">Nenhum planejamento salvo encontrado com os filtros atuais.</td></tr>';
+                    return;
+                }
+                body.innerHTML = plans.map(plan => {
+                    const rawStatus = String(plan.status || 'RASCUNHO');
+                    const label = rawStatus.replaceAll('_', ' ');
+                    const statusClass = rawStatus === 'RASCUNHO' ? 'draft' : (rawStatus === 'PRONTO_PARA_OS' ? 'info' : (rawStatus === 'OS_GERADA' ? 'warn' : 'ok'));
+                    return `<tr>
+                        <td>${plan.data_planejada || '-'}</td>
+                        <td>${plan.fazenda_nome || '-'}</td>
+                        <td>${plan.operacao_nome || '-'}</td>
+                        <td>${plan.qtde_talhoes || (plan.itens || []).length || 0}</td>
+                        <td><span class="pos-status ${statusClass}">${label}</span></td>
+                        <td>${plan.responsavel_nome || '-'}</td>
+                        <td style="white-space:nowrap;">
+                            <button type="button" class="pos-action-mini-btn" data-plan-action="open" data-plan-id="${plan.id}">Abrir</button>
+                            <button type="button" class="pos-action-mini-btn" data-plan-action="clone" data-plan-id="${plan.id}" style="margin-left:8px;">Clonar</button>
+                            ${rawStatus === 'PRONTO_PARA_OS' ? `<button type="button" class="pos-action-mini-btn" data-plan-action="generate" data-plan-id="${plan.id}" style="margin-left:8px;">Gerar O.S.</button>` : ''}
+                        </td>
+                    </tr>`;
+                }).join('');
+            },
+
+            getAllPlannedItems() {
+                return (App.state.osPlanningLoadedPlans || []).flatMap(plan => (plan.itens || []).map(item => ({ ...item, __plan: plan })));
+            },
+
+            getItemDayDiff(item) {
+                const date = item?.data_planejada || item?.__plan?.data_planejada;
+                if (!date) return null;
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const target = new Date(date + 'T00:00:00');
+                return Math.round((target - today) / 86400000);
+            },
+
+            renderAlertsPanel() {
+                const els = App.elements.osPlanning;
+                const items = this.getAllPlannedItems().filter(item => !['OS_GERADA','EXECUTADO','CONCLUIDO','CANCELADO'].includes(String(item.status_item || item.__plan?.status || '')));
+                const today = [];
+                const soon = [];
+                const late = [];
+                const ready = [];
+                items.forEach(item => {
+                    const diff = this.getItemDayDiff(item);
+                    if (item.status_item === 'PRONTO_PARA_OS' || item.__plan?.status === 'PRONTO_PARA_OS') ready.push(item);
+                    if (diff === 0) today.push(item);
+                    else if (diff !== null && diff > 0 && diff <= 3) soon.push(item);
+                    else if (diff !== null && diff < 0) late.push(item);
+                });
+                if (els.alertToday) els.alertToday.textContent = String(today.length);
+                if (els.alertSoon) els.alertSoon.textContent = String(soon.length);
+                if (els.alertLate) els.alertLate.textContent = String(late.length);
+                if (els.alertReady) els.alertReady.textContent = String(ready.length);
+                const prioritized = [
+                    ...today.map(item => ({ item, badge: 'VENCE HOJE', cls: 'warn' })),
+                    ...soon.map(item => ({ item, badge: 'PRÓXIMO PRAZO', cls: 'info' })),
+                    ...late.map(item => ({ item, badge: 'ATRASADO', cls: 'warn' })),
+                    ...ready.filter(entry => !today.includes(entry) && !soon.includes(entry) && !late.includes(entry)).map(item => ({ item, badge: 'PRONTO P/ O.S.', cls: 'ok' })),
+                ].slice(0, 12);
+                if (!els.alertsList) return;
+                if (!prioritized.length) {
+                    els.alertsList.innerHTML = '<div class="pos-empty">Nenhum alerta operacional encontrado no momento.</div>';
+                    return;
+                }
+                els.alertsList.innerHTML = prioritized.map(({ item, badge, cls }) => {
+                    const plan = item.__plan || {};
+                    return `<div class="pos-aux-list-card">
+                        <div class="pos-aux-list-top">
+                            <div><strong>${plan.fazenda_nome || '-'} • ${item.talhao_nome || '-'}</strong><div style="color:var(--color-text-light);">${plan.programa_nome || plan.operacao_nome || '-'} • data planejada ${item.data_planejada || plan.data_planejada || '-'}</div></div>
+                            <span class="pos-status ${cls}">${badge}</span>
+                        </div>
+                        <div class="pos-aux-actions">
+                            <button type="button" class="pos-action-mini-btn" data-plan-action="open" data-plan-id="${plan.id}">Abrir planejamento</button>
+                            <button type="button" class="pos-action-mini-btn" data-alert-action="refresh-current">Atualizar histórico</button>
+                            ${(item.status_item === 'PRONTO_PARA_OS' || plan.status === 'PRONTO_PARA_OS') ? `<button type="button" class="pos-action-mini-btn" data-plan-action="generate" data-plan-id="${plan.id}">Gerar O.S.</button>` : ''}
+                        </div>
+                    </div>`;
+                }).join('');
+                els.alertsList.querySelectorAll('[data-plan-action="open"]').forEach(btn => btn.addEventListener('click', async () => await this.openSavedPlanById(btn.dataset.planId)));
+                els.alertsList.querySelectorAll('[data-plan-action="generate"]').forEach(btn => btn.addEventListener('click', async () => await this.generateOSFromSavedPlan(btn.dataset.planId)));
+                els.alertsList.querySelectorAll('[data-alert-action="refresh-current"]').forEach(btn => btn.addEventListener('click', async () => await this.confirmRefreshHistory()));
+            },
+
+            renderPendenciasPanel() {
+                const els = App.elements.osPlanning;
+                const items = this.getAllPlannedItems();
+                const noHistory = items.filter(item => !item.trusted || item.status_item === 'REVISAR');
+                const ambiguous = items.filter(item => String(item.observacao_item || '').toLowerCase().includes('amb') || String(item.observacao_item || '').toLowerCase().includes('não identificado'));
+                const divergent = items.filter(item => item.status_item === 'DIVERGENTE' || String(item.observacao_item || '').toLowerCase().includes('diverg'));
+                const blocked = items.filter(item => item.status_item === 'BLOQUEADO');
+                if (els.pendingNoHistory) els.pendingNoHistory.textContent = String(noHistory.length);
+                if (els.pendingAmbiguous) els.pendingAmbiguous.textContent = String(ambiguous.length);
+                if (els.pendingDivergent) els.pendingDivergent.textContent = String(divergent.length);
+                if (els.pendingBlocked) els.pendingBlocked.textContent = String(blocked.length);
+                const combined = [...new Set([...noHistory, ...ambiguous, ...divergent, ...blocked])].slice(0, 20);
+                if (!els.pendenciasList) return;
+                if (!combined.length) {
+                    els.pendenciasList.innerHTML = '<div class="pos-empty">Nenhuma pendência encontrada. Os itens atuais estão consistentes.</div>';
+                    return;
+                }
+                els.pendenciasList.innerHTML = combined.map(item => {
+                    const plan = item.__plan || {};
+                    const note = item.observacao_item || 'Revisão necessária';
+                    const badge = item.status_item === 'DIVERGENTE' ? 'DIVERGENTE' : (!item.trusted ? 'REVISAR' : 'PENDENTE');
+                    const cls = item.status_item === 'DIVERGENTE' ? 'warn' : 'info';
+                    return `<div class="pos-aux-list-card">
+                        <div class="pos-aux-list-top">
+                            <div><strong>${item.talhao_nome || '-'} • ${plan.fazenda_nome || '-'}</strong><div style="color:var(--color-text-light);">${note}</div></div>
+                            <span class="pos-status ${cls}">${badge}</span>
+                        </div>
+                        <div class="pos-aux-actions">
+                            <button type="button" class="pos-action-mini-btn" data-plan-action="open" data-plan-id="${plan.id}">Abrir item</button>
+                            <button type="button" class="pos-action-mini-btn" data-alert-action="refresh-current">Recalcular</button>
+                        </div>
+                    </div>`;
+                }).join('');
+                els.pendenciasList.querySelectorAll('[data-plan-action="open"]').forEach(btn => btn.addEventListener('click', async () => await this.openSavedPlanById(btn.dataset.planId)));
+                els.pendenciasList.querySelectorAll('[data-alert-action="refresh-current"]').forEach(btn => btn.addEventListener('click', async () => await this.confirmRefreshHistory()));
+            },
+
+            populateHistoryFilters() {
+                const els = App.elements.osPlanning;
+                const farmSelect = els.historyFarmFilter;
+                if (!farmSelect) return;
+                const currentFarm = farmSelect.value;
+                const farms = App.state.fazendas || [];
+                farmSelect.innerHTML = '<option value="">Selecione a fazenda</option>' + farms.map(f => `<option value="${f.id}">${f.code} - ${f.name}</option>`).join('');
+                if ([...farmSelect.options].some(opt => opt.value === currentFarm)) farmSelect.value = currentFarm;
+                const currentProgram = els.historyProgramFilter?.value || '';
+                const programs = [...new Set((App.state.osPlanningLoadedPlans || []).map(p => p.programa_nome).filter(Boolean))].sort();
+                if (els.historyProgramFilter) {
+                    els.historyProgramFilter.innerHTML = '<option value="">Todos os programas</option>' + programs.map(p => `<option value="${p}">${p}</option>`).join('');
+                    if ([...els.historyProgramFilter.options].some(opt => opt.value === currentProgram)) els.historyProgramFilter.value = currentProgram;
+                }
+                this.populateHistoryTalhaoFilter();
+            },
+
+            populateHistoryTalhaoFilter() {
+                const els = App.elements.osPlanning;
+                const farm = (App.state.fazendas || []).find(f => String(f.id) === String(els.historyFarmFilter?.value || ''));
+                const currentTalhao = els.historyTalhaoFilter?.value || '';
+                const talhoes = Array.isArray(farm?.talhoes) ? [...farm.talhoes].sort((a,b) => String(a.name).localeCompare(String(b.name), undefined, { numeric:true })) : [];
+                if (els.historyTalhaoFilter) {
+                    els.historyTalhaoFilter.innerHTML = '<option value="">Todos os talhões</option>' + talhoes.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+                    if ([...els.historyTalhaoFilter.options].some(opt => opt.value === currentTalhao)) els.historyTalhaoFilter.value = currentTalhao;
+                }
+            },
+
+            async renderHistoryPanel() {
+                const els = App.elements.osPlanning;
+                if (!els.historyTimeline) return;
+                this.populateHistoryFilters();
+                const farm = (App.state.fazendas || []).find(f => String(f.id) === String(els.historyFarmFilter?.value || '')) || this.getCurrentFarm();
+                const talhao = String(els.historyTalhaoFilter?.value || '');
+                const program = String(els.historyProgramFilter?.value || '');
+                const rangeDays = Number(els.historyRangeFilter?.value || 90);
+                let rows = [];
+                if (farm) rows = await this.loadImportedHistoryForFarm(farm);
+                const minDate = new Date();
+                minDate.setHours(0,0,0,0);
+                minDate.setDate(minDate.getDate() - rangeDays);
+                const importedEvents = rows.filter(row => {
+                    const rowDate = row.data ? new Date(`${row.data}T00:00:00`) : null;
+                    const withinRange = !rowDate || rowDate >= minDate;
+                    const matchesTalhao = !talhao || String(row.talhao || '') === talhao;
+                    const matchesProgram = !program || [row.operacao, row.produto].filter(Boolean).some(value => String(value).toLowerCase().includes(program.toLowerCase()));
+                    return withinRange && matchesTalhao && matchesProgram;
+                }).map(row => ({
+                    sortDate: row.data || row.created_at || '',
+                    title: `${row.data || '-'} • Apontamento importado`,
+                    desc: `${row.operacao || row.produto || 'Operação não identificada'} • talhão ${row.talhao || '-'} • origem Motor Universal`,
+                }));
+                const planningEvents = (App.state.osPlanningLoadedPlans || []).filter(plan => {
+                    const planDate = plan.data_planejada ? new Date(`${plan.data_planejada}T00:00:00`) : null;
+                    const withinRange = !planDate || planDate >= minDate;
+                    const matchesFarm = !farm || String(plan.fazenda_id || '') === String(farm.id);
+                    const matchesProgram = !program || String(plan.programa_nome || '').toLowerCase().includes(program.toLowerCase());
+                    const matchesTalhao = !talhao || (plan.itens || []).some(item => String(item.talhao_nome || '') === talhao);
+                    return withinRange && matchesFarm && matchesProgram && matchesTalhao;
+                }).flatMap(plan => [{
+                    sortDate: plan.data_planejada || plan.created_at || '',
+                    title: `${plan.data_planejada || '-'} • Planejamento salvo`,
+                    desc: `${plan.programa_nome || plan.operacao_nome || '-'} • ${plan.qtde_talhoes || (plan.itens || []).length || 0} talhões • status ${String(plan.status || '').replaceAll('_',' ')}`,
+                }]);
+                const osEvents = (App.state.ordens_servico || []).filter(os => {
+                    const osDate = os.data ? new Date(`${os.data}T00:00:00`) : null;
+                    const withinRange = !osDate || osDate >= minDate;
+                    const matchesFarm = !farm || String(os.fazenda_id || '') === String(farm.id);
+                    const matchesProgram = !program || String(os.programa_nome || os.operacao_nome || '').toLowerCase().includes(program.toLowerCase());
+                    const matchesTalhao = !talhao || (os.itens || []).some(item => String(item.talhao_nome || item.talhao_id || '') === talhao);
+                    return withinRange && matchesFarm && matchesProgram && matchesTalhao;
+                }).map(os => ({
+                    sortDate: os.data || os.created_at || '',
+                    title: `${os.data || '-'} • O.S. ${os.os_numero || ''}`,
+                    desc: `${os.operacao_nome || '-'} • status ${os.status || '-'} • ${os.total_area_ha || 0} ha`,
+                }));
+                const events = [...importedEvents, ...planningEvents, ...osEvents].sort((a,b) => String(b.sortDate).localeCompare(String(a.sortDate)));
+                if (!events.length) {
+                    els.historyTimeline.innerHTML = '<div class="pos-empty">Nenhum evento encontrado com os filtros atuais.</div>';
+                    return;
+                }
+                els.historyTimeline.innerHTML = events.slice(0, 30).map(event => `<div class="pos-history-event"><strong>${event.title}</strong><div style="color:var(--color-text-light);">${event.desc}</div></div>`).join('');
+            },
+
+            renderAuxPanels() {
+                this.renderSavedPlansPanel();
+                this.renderAlertsPanel();
+                this.renderPendenciasPanel();
+                this.renderHistoryPanel();
+            },
+
+            getFilteredSavedPlans() {
+                const els = App.elements.osPlanning;
+                const term = String(els.savedSearch?.value || '').trim().toLowerCase();
+                const farm = String(els.savedFarmFilter?.value || '');
+                const status = String(els.savedStatusFilter?.value || '');
+                const date = String(els.savedDateFilter?.value || '');
+                return (App.state.osPlanningLoadedPlans || []).filter(plan => {
+                    const matchesTerm = !term || [plan.fazenda_nome, plan.operacao_nome, plan.responsavel_nome, plan.programa_nome, plan.subgrupo_nome]
+                        .filter(Boolean)
+                        .some(value => String(value).toLowerCase().includes(term));
+                    const matchesFarm = !farm || String(plan.fazenda_nome || '') === farm;
+                    const matchesStatus = !status || String(plan.status || '') === status;
+                    const matchesDate = !date || String(plan.data_planejada || '') >= date;
+                    return matchesTerm && matchesFarm && matchesStatus && matchesDate;
+                });
+            },
+
+            renderSavedPlansModal() {
+                const body = App.elements.osPlanning.savedModalBody;
+                if (!body) return;
+                const plans = this.getFilteredSavedPlans();
+                if (!plans.length) {
+                    body.innerHTML = '<tr><td colspan="7" style="padding:26px; text-align:center; color:var(--color-text-light);">Nenhum planejamento encontrado com os filtros atuais.</td></tr>';
+                    return;
+                }
+                body.innerHTML = plans.map(plan => {
+                    const rawStatus = String(plan.status || 'RASCUNHO');
+                    const statusLabel = rawStatus.replaceAll('_', ' ');
+                    const statusClass = rawStatus === 'RASCUNHO'
+                        ? 'is-draft'
+                        : rawStatus === 'PRONTO_PARA_OS'
+                            ? 'is-ready'
+                            : rawStatus === 'OS_GERADA'
+                                ? 'is-generated'
+                                : 'is-planned';
+                    return `
+                    <tr>
+                        <td>${plan.data_planejada || '-'}</td>
+                        <td>${plan.fazenda_nome || '-'}</td>
+                        <td>${plan.operacao_nome || '-'}</td>
+                        <td>${plan.qtde_talhoes || (plan.itens || []).length || 0}</td>
+                        <td><span class="pos-action-status ${statusClass}">${statusLabel}</span></td>
+                        <td>${plan.responsavel_nome || '-'}</td>
+                        <td style="text-align:right; white-space:nowrap;">
+                            <button type="button" class="pos-action-mini-btn" data-plan-action="open" data-plan-id="${plan.id}">Abrir</button>
+                            <button type="button" class="pos-action-mini-btn" data-plan-action="clone" data-plan-id="${plan.id}" style="margin-left:8px;">Clonar</button>
+                        </td>
+                    </tr>
+                `}).join('');
+            },
+
+            async openSavedPlansModal() {
+                await this.loadSavedPlans();
+                this.populateSavedFarmFilter();
+                this.renderSavedPlansModal();
+                this.openActionModal('savedModal');
+            },
+
+            closeSavedPlansModal() {
+                this.closeActionModal('savedModal');
+            },
+
+            applyPlanningToForm(plan, { preserveId = false } = {}) {
+                App.elements.osPlanning.farmSelect.value = plan.fazenda_id || '';
+                this.populateSubgroups();
+                App.elements.osPlanning.subgroupSelect.value = plan.subgrupo_nome || '';
+                this.handleSubgroupChange();
+                App.elements.osPlanning.operationSelect.value = plan.operacao_id || '';
+                App.elements.osPlanning.serviceTypeSelect.value = plan.tipo_servico_id || '';
+                App.elements.osPlanning.programInput.value = plan.programa_nome || '';
+                App.elements.osPlanning.dateInput.value = plan.data_planejada || new Date().toISOString().split('T')[0];
+                App.elements.osPlanning.responsibleMatricula.value = plan.responsavel_matricula || '';
+                App.elements.osPlanning.responsibleName.value = plan.responsavel_nome || '';
+                App.elements.osPlanning.notes.value = plan.observacoes || '';
+                App.elements.osPlanning.modeSelect.value = (plan.status === 'PRONTO_PARA_OS' || plan.modo_fechamento === 'PRONTO_PARA_OS') ? 'PRONTO_PARA_OS' : (plan.status || plan.modo_fechamento || 'PLANEJADO');
+                App.state.osPlanningSelectedPlots = new Set((plan.itens || []).map(item => item.talhao_id).filter(Boolean));
+                this.renderPlotsList();
+                this.filterMapToCurrentFarm();
+                this.centerMapToFarm();
+                this.updateMapHighlight();
+                App.state.osPlanningCurrentItems = (plan.itens || []).map(item => ({ ...item }));
+                this.renderGrid();
+                this.updateSummary();
+                this.populateHistoryFilters();
+                this.renderAuxPanels();
+                if (!preserveId) delete App.state.osPlanningEditingId;
+            },
+
+            async openSavedPlanById(planId) {
+                const plan = (App.state.osPlanningLoadedPlans || []).find(item => String(item.id) === String(planId));
+                if (!plan) {
+                    App.ui.showAlert('Planejamento não encontrado.', 'warning');
+                    return;
+                }
+                this.applyPlanningToForm(plan, { preserveId: true });
+                App.state.osPlanningEditingId = plan.id;
+                this.closeSavedPlansModal();
+                this.switchSecondaryTab('novo');
+                this.showActionToast('Planejamento carregado na tela principal.');
+                this.renderAuxPanels();
+            },
+
+            async cloneSavedPlan(planId) {
+                const plan = (App.state.osPlanningLoadedPlans || []).find(item => String(item.id) === String(planId));
+                if (!plan) {
+                    App.ui.showAlert('Planejamento não encontrado para clonagem.', 'warning');
+                    return;
+                }
+                const clone = { ...plan, id: undefined, status: 'RASCUNHO', modo_fechamento: 'RASCUNHO', data_planejada: new Date().toISOString().split('T')[0] };
+                this.applyPlanningToForm(clone);
+                this.closeSavedPlansModal();
+                this.switchSecondaryTab('novo');
+                this.showActionToast('Planejamento clonado para edição como rascunho.');
+                this.renderAuxPanels();
+            },
+
+            async generateOSFromSavedPlan(planId) {
+                const plan = (App.state.osPlanningLoadedPlans || []).find(item => String(item.id) === String(planId));
+                if (!plan) {
+                    App.ui.showAlert('Planejamento não encontrado para gerar O.S.', 'warning');
+                    return;
+                }
+                this.applyPlanningToForm(plan, { preserveId: true });
+                App.state.osPlanningEditingId = plan.id;
+                this.switchSecondaryTab('novo');
+                await this.generateOSNow();
+                await this.loadSavedPlans();
+                this.renderAuxPanels();
+            },
+
+            async confirmRefreshHistory() {
+                const farm = this.getCurrentFarm();
+                const items = App.state.osPlanningCurrentItems || [];
+                if (App.elements.osPlanning.historyFarmText) App.elements.osPlanning.historyFarmText.textContent = farm?.name || '-';
+                if (App.elements.osPlanning.historySelectedText) App.elements.osPlanning.historySelectedText.textContent = String(App.state.osPlanningSelectedPlots?.size || 0);
+                if (App.elements.osPlanning.historyReviewText) App.elements.osPlanning.historyReviewText.textContent = String(items.filter(item => item.status_item === 'REVISAR').length);
+                this.openActionModal('historyModal');
+            },
+
+            async executeRefreshHistory() {
+                this.closeActionModal('historyModal');
+                await this.refreshPlanningGrid();
+                this.renderAuxPanels();
+                this.showActionToast('Histórico atualizado e grade recalculada.');
+            },
+
+            async confirmSaveReady() {
+                this.openActionModal('readyModal');
+            },
+
+            async executeSaveReady() {
+                this.closeActionModal('readyModal');
+                await this.savePlanning('PRONTO_PARA_OS');
+                this.renderAuxPanels();
+            },
+
+            async confirmGenerateOSNow() {
+                this.openActionModal('generateModal');
+            },
+
+            async executeGenerateOSNow() {
+                this.closeActionModal('generateModal');
+                await this.generateOSNow();
+                this.renderAuxPanels();
+            },
+
+            handleFarmChange() {
+                App.state.osPlanningSelectedPlots.clear();
+                App.state.osPlanningCurrentItems = [];
+                this.renderPlotsList();
+                this.filterMapToCurrentFarm();
+                this.centerMapToFarm();
+                this.renderGrid();
+                this.updateSummary();
+            },
+
+            getCurrentFarm() {
+                const farmId = App.elements.osPlanning.farmSelect.value;
+                return (App.state.fazendas || []).find(f => String(f.id) === String(farmId));
+            },
+
+            renderPlotsList() {
+                const els = App.elements.osPlanning;
+                const list = els.plotsList;
+                const farm = this.getCurrentFarm();
+                if (!farm) {
+                    list.innerHTML = '<p style="padding:18px; color:var(--color-text-light); text-align:center;">Selecione uma fazenda para listar os talhões.</p>';
+                    return;
+                }
+                let talhoes = Array.isArray(farm.talhoes) ? [...farm.talhoes] : [];
+                const term = (els.talhaoSearch.value || '').trim().toLowerCase();
+                if (term) {
+                    talhoes = talhoes.filter(t => String(t.name || '').toLowerCase().includes(term) || String(t.id || '').toLowerCase().includes(term));
+                }
+                talhoes.sort((a,b) => String(a.name).localeCompare(String(b.name), undefined, {numeric:true}));
+                if (!talhoes.length) {
+                    list.innerHTML = '<p style="padding:18px; color:var(--color-text-light); text-align:center;">Nenhum talhão encontrado.</p>';
+                    return;
+                }
+                list.innerHTML = talhoes.map(t => {
+                    const checked = App.state.osPlanningSelectedPlots.has(t.id) ? 'checked' : '';
+                    const selected = App.state.osPlanningSelectedPlots.has(t.id) ? 'selected' : '';
+                    return `<label class="pos-talhao-item ${selected}" for="osplanning-plot-${t.id}"><input ${checked} id="osplanning-plot-${t.id}" type="checkbox" data-id="${t.id}"><div><strong>${t.name} • ${(Number(t.area)||0).toFixed(1)} ha</strong><small>${t.variedade ? `Variedade: ${t.variedade}` : 'Clique para planejar esse talhão'}</small></div></label>`;
+                }).join('');
+                list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    cb.addEventListener('change', e => {
+                        const talhao = talhoes.find(t => String(t.id) === String(e.target.dataset.id));
+                        if (talhao) this.togglePlotSelectionFromList(talhao, e.target.checked);
+                    });
+                });
+            },
+
+            toggleSelectAll() {
+                const farm = this.getCurrentFarm();
+                if (!farm) return;
+                const allSelected = farm.talhoes?.length && farm.talhoes.every(t => App.state.osPlanningSelectedPlots.has(t.id));
+                (farm.talhoes || []).forEach(t => {
+                    if (allSelected) App.state.osPlanningSelectedPlots.delete(t.id); else App.state.osPlanningSelectedPlots.add(t.id);
+                });
+                this.renderPlotsList();
+                this.updateMapHighlight();
+                this.refreshPlanningGrid();
+            },
+
+            initMap() {
+                if (App.state.osPlanningMap) {
+                    setTimeout(() => App.state.osPlanningMap.resize(), 200);
+                    this.loadShapes();
+                    return;
+                }
+                const container = App.elements.osPlanning.mapContainer;
+                if (!container || typeof mapboxgl === 'undefined') return;
+                mapboxgl.accessToken = 'pk.eyJ1IjoiY2FybG9zaGduIiwiYSI6ImNtZDk0bXVxeTA0MTcyam9sb2h1dDhxaG8ifQ.uf0av4a0WQ9sxM1RcFYT2w';
+                App.state.osPlanningMap = new mapboxgl.Map({
+                    container,
+                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+                    center: [-48.45, -21.17],
+                    zoom: 10,
+                    attributionControl: false,
+                });
+                const map = App.state.osPlanningMap;
+                map.on('load', () => {
+                    this.loadShapes();
+                    this.filterMapToCurrentFarm();
+                    this.centerMapToFarm();
+                });
+                map.on('click', 'osplanning-talhoes-layer', (e) => {
+                    if (!e.features?.length) return;
+                    this.togglePlotSelectionFromMap(e.features[0]);
+                });
+                let hovered = null;
+                map.on('mousemove', 'osplanning-talhoes-layer', (e) => {
+                    map.getCanvas().style.cursor = 'pointer';
+                    if (e.features?.length) {
+                        if (hovered !== null) map.setFeatureState({ source: 'osplanning-talhoes-source', id: hovered }, { hover: false });
+                        hovered = e.features[0].id;
+                        map.setFeatureState({ source: 'osplanning-talhoes-source', id: hovered }, { hover: true });
+                    }
+                });
+                map.on('mouseleave', 'osplanning-talhoes-layer', () => {
+                    map.getCanvas().style.cursor = '';
+                    if (hovered !== null) map.setFeatureState({ source: 'osplanning-talhoes-source', id: hovered }, { hover: false });
+                    hovered = null;
+                });
+            },
+
+            loadShapes() {
+                const map = App.state.osPlanningMap;
+                if (!map || !App.state.geoJsonData) return;
+                const sourceId = 'osplanning-talhoes-source';
+                if (map.getSource(sourceId)) {
+                    map.getSource(sourceId).setData(App.state.geoJsonData);
+                } else {
+                    map.addSource(sourceId, { type: 'geojson', data: App.state.geoJsonData, generateId: true });
+                }
+                if (!map.getLayer('osplanning-talhoes-layer')) {
+                    map.addLayer({
+                        id: 'osplanning-talhoes-layer',
+                        type: 'fill',
+                        source: sourceId,
+                        paint: {
+                            'fill-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], '#2e7d32',
+                                ['boolean', ['feature-state', 'hover'], false], '#607D8B',
+                                '#1C1C1C'
+                            ],
+                            'fill-opacity': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 0.88,
+                                ['boolean', ['feature-state', 'hover'], false], 0.78,
+                                0.62
+                            ]
+                        }
+                    });
+                    map.addLayer({
+                        id: 'osplanning-talhoes-border-layer',
+                        type: 'line',
+                        source: sourceId,
+                        paint: {
+                            'line-color': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], '#00ffff',
+                                '#FFFFFF'
+                            ],
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'selected'], false], 3,
+                                1.4
+                            ]
+                        }
+                    });
+                    map.addLayer({
+                        id: 'osplanning-talhoes-labels',
+                        type: 'symbol',
+                        source: sourceId,
+                        minzoom: 10,
+                        layout: {
+                            'symbol-placement': 'point',
+                            'text-field': ['upcase', ['get', 'AGV_TALHAO']],
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 12,
+                            'text-ignore-placement': true,
+                            'text-allow-overlap': true,
+                        },
+                        paint: {
+                            'text-color': '#FFFFFF',
+                            'text-halo-color': 'rgba(0,0,0,.95)',
+                            'text-halo-width': 1.8,
+                        }
+                    });
+                }
+                this.updateMapHighlight();
+            },
+
+            filterMapToCurrentFarm() {
+                const map = App.state.osPlanningMap;
+                const farm = this.getCurrentFarm();
+                if (!map || !map.getLayer('osplanning-talhoes-layer')) return;
+                const filter = farm ? ['==', ['get', 'AGV_FUNDO'], String(farm.code)] : null;
+                map.setFilter('osplanning-talhoes-layer', filter);
+                map.setFilter('osplanning-talhoes-border-layer', filter);
+                map.setFilter('osplanning-talhoes-labels', filter);
+            },
+
+            centerMapToFarm() {
+                const map = App.state.osPlanningMap;
+                const farm = this.getCurrentFarm();
+                if (!map || !App.state.geoJsonData || !farm) return;
+                const features = App.state.geoJsonData.features.filter(f => String(f.properties?.AGV_FUNDO) === String(farm.code));
+                if (!features.length) return;
+                const bbox = turf.bbox(turf.featureCollection(features));
+                map.fitBounds(bbox, { padding: 20, maxZoom: 15 });
+            },
+
+            togglePlotSelectionFromMap(feature) {
+                const farm = this.getCurrentFarm();
+                if (!farm) return;
+                const talhaoName = feature.properties?.AGV_TALHAO;
+                const talhao = (farm.talhoes || []).find(t => String(t.name).toUpperCase() === String(talhaoName).toUpperCase());
+                if (!talhao) return;
+                const isSelected = App.state.osPlanningSelectedPlots.has(talhao.id);
+                if (isSelected) App.state.osPlanningSelectedPlots.delete(talhao.id); else App.state.osPlanningSelectedPlots.add(talhao.id);
+                this.renderPlotsList();
+                this.updateMapHighlight();
+                this.refreshPlanningGrid();
+            },
+
+            togglePlotSelectionFromList(talhao, isChecked) {
+                if (isChecked) App.state.osPlanningSelectedPlots.add(talhao.id); else App.state.osPlanningSelectedPlots.delete(talhao.id);
+                this.updateMapHighlight();
+                this.refreshPlanningGrid();
+            },
+
+            updateMapHighlight() {
+                const map = App.state.osPlanningMap;
+                const farm = this.getCurrentFarm();
+                if (!map || !farm || !map.getSource('osplanning-talhoes-source') || !App.state.geoJsonData?.features) return;
+                App.state.geoJsonData.features.forEach(feature => {
+                    if (feature.id === undefined) return;
+                    const sameFarm = String(feature.properties?.AGV_FUNDO) === String(farm.code);
+                    let selected = false;
+                    if (sameFarm) {
+                        const talhao = (farm.talhoes || []).find(t => String(t.name).toUpperCase() === String(feature.properties?.AGV_TALHAO).toUpperCase());
+                        selected = Boolean(talhao && App.state.osPlanningSelectedPlots.has(talhao.id));
+                    }
+                    map.setFeatureState({ source: 'osplanning-talhoes-source', id: feature.id }, { selected, hover: false });
+                });
+            },
+
+            openFullscreenMapModal() {
+                const els = App.elements.osPlanning;
+                const modal = els.fullscreenMapModal;
+                const mapHost = els.mapContainer;
+                const fullscreenHost = els.fullscreenMapContainer;
+                if (!modal || !mapHost || !fullscreenHost) return;
+                if (!App.state.osPlanningMapOriginalParent) {
+                    App.state.osPlanningMapOriginalParent = mapHost.parentNode;
+                    App.state.osPlanningMapOriginalNextSibling = mapHost.nextSibling;
+                }
+                fullscreenHost.replaceWith(mapHost);
+                mapHost.id = 'planejamentoOSMapFullscreen';
+                mapHost.style.width = '100%';
+                mapHost.style.height = '72vh';
+                mapHost.style.minHeight = '72vh';
+                els.fullscreenMapContainer = mapHost;
+                modal.classList.add('show');
+                document.body.classList.add('pos-modal-lock');
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        App.state.osPlanningMap?.resize();
+                        this.loadShapes();
+                        this.filterMapToCurrentFarm();
+                        this.updateMapHighlight();
+                        this.centerMapToFarm();
+                    }, 120);
+                });
+            },
+
+            closeFullscreenMapModal() {
+                const els = App.elements.osPlanning;
+                const modal = els.fullscreenMapModal;
+                const currentMapHost = document.getElementById('planejamentoOSMapFullscreen');
+                if (!modal || !currentMapHost || !App.state.osPlanningMapOriginalParent) return;
+                const placeholder = document.createElement('div');
+                placeholder.id = 'planejamentoOSMapFullscreen';
+                currentMapHost.parentNode.replaceChild(placeholder, currentMapHost);
+                currentMapHost.id = 'planejamentoOSMap';
+                currentMapHost.style.width = '100%';
+                currentMapHost.style.height = '440px';
+                currentMapHost.style.minHeight = '440px';
+                if (App.state.osPlanningMapOriginalNextSibling) {
+                    App.state.osPlanningMapOriginalParent.insertBefore(currentMapHost, App.state.osPlanningMapOriginalNextSibling);
+                } else {
+                    App.state.osPlanningMapOriginalParent.appendChild(currentMapHost);
+                }
+                els.mapContainer = currentMapHost;
+                els.fullscreenMapContainer = placeholder;
+                modal.classList.remove('show');
+                document.body.classList.remove('pos-modal-lock');
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        App.state.osPlanningMap?.resize();
+                        this.loadShapes();
+                        this.filterMapToCurrentFarm();
+                        this.updateMapHighlight();
+                    }, 120);
+                });
+            },
+
+            populateOperationModalDefaults() {
+                const els = App.elements.osPlanning;
+                if (!els.operationModalSubgroup) return;
+                els.operationModalSubgroup.innerHTML = '<option value="">Selecione...</option>' + ((App.state.operacoes || []).filter(x => x.ativo !== false).map(o => (o.grupo || '').trim()).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).sort().map(g => `<option value="${g}">${g}</option>`).join(''));
+                els.operationModalServiceType.innerHTML = '<option value="">Selecione...</option>' + ((App.state.tipos_servico || []).filter(x => x.ativo !== false).map(t => `<option value="${t.id}">${t.descricao}</option>`).join(''));
+                const firstOperation = (App.state.osPlanningOperations || [])[0] || null;
+                if (firstOperation?.subgrupo_nome) els.operationModalSubgroup.value = firstOperation.subgrupo_nome;
+                this.populateOperationModalOperations();
+                if (firstOperation?.tipo_servico_id) els.operationModalServiceType.value = firstOperation.tipo_servico_id;
+                if (firstOperation?.responsavel_matricula) els.operationModalResponsibleMatricula.value = firstOperation.responsavel_matricula;
+                if (firstOperation?.responsavel_nome) els.operationModalResponsibleName.value = firstOperation.responsavel_nome;
+            },
+
+            populateOperationModalOperations() {
+                const subgroup = App.elements.osPlanning.operationModalSubgroup?.value || '';
+                const options = (App.state.operacoes || []).filter(x => x.ativo !== false).filter(o => !subgroup || (o.grupo || '').trim() === subgroup).map(o => `<option value="${o.id}">${o.nome}</option>`).join('');
+                App.elements.osPlanning.operationModalOperation.innerHTML = `<option value="">Selecione...</option>${options}`;
+                const currentMain = App.elements.osPlanning.operationSelect?.value || '';
+                if (currentMain) App.elements.osPlanning.operationModalOperation.value = currentMain;
+            },
+
+            lookupOperationResponsible(matricula) {
+                const person = (App.state.personnel || []).find(p => String(p.matricula) === String(matricula));
+                App.elements.osPlanning.operationModalResponsibleName.value = person?.name || '';
+            },
+
+            getPlanningSelectedTotalArea() {
+                return (App.state.osPlanningCurrentItems || []).reduce((sum, item) => sum + (Number(item.area_ha) || 0), 0);
+            },
+
+            parseDoseValue(value) {
+                if (value === null || value === undefined) return null;
+                const cleaned = String(value).replace(/\s+/g, '').replace(',', '.');
+                const num = parseFloat(cleaned);
+                return Number.isFinite(num) ? num : null;
+            },
+
+            recalculateDraftProductQuantities() {
+                const totalArea = this.getPlanningSelectedTotalArea();
+                (App.state.osPlanningOperationDraftProducts || []).forEach(row => {
+                    const dose = this.parseDoseValue(row.dose);
+                    if (dose === null || !totalArea) {
+                        row.quantidade = '';
+                        return;
+                    }
+                    row.quantidade = (dose * totalArea).toFixed(2).replace(/\.00$/, '');
+                });
+            },
+
+            openOperationModal(editId = null) {
+                const els = App.elements.osPlanning;
+                this.populateOperationModalDefaults();
+                App.state.osPlanningEditingOperationId = editId;
+                const existing = (App.state.osPlanningOperations || []).find(op => op.id === editId);
+                els.operationModalTitle.textContent = existing ? 'Editar Operação' : 'Adicionar Operação';
+                if (existing) {
+                    els.operationModalSubgroup.value = existing.subgrupo_nome || '';
+                    this.populateOperationModalOperations();
+                    els.operationModalOperation.value = existing.operacao_id || '';
+                    els.operationModalServiceType.value = existing.tipo_servico_id || '';
+                    els.operationModalResponsibleMatricula.value = existing.responsavel_matricula || '';
+                    els.operationModalResponsibleName.value = existing.responsavel_nome || '';
+                    els.operationModalObservation.value = existing.observacao_operacao || '';
+                    App.state.osPlanningOperationDraftProducts = JSON.parse(JSON.stringify(existing.produtos || []));
+                } else {
+                    if (!els.operationModalResponsibleMatricula.value && App.state.currentUser?.matricula) els.operationModalResponsibleMatricula.value = App.state.currentUser.matricula;
+                    if (!els.operationModalResponsibleName.value && (App.state.currentUser?.username || App.state.currentUser?.name)) els.operationModalResponsibleName.value = App.state.currentUser.username || App.state.currentUser.name;
+                    els.operationModalObservation.value = '';
+                    App.state.osPlanningOperationDraftProducts = [];
+                }
+                this.renderOperationProductsDraft();
+                els.operationModal.classList.add('show');
+                document.body.classList.add('modal-open');
+            },
+
+            closeOperationModal() {
+                const els = App.elements.osPlanning;
+                els.operationModal?.classList.remove('show');
+                document.body.classList.remove('modal-open');
+                App.state.osPlanningEditingOperationId = null;
+                App.state.osPlanningOperationDraftProducts = [];
+            },
+
+            addProductDraftRow() {
+                const products = (App.state.produtos || []).filter(x => x.ativo !== false);
+                const first = products[0] || {};
+                App.state.osPlanningOperationDraftProducts.push({
+                    row_id: `row_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+                    produto_id: first.id || '',
+                    produto_nome: first.nome || '',
+                    dose: '',
+                    unidade: first.unidade || '',
+                    quantidade: '',
+                    observacao_produto: ''
+                });
+                this.recalculateDraftProductQuantities();
+                this.renderOperationProductsDraft();
+            },
+
+            updateProductDraft(rowId, field, value) {
+                const row = (App.state.osPlanningOperationDraftProducts || []).find(p => p.row_id === rowId);
+                if (!row) return;
+                row[field] = value;
+                if (field === 'produto_id') {
+                    const prod = (App.state.produtos || []).find(p => String(p.id) === String(value));
+                    row.produto_nome = prod?.nome || '';
+                    if (!row.unidade) row.unidade = prod?.unidade || '';
+                }
+                if (field === 'dose' || field === 'produto_id') {
+                    this.recalculateDraftProductQuantities();
+                    this.renderOperationProductsDraft();
+                }
+            },
+
+            removeProductDraftRow(rowId) {
+                App.state.osPlanningOperationDraftProducts = (App.state.osPlanningOperationDraftProducts || []).filter(p => p.row_id !== rowId);
+                this.renderOperationProductsDraft();
+            },
+
+            renderOperationProductsDraft() {
+                const body = App.elements.osPlanning.operationProductsBody;
+                this.recalculateDraftProductQuantities();
+                const rows = App.state.osPlanningOperationDraftProducts || [];
+                const productOptions = '<option value="">Selecione...</option>' + ((App.state.produtos || []).filter(x => x.ativo !== false).map(p => `<option value="${p.id}">${p.nome} (${p.unidade || '-'})</option>`).join(''));
+                if (!rows.length) {
+                    body.innerHTML = '<tr><td colspan="6" class="pos-operation-empty">Nenhum produto adicionado para esta operação. Use <strong>Adicionar Produto</strong> para montar a mistura.</td></tr>';
+                    return;
+                }
+                body.innerHTML = rows.map(row => `
+                    <tr>
+                        <td><select onchange="App.osPlanning.updateProductDraft('${row.row_id}','produto_id', this.value)">${productOptions}</select></td>
+                        <td><input value="${row.dose || ''}" placeholder="Dose" oninput="App.osPlanning.updateProductDraft('${row.row_id}','dose', this.value)" /></td>
+                        <td><input value="${row.unidade || ''}" placeholder="Unid." oninput="App.osPlanning.updateProductDraft('${row.row_id}','unidade', this.value)" /></td>
+                        <td><input value="${row.quantidade || ''}" placeholder="Qtd. calculada" readonly class="pos-readonly-input" /></td>
+                        <td><input value="${row.observacao_produto || ''}" placeholder="Observação" oninput="App.osPlanning.updateProductDraft('${row.row_id}','observacao_produto', this.value)" /></td>
+                        <td><button type="button" class="pos-btn pos-btn-warning pos-product-remove-btn" onclick="App.osPlanning.removeProductDraftRow('${row.row_id}')"><i class="fas fa-trash"></i></button></td>
+                    </tr>
+                `).join('');
+                rows.forEach(row => {
+                    const select = body.querySelector(`select[onchange*="${row.row_id}"]`);
+                    if (select) select.value = row.produto_id || '';
+                });
+            },
+
+            saveOperationDraft() {
+                const els = App.elements.osPlanning;
+                const subgroup = els.operationModalSubgroup.value;
+                const operationId = els.operationModalOperation.value;
+                const serviceTypeId = els.operationModalServiceType.value;
+                const operation = (App.state.operacoes || []).find(o => String(o.id) === String(operationId));
+                const serviceType = (App.state.tipos_servico || []).find(t => String(t.id) === String(serviceTypeId));
+                if (!subgroup) return App.ui.showAlert('Selecione o subgrupo da operação.', 'warning');
+                if (!operation) return App.ui.showAlert('Selecione a operação.', 'warning');
+                if (!serviceType) return App.ui.showAlert('Selecione o tipo de serviço.', 'warning');
+                const produtos = (App.state.osPlanningOperationDraftProducts || []).filter(p => p.produto_id || p.produto_nome);
+                const payload = {
+                    id: App.state.osPlanningEditingOperationId || `op_${Date.now()}`,
+                    ordem: App.state.osPlanningEditingOperationId ? ((App.state.osPlanningOperations || []).find(o => o.id === App.state.osPlanningEditingOperationId)?.ordem || ((App.state.osPlanningOperations || []).length + 1)) : ((App.state.osPlanningOperations || []).length + 1),
+                    subgrupo_nome: subgroup,
+                    operacao_id: operation.id,
+                    operacao_nome: operation.nome,
+                    tipo_servico_id: serviceTypeId,
+                    tipo_servico_nome: serviceType.descricao || '',
+                    responsavel_matricula: els.operationModalResponsibleMatricula.value || '',
+                    responsavel_nome: els.operationModalResponsibleName.value || '',
+                    observacao_operacao: els.operationModalObservation.value || '',
+                    produtos,
+                };
+                if (App.state.osPlanningEditingOperationId) {
+                    App.state.osPlanningOperations = (App.state.osPlanningOperations || []).map(op => op.id === payload.id ? payload : op);
+                } else {
+                    App.state.osPlanningOperations = [...(App.state.osPlanningOperations || []), payload];
+                }
+                this.renderOperationsGrid();
+                this.closeOperationModal();
+            },
+
+            removeOperation(operationId) {
+                App.state.osPlanningOperations = (App.state.osPlanningOperations || []).filter(op => op.id !== operationId).map((op, idx) => ({ ...op, ordem: idx + 1 }));
+                this.renderOperationsGrid();
+            },
+
+            renderOperationsGrid() {
+                const body = App.elements.osPlanning.operationsBody;
+                const operations = App.state.osPlanningOperations || [];
+                if (!body) return;
+                const summaryCount = App.elements.osPlanning.operationsCount;
+                const summaryProducts = App.elements.osPlanning.operationProductsCount;
+                const summaryLead = App.elements.osPlanning.leadOperationLabel;
+                if (summaryCount) summaryCount.textContent = String(operations.length);
+                if (summaryProducts) summaryProducts.textContent = String(operations.reduce((sum, op) => sum + ((op.produtos || []).length), 0));
+                if (summaryLead) summaryLead.textContent = operations[0] ? `${operations[0].operacao_nome || '-'} • ${operations[0].tipo_servico_nome || '-'}` : 'Nenhuma operação adicionada';
+                this.syncHiddenDefaultsFromOperations();
+                if (!operations.length) {
+                    body.innerHTML = '<tr><td colspan="6" class="pos-operation-empty">Nenhuma operação adicionada. Clique em <strong>Adicionar Operação</strong> para começar.</td></tr>';
+                    return;
+                }
+                body.innerHTML = operations.map(op => {
+                    const produtosHtml = (op.produtos || []).length
+                        ? (op.produtos || []).map(p => `<div class="pos-product-tag"><strong>${p.produto_nome || '-'}</strong>${p.dose ? `<span class="pos-product-badge">${p.dose} ${p.unidade || ''}</span>` : ''}${p.quantidade ? `<span class="pos-product-badge">Qtd. ${p.quantidade}</span>` : ''}</div>`).join('')
+                        : '<span style="color:var(--color-text-light); font-weight:600;">Sem produtos cadastrados</span>';
+                    return `
+                        <tr>
+                            <td><strong>${op.ordem}</strong></td>
+                            <td><div class="pos-operation-name"><strong>${op.operacao_nome || '-'}</strong><span class="pos-operation-meta">${op.subgrupo_nome || '-'} • ${op.tipo_servico_nome || '-'}</span></div></td>
+                            <td><span class="pos-responsavel-chip"><i class="fas fa-user"></i>${op.responsavel_nome || op.responsavel_matricula || 'Sem responsável'}</span></td>
+                            <td><div class="pos-products-stack">${produtosHtml}</div></td>
+                            <td><div class="pos-op-observation">${op.observacao_operacao || 'Sem observação específica.'}</div></td>
+                            <td><div class="pos-op-actions"><button type="button" class="pos-btn pos-btn-secondary" onclick="App.osPlanning.openOperationModal('${op.id}')"><i class="fas fa-pen"></i></button><button type="button" class="pos-btn pos-btn-warning" onclick="App.osPlanning.removeOperation('${op.id}')"><i class="fas fa-trash"></i></button></div></td>
+                        </tr>
+                    `;
+                }).join('');
+            },
+
+            async refreshPlanningGrid() {
+                const farm = this.getCurrentFarm();
+                if (!farm) {
+                    App.state.osPlanningCurrentItems = [];
+                    this.renderGrid();
+                    return;
+                }
+                const selectedIds = [...App.state.osPlanningSelectedPlots];
+                const selectedTalhoes = (farm.talhoes || []).filter(t => selectedIds.includes(t.id));
+                const historyRows = await this.loadImportedHistoryForFarm(farm);
+                const firstPlannedOperation = (App.state.osPlanningOperations || [])[0] || null;
+                const operationId = firstPlannedOperation?.operacao_id || App.elements.osPlanning.operationSelect.value;
+                const operation = (App.state.operacoes || []).find(o => String(o.id) === String(operationId));
+                App.state.osPlanningCurrentItems = selectedTalhoes.map(t => this.buildPlanningItem(farm, t, operation, historyRows, firstPlannedOperation));
+                this.renderGrid();
+                this.updateSummary();
+            },
+
+            async loadImportedHistoryForFarm(farm) {
+                const els = App.elements.osPlanning;
+                els.historyStatus.textContent = 'Buscando histórico...';
+                try {
+                    const q = query(collection(db, 'registros'),
+                        where('companyId', '==', App.state.currentUser.companyId),
+                        where('tipo_registro', '==', 'os_apontamento_importado'),
+                        where('fazendaNome', '==', farm.name)
+                    );
+                    const snap = await getDocs(q);
+                    const rows = [];
+                    snap.forEach(docSnap => rows.push({ id: docSnap.id, ...docSnap.data() }));
+                    App.state.osPlanningImportedHistoryCache[farm.id] = rows;
+                    els.historyStatus.textContent = rows.length ? `${rows.length} apontamentos encontrados` : 'Sem histórico importado';
+                    return rows;
+                } catch (error) {
+                    console.warn('Falha ao carregar histórico importado', error);
+                    els.historyStatus.textContent = 'Falha ao ler histórico';
+                    return [];
+                }
+            },
+
+            buildPlanningItem(farm, talhao, operation, historyRows, firstPlannedOperation = null) {
+                const opName = operation?.nome || '';
+                const subgroup = firstPlannedOperation?.subgrupo_nome || App.elements.osPlanning.subgroupSelect.value;
+                const matches = historyRows.filter(row => {
+                    const sameTalhao = String(row.talhao || '').trim().toUpperCase() === String(talhao.name || '').trim().toUpperCase();
+                    if (!sameTalhao) return false;
+                    if (opName && row.operacao && !App.osEscritorio.fuzzyMatch(row.operacao, opName, 0.7)) return false;
+                    if (subgroup && row.operacao && !String(row.operacao).toLowerCase().includes(String(subgroup).toLowerCase())) {
+                        return opName ? false : true;
+                    }
+                    return true;
+                }).sort((a,b) => String(b.data || '').localeCompare(String(a.data || '')));
+                const latest = matches[0] || null;
+                const currentSeq = latest ? this.extractSequence(latest.operacao || latest.produto || '') : null;
+                const nextSeq = currentSeq ? currentSeq + 1 : 1;
+                const program = App.elements.osPlanning.programInput.value || subgroup || (operation?.grupo || 'Programa');
+                const latestName = latest?.operacao || latest?.produto || 'Não identificado';
+                const trusted = Boolean(latest);
+                return {
+                    talhao_id: talhao.id,
+                    talhao_nome: talhao.name,
+                    area_ha: Number(talhao.area) || 0,
+                    ultima_aplicacao_nome: latestName,
+                    ultima_aplicacao_data: latest?.data || '',
+                    ultima_sequencia_identificada: currentSeq,
+                    proxima_sequencia: nextSeq,
+                    proxima_aplicacao_nome: `${nextSeq}ª ${program}`,
+                    data_planejada: App.elements.osPlanning.dateInput.value || new Date().toISOString().split('T')[0],
+                    status_item: trusted ? (currentSeq ? 'PRONTO_PARA_OS' : 'PLANEJADO') : 'REVISAR',
+                    observacao_item: trusted ? 'Histórico encontrado no Motor Universal' : 'Sem histórico confiável importado',
+                    apontamento_base_id: latest?.id || '',
+                    trusted,
+                };
+            },
+
+            extractSequence(text) {
+                if (!text) return null;
+                const match = String(text).match(/(\d+)\s*[ªa]?/i);
+                return match ? parseInt(match[1], 10) : null;
+            },
+
+            renderGrid() {
+                const body = App.elements.osPlanning.gridBody;
+                const items = App.state.osPlanningCurrentItems || [];
+                if (!items.length) {
+                    body.innerHTML = '<tr><td colspan="10" style="text-align:center; color:var(--color-text-light); padding:24px;">Selecione talhões para montar o planejamento.</td></tr>';
+                    return;
+                }
+                body.innerHTML = items.map(item => {
+                    const statusClass = item.status_item === 'PRONTO_PARA_OS' ? 'ok' : (item.status_item === 'REVISAR' ? 'warn' : 'info');
+                    const statusLabel = item.status_item === 'PRONTO_PARA_OS' ? 'Pronto para O.S.' : (item.status_item === 'REVISAR' ? 'Revisar' : 'Planejado');
+                    return `<tr><td><strong>${item.talhao_nome}</strong></td><td>${item.area_ha.toFixed(1)} ha</td><td>${item.ultima_aplicacao_nome || '-'}</td><td>${item.ultima_aplicacao_data || '-'}</td><td>${item.ultima_sequencia_identificada ?? '-'}</td><td>${item.proxima_sequencia}</td><td>${item.proxima_aplicacao_nome}</td><td>${item.data_planejada}</td><td><span class="pos-status ${statusClass}">${statusLabel}</span></td><td>${item.observacao_item}</td></tr>`;
+                }).join('');
+            },
+
+            updateSummary() {
+                const items = App.state.osPlanningCurrentItems || [];
+                const selectedCount = items.length;
+                const totalArea = items.reduce((sum, item) => sum + (Number(item.area_ha) || 0), 0);
+                const ready = items.filter(item => item.status_item === 'PRONTO_PARA_OS').length;
+                const trusted = items.filter(item => item.trusted).length;
+                const formatArea = `${totalArea.toFixed(1).replace('.', ',')}`;
+                App.elements.osPlanning.selectedCount.textContent = `${selectedCount} selecionados`;
+                App.elements.osPlanning.selectedArea.textContent = `${formatArea} ha`;
+                App.elements.osPlanning.summarySelected.textContent = String(selectedCount);
+                App.elements.osPlanning.summaryArea.textContent = formatArea;
+                App.elements.osPlanning.summaryReady.textContent = String(ready);
+                App.elements.osPlanning.summaryTrusted.textContent = String(trusted);
+            },
+
+            buildPlanningPayload(status) {
+                const farm = this.getCurrentFarm();
+                if (!farm) throw new Error('Selecione uma fazenda.');
+                if (!(App.state.osPlanningCurrentItems || []).length) throw new Error('Selecione ao menos um talhão.');
+                const operationId = App.elements.osPlanning.operationSelect.value;
+                const operation = (App.state.operacoes || []).find(o => String(o.id) === String(operationId));
+                const serviceTypeId = App.elements.osPlanning.serviceTypeSelect.value;
+                const serviceType = (App.state.tipos_servico || []).find(t => String(t.id) === String(serviceTypeId));
+                const operacoesPlanejamento = (App.state.osPlanningOperations || []).length
+                    ? App.state.osPlanningOperations
+                    : (operation ? [{
+                        id: `op_${Date.now()}`,
+                        ordem: 1,
+                        subgrupo_nome: App.elements.osPlanning.subgroupSelect.value || '',
+                        operacao_id: operation.id,
+                        operacao_nome: operation.nome,
+                        tipo_servico_id: serviceTypeId,
+                        tipo_servico_nome: serviceType?.descricao || '',
+                        responsavel_matricula: App.elements.osPlanning.responsibleMatricula.value || '',
+                        responsavel_nome: App.elements.osPlanning.responsibleName.value || '',
+                        observacao_operacao: '',
+                        produtos: []
+                    }] : []);
+                if (!operacoesPlanejamento.length) throw new Error('Adicione ao menos uma operação ao planejamento.');
+                const firstOperation = operacoesPlanejamento[0] || {};
+                return sanitizeFirestoreData({
+                    tipo_registro: 'os_planejamento',
+                    companyId: App.state.currentUser.companyId,
+                    empresa_nome: App.elements.osPlanning.companyName.value,
+                    fazenda_id: farm.id,
+                    fazenda_nome: farm.name,
+                    subgrupo_nome: firstOperation.subgrupo_nome || '',
+                    operacao_id: operation?.id || '',
+                    operacao_nome: operation?.nome || firstOperation.operacao_nome || '',
+                    tipo_servico_id: serviceTypeId,
+                    tipo_servico_nome: serviceType?.descricao || firstOperation.tipo_servico_nome || '',
+                    programa_nome: App.elements.osPlanning.programInput.value || '',
+                    operacoes_planejamento: operacoesPlanejamento,
+                    data_planejada: App.elements.osPlanning.dateInput.value || '',
+                    responsavel_matricula: firstOperation.responsavel_matricula || '',
+                    responsavel_nome: firstOperation.responsavel_nome || '',
+                    observacoes: App.elements.osPlanning.notes.value || '',
+                    status,
+                    modo_fechamento: App.elements.osPlanning.modeSelect.value,
+                    area_total_ha: App.state.osPlanningCurrentItems.reduce((sum, item) => sum + (Number(item.area_ha) || 0), 0),
+                    qtde_talhoes: App.state.osPlanningCurrentItems.length,
+                    itens: App.state.osPlanningCurrentItems,
+                    created_at: new Date().toISOString(),
+                    created_by: App.state.currentUser.username || App.state.currentUser.email || 'Usuário',
+                });
+            },
+
+            async savePlanning(status) {
+                try {
+                    const payload = this.buildPlanningPayload(status);
+                    if (App.state.osPlanningEditingId) {
+                        payload.updated_at = new Date().toISOString();
+                        await App.data.updateDocument('registros', App.state.osPlanningEditingId, payload);
+                    } else {
+                        await App.data.addDocument('registros', payload);
+                    }
+                    this.showActionToast(status === 'RASCUNHO' ? 'Rascunho salvo com sucesso.' : (status === 'PLANEJADO' ? 'Planejamento salvo com status PLANEJADO.' : 'Planejamento salvo e marcado como PRONTO_PARA_OS.'));
+                    await this.loadSavedPlans();
+                    this.populateSavedFarmFilter();
+                    this.populateSavedPanelFarmFilter();
+                    this.renderAuxPanels();
+                    this.resetPlanningForm();
+                } catch (error) {
+                    console.error(error);
+                    App.ui.showAlert(error.message || 'Falha ao salvar planejamento.', 'error');
+                }
+            },
+
+            async loadSavedPlans() {
+                try {
+                    const q = query(collection(db, 'registros'),
+                        where('companyId', '==', App.state.currentUser.companyId),
+                        where('tipo_registro', '==', 'os_planejamento')
+                    );
+                    const snap = await getDocs(q);
+                    const plans = [];
+                    snap.forEach(docSnap => plans.push({ id: docSnap.id, ...docSnap.data() }));
+                    App.state.osPlanningLoadedPlans = plans.sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+                } catch (error) {
+                    console.warn('Falha ao carregar planejamentos salvos', error);
+                    App.state.osPlanningLoadedPlans = [];
+                }
+            },
+
+            async openLatestSavedPlan() {
+                const latest = (App.state.osPlanningLoadedPlans || [])[0];
+                if (!latest) {
+                    App.ui.showAlert('Nenhum planejamento salvo encontrado.', 'warning');
+                    return;
+                }
+                App.elements.osPlanning.farmSelect.value = latest.fazenda_id || '';
+                this.populateSubgroups();
+                App.elements.osPlanning.programInput.value = latest.programa_nome || '';
+                App.elements.osPlanning.dateInput.value = latest.data_planejada || '';
+                App.elements.osPlanning.notes.value = latest.observacoes || '';
+                App.state.osPlanningSelectedPlots = new Set((latest.itens || []).map(item => item.talhao_id));
+                App.state.osPlanningOperations = JSON.parse(JSON.stringify(latest.operacoes_planejamento || []));
+                this.renderOperationsGrid();
+                this.handleFarmChange();
+                await this.refreshPlanningGrid();
+                App.ui.showAlert('Último planejamento carregado.', 'success');
+            },
+
+            async generateOSNow() {
+                try {
+                    const payload = this.buildPlanningPayload('OS_GERADA');
+                    const farm = this.getCurrentFarm();
+                    const operation = (App.state.operacoes || []).find(o => String(o.id) === String(payload.operacao_id));
+                    const serviceType = (App.state.tipos_servico || []).find(t => String(t.id) === String(payload.tipo_servico_id));
+                    const operationsPayload = (payload.operacoes_planejamento || []).map(op => ({
+                        operacao_id: op.operacao_id || '',
+                        operacao_nome: op.operacao_nome || '',
+                        tipo_servico_id: op.tipo_servico_id || '',
+                        tipo_servico_nome: op.tipo_servico_nome || '',
+                        subgrupo_nome: op.subgrupo_nome || '',
+                        produtos: (op.produtos || []).map(prod => ({
+                            produto_id: prod.produto_id || '',
+                            produto_nome: prod.produto_nome || '',
+                            dose: prod.dose || '',
+                            unidade: prod.unidade || '',
+                            quantidade: prod.quantidade || '',
+                            observacao_produto: prod.observacao_produto || ''
+                        }))
+                    }));
+                    const plots = payload.itens.map(item => ({
+                        talhao_id: item.talhao_nome,
+                        talhao_nome: item.talhao_nome,
+                        variedade: farm.talhoes.find(t => t.id === item.talhao_id)?.variedade || '',
+                        area_ha: item.area_ha,
+                    }));
+                    const nextOsNumber = await App.osManual.getNextOsNumber();
+                    const osData = sanitizeFirestoreData({
+                        os_numero: nextOsNumber,
+                        data: new Date().toISOString().split('T')[0],
+                        safra: App.state.globalConfigs?.safra || '24/25',
+                        ciclo: App.state.globalConfigs?.ciclo || '1',
+                        fazenda_id: farm.id,
+                        fazenda_nome: farm.name,
+                        responsavel_matricula: payload.responsavel_matricula,
+                        responsavel_nome: payload.responsavel_nome,
+                        usuario_abertura_id: App.state.currentUser.uid,
+                        usuario_abertura_nome: App.state.currentUser.username || App.state.currentUser.email,
+                        companyId: App.state.currentUser.companyId,
+                        tipo_servico_id: payload.tipo_servico_id,
+                        tipo_servico_desc: serviceType?.descricao || '',
+                        operacao_id: operation?.id || '',
+                        operacao_nome: operation?.nome || '',
+                        operacoes_multiplas: operationsPayload,
+                        status: 'PLANEJADA',
+                        total_area_ha: payload.area_total_ha,
+                        observacoes: payload.observacoes,
+                        itens: plots,
+                        produtos: operationsPayload.flatMap(op => op.produtos || []),
+                        selectedPlots: plots.map(p => p.talhao_nome),
+                        origem_os: 'PLANEJAMENTO',
+                        planejamento_snapshot: payload,
+                        created_at: new Date().toISOString(),
+                    });
+                    await App.data.addDocument('ordens_servico', osData);
+                    await App.data.addDocument('registros', payload);
+                    this.resetPlanningForm();
+                    App.ui.showAlert('O.S. gerada a partir do planejamento com sucesso.', 'success');
+                    App.ui.showTab('ordemServicoEscritorio');
+                } catch (error) {
+                    console.error(error);
+                    App.ui.showAlert(error.message || 'Falha ao gerar O.S.', 'error');
+                }
+            },
+        },
+
         osManual: {
             init() {
                 this.populateFarmSelect();
@@ -15921,11 +18595,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (typeSelect) {
                     typeSelect.innerHTML = '<option value="">Selecione...</option>' +
-                        (App.state.tipos_servico || []).filter(x => x.ativo).map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
+                        (App.state.tipos_servico || []).filter(x => x.ativo !== false).map(t => `<option value="${t.id}">${t.descricao}</option>`).join('');
                 }
 
                 if (modalGroupSelect) {
-                    const operacoes = (App.state.operacoes || []).filter(x => x.ativo);
+                    const operacoes = (App.state.operacoes || []).filter(x => x.ativo !== false);
                     const groups = [...new Set(operacoes.map(o => (o.grupo || '').trim()).filter(g => g !== ''))].sort();
 
                     modalGroupSelect.innerHTML = '<option value="">1. Todos os grupos...</option>' +
@@ -15967,7 +18641,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const selectedGroup = groupSelect ? groupSelect.value : '';
                 const filterText = filterInput ? filterInput.value.toLowerCase() : '';
 
-                let operacoes = (App.state.operacoes || []).filter(x => x.ativo);
+                let operacoes = (App.state.operacoes || []).filter(x => x.ativo !== false);
 
                 if (selectedGroup) {
                     operacoes = operacoes.filter(o => (o.grupo || '').trim() === selectedGroup);
@@ -20114,6 +22788,28 @@ document.addEventListener('DOMContentLoaded', () => {
                          });
                     }
 
+                    // 1.5 Persist normalized imported rows for planning history
+                    for (const row of parsedData) {
+                        try {
+                            await setDoc(doc(db, 'registros', `osimp_${row.hash}`), sanitizeFirestoreData({
+                                tipo_registro: 'os_apontamento_importado',
+                                companyId: App.state.currentUser.companyId,
+                                hash: row.hash,
+                                data: row.data || '',
+                                fazendaNome: row.fazendaNome || '',
+                                talhao: row.talhao || '',
+                                operacao: row.operacao || '',
+                                produto: row.produto || '',
+                                areaAplic: row.areaAplic || 0,
+                                dosagemAplic: row.dosagemAplic || 0,
+                                raw: row.raw || '',
+                                updated_at: new Date().toISOString()
+                            }), { merge: true });
+                        } catch (persistErr) {
+                            console.warn('Falha ao persistir apontamento importado normalizado', persistErr);
+                        }
+                    }
+
                     // 2. Save Processed Hashes to Cloud ('registros' collection with flag)
                     if (processedHashesInThisSession.length > 0) {
                         const historyDocId = `import_${Date.now()}`;
@@ -21016,3 +23712,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     window.App = App; // Expor para testes e depuração
 });
+
+
+window.openOSPlanningOperationModal = function(editId = null) {
+    if (window.App && App.osPlanning && typeof App.osPlanning.openOperationModal === 'function') {
+        return App.osPlanning.openOperationModal(editId);
+    }
+    console.warn('openOperationModal indisponível');
+};
