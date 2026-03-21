@@ -30,8 +30,29 @@ const getFleetData = async (db, filters) => {
         data = data.filter(item => (item.motorista || '').toLowerCase().includes(term));
     }
 
-    // Sort by Date Descending
-    return data.sort((a, b) => new Date(b.dataSaida) - new Date(a.dataSaida));
+    const toTimestamp = (value) => {
+        if (!value) return 0;
+        if (value instanceof Date) return value.getTime();
+        if (typeof value === 'string') return new Date(value).getTime() || 0;
+        if (typeof value.toDate === 'function') return value.toDate().getTime();
+        if (typeof value.seconds === 'number') {
+            return value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1e6);
+        }
+        return 0;
+    };
+
+    // Sort by Date Ascending with deterministic tiebreakers
+    return data.sort((a, b) => {
+        const saidaA = toTimestamp(a.dataSaida);
+        const saidaB = toTimestamp(b.dataSaida);
+        if (saidaA !== saidaB) return saidaA - saidaB;
+
+        const createdA = toTimestamp(a.createdAt ?? a.localCreatedAt);
+        const createdB = toTimestamp(b.createdAt ?? b.localCreatedAt);
+        if (createdA !== createdB) return createdA - createdB;
+
+        return String(a.id || '').localeCompare(String(b.id || ''));
+    });
 };
 
 const generateFleetPdf = async (req, res, db) => {
